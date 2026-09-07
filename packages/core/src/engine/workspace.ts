@@ -667,7 +667,10 @@ export async function devWorkspace(
           } else {
             lastContentRebuildAt = Date.now();
           }
-          broadcastReload();
+          const { wasWrittenByRpc } = await import('@docmd/api');
+          if (!wasWrittenByRpc(fullChangedPath)) {
+            broadcastReload();
+          }
           TUI.step(`Rebuilt [${label}] ${isConfigUpdate ? 'with new config' : displayPath} in ${rebuildElapsed()}`, 'DONE', TUI.blue, true);
         } catch (err: any) {
           TUI.step(`Rebuild [${label}] ${displayPath}`, 'FAIL', TUI.blue, true);

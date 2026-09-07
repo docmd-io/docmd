@@ -1160,8 +1160,8 @@ blockquote.docmd-embed {
 .project-switcher-menu {
     position: absolute;
     top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%) translateY(-5px);
+    left: 0;
+    transform: translateY(-4px);
     min-width: max-content;
     max-width: calc(var(--sidebar-width, 260px) - 1.5rem);
     margin: 0;
@@ -1174,7 +1174,7 @@ blockquote.docmd-embed {
     z-index: 1300;
     opacity: 0;
     visibility: hidden;
-    transition: all 0.2s ease;
+    transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .docmd-version-dropdown.open .version-dropdown-menu,
@@ -1182,7 +1182,7 @@ blockquote.docmd-embed {
 .docmd-project-switcher.open .project-switcher-menu {
     opacity: 1;
     visibility: visible;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
 }
 
 .version-dropdown-item,
@@ -1231,14 +1231,16 @@ blockquote.docmd-embed {
 }
 
 .version-chevron,
-.language-chevron {
+.language-chevron,
+.project-chevron {
     width: 0.75rem;
     height: 0.75rem;
     transition: transform 0.2s ease;
 }
 
 .docmd-version-dropdown.open .version-chevron,
-.docmd-language-switcher.open .language-chevron {
+.docmd-language-switcher.open .language-chevron,
+.docmd-project-switcher.open .project-chevron {
     transform: rotate(180deg);
 }
 
@@ -1247,13 +1249,14 @@ blockquote.docmd-embed {
 .sidebar-bottom-group .project-switcher-menu {
     top: auto;
     bottom: calc(100% + 4px);
-    transform: translateX(-50%) translateY(5px);
+    left: 0;
+    transform: translateY(4px);
 }
 
 .sidebar-bottom-group .docmd-version-dropdown.open .version-dropdown-menu,
 .sidebar-bottom-group .docmd-language-switcher.open .language-switcher-menu,
 .sidebar-bottom-group .docmd-project-switcher.open .project-switcher-menu {
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
 }
 
 .sidebar-bottom-group .version-dropdown-toggle .version-chevron,
@@ -3632,20 +3635,27 @@ ul.contains-task-list>li::marker {
     height: 1.1rem;
 }
 
-.project-compact .project-switcher-menu {
-    min-width: 180px;
-    left: auto;
-    right: 0;
-    transform: translateY(-5px);
-}
-
-.project-compact.open .project-switcher-menu {
-    transform: translateY(0);
-}
-
 .options-menu-project-switcher {
     position: relative;
     display: inline-flex;
+}
+
+.project-compact .project-switcher-menu,
+.options-menu-project-switcher .project-switcher-menu,
+.header-right .project-switcher-menu {
+    min-width: 180px;
+    left: auto !important;
+    right: 0 !important;
+    transform: translateY(-4px) !important;
+}
+
+.project-compact.open .project-switcher-menu,
+.docmd-project-switcher.project-compact.open .project-switcher-menu,
+.options-menu-project-switcher .docmd-project-switcher.open .project-switcher-menu,
+.header-right .docmd-project-switcher.open .project-switcher-menu {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
 }
 
 @media (min-width: 769px) {

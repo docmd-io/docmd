@@ -22,7 +22,7 @@ import { TUI } from '@docmd/api';
 import { buildSite } from './build.js';
 import { loadConfig } from '../utils/config-loader.js';
 import { createRequire } from 'module';
-import { createActionDispatcher, loadPlugins, hooks } from '@docmd/api';
+import { createActionDispatcher, loadPlugins, hooks, wasWrittenByRpc } from '@docmd/api';
 import {
   formatPathForDisplay, getNetworkIp, serveStatic, findAvailablePort, openBrowser,
 } from '../utils/dev-utils.js';
@@ -309,7 +309,9 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
               });
               lastContentRebuildAt = Date.now();
               sp.done(`Rebuilt: ${relativeFilePath} in ${rebuildElapsed()}`, true);
-              broadcastReload();
+              if (!wasWrittenByRpc(filePath)) {
+                broadcastReload();
+              }
             } catch (error: any) {
               sp.fail(`Rebuild: ${relativeFilePath}`, true);
               TUI.error('Rebuild failed', error.message);

@@ -7,32 +7,32 @@ export function injectComponentStyles(): void {
     /* ========= Design tokens ========= */
     :root {
       --tc-bg: var(--summer-surface, var(--bg-color, hsl(0 0% 100%)));
-      --tc-fg: var(--summer-text, var(--text-color, hsl(0 0% 9%)));
+      --tc-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 9%))));
       --tc-muted: var(--summer-surface-3, var(--sidebar-bg, hsl(0 0% 96.1%)));
-      --tc-muted-fg: var(--summer-text-muted, var(--text-muted, hsl(0 0% 45.1%)));
+      --tc-muted-fg: var(--summer-fg-muted, var(--summer-text-muted, var(--text-muted, hsl(0 0% 45.1%))));
       --tc-border: var(--summer-border, var(--border-color, hsl(0 0% 89.8%)));
       --tc-input: var(--summer-border, var(--border-color, hsl(0 0% 89.8%)));
-      --tc-ring: var(--summer-accent, var(--text-color, hsl(0 0% 9%)));
+      --tc-ring: var(--summer-accent, var(--link-color, var(--primary-color, hsl(210 100% 55%))));
       --tc-accent: var(--summer-surface-2, var(--sidebar-bg, hsl(0 0% 96.1%)));
-      --tc-accent-fg: var(--summer-text, var(--text-color, hsl(0 0% 9%)));
+      --tc-accent-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 9%))));
       --tc-card: var(--summer-surface, var(--bg-color, hsl(0 0% 100%)));
-      --tc-card-fg: var(--summer-text, var(--text-color, hsl(0 0% 9%)));
-      --tc-radius: 8px;
+      --tc-card-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 9%))));
+      --tc-radius: var(--summer-radius-lg, var(--radius-md, 8px));
       --tc-font: var(--summer-font-sans, var(--font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif));
     }
 
-    [data-theme="dark"], html.dark, body.dark {
+    [data-theme="dark"], html.dark, body.dark, :root[data-theme="dark"] {
       --tc-bg: var(--summer-surface, var(--bg-color, hsl(0 0% 12%)));
-      --tc-fg: var(--summer-text, var(--text-color, hsl(0 0% 95%)));
+      --tc-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 95%))));
       --tc-muted: var(--summer-surface-3, var(--sidebar-bg, hsl(0 0% 18%)));
-      --tc-muted-fg: var(--summer-text-muted, var(--text-muted, hsl(0 0% 65%)));
+      --tc-muted-fg: var(--summer-fg-muted, var(--summer-text-muted, var(--text-muted, hsl(0 0% 65%))));
       --tc-border: var(--summer-border, var(--border-color, hsl(0 0% 24%)));
       --tc-input: var(--summer-border, var(--border-color, hsl(0 0% 24%)));
-      --tc-ring: var(--summer-accent, var(--text-color, hsl(0 0% 95%)));
+      --tc-ring: var(--summer-accent, var(--link-color, var(--primary-color, hsl(210 100% 65%))));
       --tc-accent: var(--summer-surface-2, var(--sidebar-bg, hsl(0 0% 20%)));
-      --tc-accent-fg: var(--summer-text, var(--text-color, hsl(0 0% 95%)));
+      --tc-accent-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 95%))));
       --tc-card: var(--summer-surface, var(--bg-color, hsl(0 0% 14%)));
-      --tc-card-fg: var(--summer-text, var(--text-color, hsl(0 0% 95%)));
+      --tc-card-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 95%))));
     }
 
     /* ========= Highlight colors (cycling palette) ========= */
@@ -429,31 +429,91 @@ export function injectComponentStyles(): void {
       text-transform: uppercase;
     }
 
-    /* ========= Server-rendered thread card ========= */
+    /* ========= Thread card ========= */
     .threads-thread {
-      margin: 12px 0;
+      margin: 14px 0;
       border: 1px solid var(--tc-border);
       border-left: 3px solid var(--tc-ring);
-      border-radius: var(--tc-radius);
+      border-radius: var(--tc-radius, 10px);
       background: var(--tc-card);
       overflow: hidden;
       font-family: var(--tc-font);
-      transition: box-shadow 0.15s;
+      box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.06), 0 1px 4px -1px rgba(0, 0, 0, 0.04);
+      transition: all 0.18s ease;
     }
     .threads-thread:hover {
-      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08);
+      box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
+    }
+    .threads-thread--inline {
+      margin: 16px 0 20px;
+      max-width: 680px;
+    }
+    body.tc-panel-open .threads-thread--inline {
+      display: none !important;
     }
     .threads-thread--resolved {
-      opacity: 0.55;
+      opacity: 0.6;
     }
 
-    /* ========= Server-rendered comment ========= */
+    /* Anchor Quote Badge */
+    .threads-thread__quote-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      background: var(--tc-muted);
+      border-bottom: 1px solid var(--tc-border);
+      font-size: 12px;
+      color: var(--tc-muted-fg);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .threads-thread__quote-badge:hover {
+      background: color-mix(in srgb, var(--tc-muted) 80%, var(--tc-border));
+    }
+    .threads-thread__quote-text {
+      font-weight: 500;
+      color: var(--tc-fg);
+      font-style: italic;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .threads-thread__open-panel-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--tc-ring);
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .threads-thread__open-panel-btn:hover {
+      background: var(--tc-border);
+    }
+
+    /* ========= Comment item ========= */
     .threads-comment {
       display: grid;
-      grid-template-columns: 35px 1fr;
-      grid-template-rows: 28px auto auto;
-      padding: 10px;
-      font-size: 14px;
+      grid-template-columns: 32px 1fr;
+      grid-template-rows: auto auto auto;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      column-gap: 10px;
+      row-gap: 4px;
+    }
+    .threads-comment--reply {
+      padding-top: 8px;
+      padding-bottom: 8px;
     }
     @media (max-width: 768px) {
       .threads-comment {
@@ -461,17 +521,14 @@ export function injectComponentStyles(): void {
       }
     }
 
-    /** .threads-comment + .threads-comment {
-       border-top: 1px solid var(--tc-border);
-    } */
-
-    /* Avatar column - row 1; vertical line spans rows 2-3 */
+    /* Avatar column */
     .threads-comment__avatar-col {
       grid-column: 1;
-      grid-row: 1;
+      grid-row: 1 / 3;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      padding-top: 2px;
     }
     .threads-comment__avatar {
       width: 28px;
@@ -479,6 +536,7 @@ export function injectComponentStyles(): void {
       border-radius: 50%;
       object-fit: cover;
       margin: 0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .threads-comment__meta {
@@ -488,32 +546,64 @@ export function injectComponentStyles(): void {
       align-items: center;
       font-size: 12px;
       color: var(--tc-muted-fg);
-      gap: 5px;
+      gap: 6px;
     }
     .threads-comment__meta strong {
       color: var(--tc-fg);
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .threads-comment__actions {
       display: flex;
       align-items: center;
-      gap: 2px;
+      gap: 4px;
       margin-left: auto;
       flex-shrink: 0;
+    }
+    .threads-comment__actions button {
+      background: none;
+      border: 1px solid transparent;
+      cursor: pointer;
+      color: var(--tc-muted-fg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11.5px;
+      transition: all 0.15s;
+    }
+    .threads-comment__actions button:hover {
+      color: var(--tc-fg);
+      background: var(--tc-muted);
+      border-color: var(--tc-border);
+    }
+    .threads-comment__actions .threads-delete-btn:hover {
+      color: hsl(0 75% 55%);
+      background: hsl(0 75% 55% / 0.08);
+      border-color: hsl(0 75% 55% / 0.2);
     }
 
     .threads-comment__body {
       grid-column: 2;
       grid-row: 2;
       color: var(--tc-fg);
-      line-height: 1.6;
+      line-height: 1.55;
+      font-size: 13.5px;
     }
-    .threads-comment__body > :first-child {
-      margin-top: 0;
+    .threads-comment__body p {
+      margin: 0 0 6px 0;
     }
-    .threads-comment__body > :last-child {
+    .threads-comment__body p:last-child {
       margin-bottom: 0;
+    }
+
+    .threads-replies {
+      grid-column: 1 / -1;
+      border-left: 2px solid var(--tc-border);
+      margin-left: 14px;
+      padding-left: 4px;
+      margin-top: 4px;
     }
 
     /* ========= Collapsed thread ========= */
@@ -545,8 +635,45 @@ export function injectComponentStyles(): void {
     .threads-thread__footer {
       display: flex;
       align-items: center;
-      padding: 6px 14px 8px;
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--tc-card) 95%, var(--tc-muted));
       border-top: 1px solid var(--tc-border);
+      gap: 8px;
+    }
+    .threads-new-comment-btn {
+      background: var(--tc-muted);
+      border: 1px solid var(--tc-border);
+      color: var(--tc-fg);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .threads-new-comment-btn:hover {
+      background: var(--tc-border);
+      border-color: var(--tc-ring);
+    }
+    .threads-resolve-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+      transition: all 0.15s;
+    }
+    .threads-resolve-btn:hover {
+      background: var(--tc-muted);
     }
     .threads-new-comment-btn {
       display: inline-flex;
@@ -940,52 +1067,118 @@ export function injectComponentStyles(): void {
     body.tc-sidebar-active .threads-sidebar { display: none !important; }
     body.tc-sidebar-active .tc-has-sidebar { padding-right: 40px; }
 
-    /* ========= Floating threads toggle ========= */
+    /* ========= Floating threads toggle / right-docked slide tab ========= */
     .threads-fab {
       position: fixed;
-      bottom: 24px;
-      right: 24px;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
       z-index: 2100;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
+      width: 40px;
+      height: 48px;
+      border-radius: 10px 0 0 10px;
       border: 1px solid var(--tc-border);
+      border-right: none;
       background: var(--tc-card);
       color: var(--tc-muted-fg);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px rgb(0 0 0 / 0.12), 0 1px 3px rgb(0 0 0 / 0.08);
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.1), -1px 1px 4px rgba(0, 0, 0, 0.06);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      padding-left: 3px;
     }
     .threads-fab:hover {
       color: var(--tc-fg);
       border-color: var(--tc-ring);
-      transform: scale(1.08) translateY(-2px);
-      box-shadow: 0 8px 24px rgb(0 0 0 / 0.18), 0 2px 6px rgb(0 0 0 / 0.1);
+      width: 46px;
+      box-shadow: -6px 6px 22px rgba(0, 0, 0, 0.16), -2px 2px 6px rgba(0, 0, 0, 0.08);
     }
-    .docmd-ai-trigger-pill.position-right ~ .threads-fab,
-    body:has(.docmd-ai-trigger-pill.position-right) .threads-fab,
-    body:has(#docmd-ai-plugin-root.pos-bottom-right .docmd-ai-bar-wrap:not(.hidden)) .threads-fab,
-    body:has(#docmd-ai-bar-wrap:not(.hidden)) .threads-fab {
-      bottom: 80px;
+    body.tc-panel-open .threads-fab {
+      right: 380px;
+      border-radius: 10px 0 0 10px;
     }
     .threads-fab__badge {
       position: absolute;
-      top: -4px;
-      right: -4px;
+      top: -6px;
+      left: -6px;
       min-width: 18px;
       height: 18px;
       padding: 0 5px;
       border-radius: 999px;
-      background: hsl(210 100% 55%);
+      background: var(--tc-ring);
       color: #fff;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       line-height: 18px;
       text-align: center;
       font-family: var(--tc-font);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Template-specific styling touches */
+    body:has(.summer-layout) .threads-thread,
+    body.summer-template .threads-thread {
+      border-radius: var(--summer-radius, 14px);
+      border-color: var(--summer-border);
+      background: var(--summer-surface);
+    }
+    body:has(.summer-layout) .threads-thread__quote-badge,
+    body.summer-template .threads-thread__quote-badge {
+      background: var(--summer-surface-2);
+      border-color: var(--summer-border);
+    }
+    body:has(.summer-layout) .threads-new-thread-btn,
+    body.summer-template .threads-new-thread-btn {
+      border-radius: 999px;
+      font-family: var(--summer-font-sans, inherit);
+    }
+    body:has(.summer-layout) .threads-new-thread-btn:hover,
+    body.summer-template .threads-new-thread-btn:hover {
+      border-color: var(--summer-accent);
+      color: var(--summer-accent);
+      background: color-mix(in srgb, var(--summer-accent) 8%, transparent);
+    }
+    body:has(.summer-layout) .threads-comment-reply-btn:hover,
+    body.summer-template .threads-comment-reply-btn:hover {
+      color: var(--summer-accent);
+    }
+    body:has(.summer-layout) .threads-fab,
+    body.summer-template .threads-fab {
+      border-color: var(--summer-border);
+      background: var(--summer-surface);
+      color: var(--summer-fg-muted);
+    }
+    body:has(.summer-layout) .threads-fab:hover,
+    body.summer-template .threads-fab:hover {
+      border-color: var(--summer-accent);
+      color: var(--summer-accent);
+      background: var(--summer-surface-2);
+    }
+    body:has(.summer-layout) .threads-fab__badge,
+    body.summer-template .threads-fab__badge {
+      background: var(--summer-accent);
+      color: #000;
+    }
+    body:has(.summer-layout) .tc-panel__title,
+    body.summer-template .tc-panel__title {
+      font-family: var(--summer-font-sans, inherit);
+    }
+
+    /* Default template styles */
+    body:not(:has(.summer-layout)):not(.summer-template) .threads-fab {
+      border-color: var(--border-color, hsl(0 0% 88%));
+      background: var(--sidebar-bg, var(--bg-color, #fff));
+      color: var(--text-muted, hsl(0 0% 45%));
+    }
+    body:not(:has(.summer-layout)):not(.summer-template) .threads-fab:hover {
+      border-color: var(--link-color, var(--primary-color, hsl(215 85% 50%)));
+      color: var(--link-color, var(--primary-color, hsl(215 85% 50%)));
+    }
+    body:not(:has(.summer-layout)):not(.summer-template) .threads-fab__badge {
+      background: var(--link-color, var(--primary-color, hsl(215 85% 50%)));
+      color: #fff;
     }
   `;
   document.head.appendChild(style);

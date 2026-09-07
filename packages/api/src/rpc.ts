@@ -44,6 +44,31 @@ interface DispatcherOptions {
   broadcast: (event: string, data: any) => void;
 }
 
+const rpcWrittenFiles = new Map<string, number>();
+
+/**
+ * Record that a file was modified internally by an RPC action.
+ * dev server file watchers can check this to avoid triggering full page reloads.
+ */
+export function markFileWrittenByRpc(filePath: string): void {
+  const normalized = path.resolve(filePath);
+  rpcWrittenFiles.set(normalized, Date.now());
+}
+
+/**
+ * Check whether a file was modified by an RPC action recently (within 4 seconds).
+ */
+export function wasWrittenByRpc(filePath: string): boolean {
+  const normalized = path.resolve(filePath);
+  const timestamp = rpcWrittenFiles.get(normalized);
+  if (!timestamp) return false;
+  if (Date.now() - timestamp > 4000) {
+    rpcWrittenFiles.delete(normalized);
+    return false;
+  }
+  return true;
+}
+
 /**
  * Create an action dispatcher bound to the given hooks and project context.
  *
@@ -94,6 +119,7 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
         async writeFile(relativePath: string, content: string): Promise<void> {
           const resolved = resolveProjectFile(relativePath);
           await fs.promises.writeFile(resolved, content);
+          markFileWrittenByRpc(resolved);
           modified = true;
         },
         async readFileLines(relativePath: string): Promise<string[]> {
@@ -130,6 +156,7 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
         async writeFile(relativePath: string, content: string): Promise<void> {
           const resolved = safePath(projectRoot, relativePath);
           await fs.promises.writeFile(resolved, content);
+          markFileWrittenByRpc(resolved);
         },
         async readFileLines(relativePath: string): Promise<string[]> {
           const content = await ctx.readFile(relativePath);
