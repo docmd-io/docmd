@@ -67,7 +67,7 @@ export class DocmdAIAssistantUI {
         properties: {
           query: {
             type: 'string',
-            description: 'Targeted search query keywords or phrases (e.g. "comparison", "docmd.config.json", "zero-config", "docusaurus", "release notes").'
+            description: 'Targeted search query keywords or phrases (e.g. "installation", "quickstart", "api reference", "release notes", "configuration").'
           },
           version: {
             type: 'string',
@@ -459,39 +459,34 @@ CRITICAL SCOPE & NAVIGATION RULES:
 1. SCOPE PRIORITIZATION: Prioritize answers using content from the Current Active Project ("${currentProjectName}")${hasVersions && activeVersion ? `, active version branch (${activeVersion.label})` : ''}${hasLocales && activeLocale ? `, and active language (${activeLocale.label})` : ''}.
 2. STRICT ACTIVE / LATEST VERSION ONLY: ONLY cite, explain, recommend, and link to pages from the active version (${activeVersion?.label || defaultVer?.label}) or latest branch (${defaultVer?.label}). Never suggest, cite, or list deprecated historical versions unless the user explicitly asks for an older version.
 3. AUTONOMOUS & PROACTIVE TOOL EXECUTION:
-   - Always use your tools proactively. NEVER ask the user "Would you like me to search?" or "Should I check?". Directly invoke \`search_documentation\` or \`get_site_structure\` to retrieve facts before answering.
-   - For any question about version numbers, latest releases, recent updates, or changelogs, you MUST search the release notes with \`search_documentation\` (query: "release notes" or specific version like "0.9.1") to find the newest release note before giving the final answer. Never state that a release does not exist without searching.
+   - Always use your tools proactively. NEVER ask the user "Would you like me to search?" or "Should I check?". Directly invoke \`search_documentation\`, \`get_site_structure\`, or \`read_documentation_page\` to retrieve facts before answering.
+   - For questions about releases, versions, updates, or changelogs, search with \`search_documentation\` to retrieve the relevant release notes.
 4. ACCURATE HYPERLINKS: ALWAYS ground page hyperlinks strictly in real search results or valid project URLs (${siteBaseUrl}). Never invent or hallucinate invalid subpaths.
 5. TOKEN EFFICIENCY & TARGETED RETRIEVAL:
    - Do not read entire documentation sets or fetch excessive pages unless necessary.
    - Use \`search_documentation\` first to identify the exact single page or section needed.
    - Only call \`read_documentation_page\` on that specific page when required to fetch precise code snippets or steps.
    - Keep answers clean, structured, and focused directly on what the user asked.
-6. CONFIGURATION ACCURACY (ZERO FABRICATION):
-   - When asked for configuration, starter templates, or config files: NEVER guess or fabricate non-existent keys (such as \`socialLinks\`, \`nav\`, \`sidebar\` path maps, or \`search.provider\`).
-   - The official configuration manifest is \`docmd.config.json\` (top-level keys: \`title\`, \`url\`, \`src\`, \`theme\`, \`layout\`, \`plugins\`, \`i18n\`, \`versions\`).
-   - ALWAYS search with \`search_documentation(query: "configuration overview")\` or \`"zero-config"\` before answering configuration questions.
-7. COMPARISONS & COMPETITORS:
-   - When asked why docmd is better than others, its advantages, or how it compares to Docusaurus, VitePress, MkDocs, or Starlight:
-   - Search for "comparison" with \`search_documentation\` to retrieve and cite the official comparison benchmarks and payload matrices from \`/comparison/\`.
-8. VERSION FILTERING:
-   - The \`search_documentation\` tool supports a \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version: "0.8.0"\` to filter results strictly to that version branch.`;
+6. STRICT FACTUALITY (ZERO FABRICATION):
+   - Ground all answers, configuration snippets, code examples, and commands strictly in verified facts retrieved from this documentation site.
+   - NEVER guess or fabricate non-existent keys, options, or parameters. If the documentation does not evidence a setting, state clearly what is verified and do not invent hypothetical configs.
+7. VERSION FILTERING:
+   - The \`search_documentation\` tool supports an optional \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version\` to filter results strictly to that version branch.`;
 
-    const defaultBasePrompt = `You are docmd assistant — a professional, precise, and concise technical AI assistant for this documentation site.
+    const defaultBasePrompt = `You are docmd assistant, the AI documentation guide for "${siteTitle}" — a professional, precise, and concise technical assistant.
 
 CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
-1. IDENTITY: Your name is "docmd assistant". You are an expert AI guide specifically for this documentation site. Never identify yourself simply as "docmd" or "I am docmd".
-2. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, APIs, tools, installation, configuration, and documentation provided on this site. Politely decline off-topic queries.
+1. IDENTITY: Your name is "docmd assistant". You are an expert AI documentation assistant dedicated to "${siteTitle}". If asked who you are, state that you are docmd assistant, serving the documentation for "${siteTitle}".
+2. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, tools, APIs, guides, and documentation provided on this site. Politely decline off-topic queries.
 3. PROFESSIONAL & CONCISE: Provide direct, succinct, and professional answers. Do NOT use excessive emojis (keep emojis to a minimum or none). Avoid conversational fluff, boilerplate apologies, or asking for permission. Get straight to the answer.
 4. TARGETED RETRIEVAL & MINIMAL TOKEN USAGE:
    - Only retrieve what is strictly necessary. Never attempt to read the entire documentation or fetch excessive pages.
-   - Use \`search_documentation\` first with targeted keywords (e.g. "comparison", "docmd.config.json", "0.9.5 release notes") to locate the exact page.
+   - Use \`search_documentation\` first with targeted keywords to locate the exact page.
    - Only invoke \`read_documentation_page\` when you need specific code blocks or configuration details from that single page.
 5. TOOL SELECTION & EXECUTION:
-   - Use \`get_site_structure\` whenever you need extended structural inspection of available documentation versions, supported locales, or navigation trees.
-   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms (e.g. "comparison", "configuration overview", "cards container") for highest accuracy.
-   - For comparisons, search for "comparison" to retrieve comparison tables against competitors.
-   - For configuration, search for "configuration overview" or "zero-config" to get authentic \`docmd.config.json\` properties.
+   - Use \`get_site_structure\` whenever you need structural inspection of available documentation versions, supported locales, or navigation trees.
+   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms for highest accuracy.
+   - Use \`read_documentation_page\` when you need full section context or deep code examples.
 6. CLEAN WRITING & LIST FORMATTING:
    - Write cleanly and directly without artificial gaps, repeated quotes, or messy text breaks.
    - For lists, use standard numbered lists (1., 2., 3.) or bullet points (-). Do not leave blank lines between list items unless separating distinct multi-paragraph steps.
@@ -632,8 +627,14 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
       return false;
     };
 
-    const queryTokens = cleanQueryLower.replace(/[\-_.]/g, ' ').split(/\s+/).filter((t: string) => t.length > 0);
-    const versionMatches = cleanQuery.match(/\d+[\.\-_]\d+[\.\-_]\d+/g);
+    const STOP_WORDS = new Set([
+      'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he',
+      'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the', 'to', 'was', 'were',
+      'will', 'with', 'what', 'why', 'how', 'can', 'you', 'me', 'i', 'do', 'does', 'did', 'than'
+    ]);
+    const rawTokens = cleanQueryLower.replace(/[\-_.]/g, ' ').split(/\s+/).filter((t: string) => t.length > 0);
+    const queryTokens = rawTokens.filter((t: string) => !STOP_WORDS.has(t));
+    const versionMatches = cleanQuery.match(/\d+[\.\-_]\d+([\.\-_]\d+)?/g);
 
     // 1. Local Active Search Index (via window.docmdSearch)
     try {
@@ -644,8 +645,8 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         }
         let localHits = await (window as any).docmdSearch.search(query, searchOpts);
 
-        // Conversational query expansion: if looking for comparison / advantages / competitor comparisons
-        const isComparisonQuery = /\b(better|advantages?|versus|vs|compare|comparison|competitors?|alternatives?|docusaurus|vitepress|mkdocs|starlight)\b/i.test(cleanQueryLower);
+        // Conversational query expansion: if looking for comparison or advantages
+        const isComparisonQuery = /\b(better|advantages?|versus|vs|compare|comparison)\b/i.test(cleanQueryLower);
         if (isComparisonQuery && !cleanQueryLower.includes('comparison')) {
           try {
             const compHits = await (window as any).docmdSearch.search('comparison', searchOpts);
@@ -661,37 +662,54 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         }
 
         if (Array.isArray(localHits)) {
-          const filteredAndScored = localHits
-            .filter((item: any) => !isPathExcluded(item.id || item.url || '', item.version))
-            .map((item: any) => {
-              const rawId = String(item.id || item.url || '');
-              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
-              const titleLower = String(item.title || cleanId).toLowerCase();
-              const textLower = String(item.text || item.snippet || '').toLowerCase();
-              const idLower = cleanId.toLowerCase();
+          const pageMap = new Map<string, { item: any; score: number; cleanId: string; fullUrl: string }>();
+          const filtered = localHits.filter((item: any) => !isPathExcluded(item.id || item.url || '', item.version));
 
-              let score = typeof item.score === 'number' ? item.score : 1;
-              for (const tok of queryTokens) {
-                if (titleLower.includes(tok)) score += 15;
-                if (idLower.includes(tok)) score += 10;
-                if (textLower.includes(tok)) score += 2;
-              }
-              if (versionMatches) {
-                for (const vm of versionMatches) {
-                  const normV = vm.replace(/[\-_]/g, '.');
-                  const dashV = vm.replace(/[\.]/g, '-');
-                  if (titleLower.includes(normV) || titleLower.includes(dashV) || idLower.includes(dashV) || idLower.includes(normV)) {
-                    score += 60;
-                  }
+          for (const item of filtered) {
+            const rawId = String(item.id || item.url || '');
+            const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
+            const baseId = cleanId.split('#')[0];
+            const isHeading = cleanId.includes('#');
+
+            const titleLower = String(item.title || cleanId).toLowerCase();
+            const textLower = String(item.text || item.snippet || '').toLowerCase();
+            const idLower = cleanId.toLowerCase();
+
+            let score = typeof item.score === 'number' ? item.score : 1;
+            for (const tok of (queryTokens.length > 0 ? queryTokens : rawTokens)) {
+              if (titleLower.includes(tok)) score += 25;
+              if (idLower.includes(tok)) score += 15;
+              if (textLower.includes(tok)) score += 2;
+            }
+
+            if (versionMatches) {
+              for (const vm of versionMatches) {
+                const normV = vm.replace(/[\-_]/g, '.');
+                const dashV = vm.replace(/[\.]/g, '-');
+                // Exact version match in ID (e.g. /0-8-0/ or 0.8.0) gets massive priority
+                if (idLower.includes(`/${dashV}/`) || idLower.endsWith(`/${dashV}`) || idLower.includes(`-${dashV}-`)) {
+                  score += 600;
+                } else if (titleLower.includes(`v${normV}`) || titleLower.includes(`v${dashV}`) || titleLower.includes(` ${normV} `) || titleLower.includes(` ${normV}-`)) {
+                  score += 500;
+                } else if (titleLower.includes(normV) || idLower.includes(dashV)) {
+                  score += 150;
                 }
               }
-              return { item, score, cleanId };
-            })
-            .sort((a, b) => b.score - a.score);
+            }
 
-          for (const entry of filteredAndScored) {
-            const { item, cleanId } = entry;
+            if (isHeading) score -= 10;
+
             const fullUrl = cleanId.startsWith('http') ? cleanId : new URL(cleanId, siteBaseUrl).href;
+            const existing = pageMap.get(baseId);
+            if (!existing || existing.score < score) {
+              pageMap.set(baseId, { item, score, cleanId, fullUrl });
+            }
+          }
+
+          const rankedEntries = Array.from(pageMap.values()).sort((a, b) => b.score - a.score);
+
+          for (const entry of rankedEntries) {
+            const { item, cleanId, fullUrl } = entry;
             if (!hits.some(existing => existing.url === fullUrl)) {
               hits.push({
                 project: 'Current Project',
@@ -727,14 +745,20 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
               return !isPathExcluded(rawId, doc.version);
             });
 
-            const scored = filteredDocs.map((doc: any) => {
+            const pageMap = new Map<string, { doc: any; score: number; fullUrl: string }>();
+
+            for (const doc of filteredDocs) {
               const titleStr = String(doc.title || doc.id || '').toLowerCase();
               const textStr = String(doc.text || '').toLowerCase();
               const rawId = String(doc.id || '');
+              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
+              const baseId = cleanId.split('#')[0];
+              const isHeading = cleanId.includes('#');
+
               let score = 0;
-              for (const term of queryTokens) {
-                if (titleStr.includes(term)) score += 15;
-                if (rawId.toLowerCase().includes(term)) score += 10;
+              for (const term of (queryTokens.length > 0 ? queryTokens : rawTokens)) {
+                if (titleStr.includes(term)) score += 25;
+                if (rawId.toLowerCase().includes(term)) score += 15;
                 if (textStr.includes(term)) score += 2;
               }
 
@@ -742,24 +766,32 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
                 for (const vm of versionMatches) {
                   const normV = vm.replace(/[\-_]/g, '.');
                   const dashV = vm.replace(/[\.]/g, '-');
-                  if (titleStr.includes(normV) || titleStr.includes(dashV) || rawId.toLowerCase().includes(dashV)) {
-                    score += 60;
+                  if (rawId.toLowerCase().includes(`/${dashV}/`) || rawId.toLowerCase().endsWith(`/${dashV}`)) {
+                    score += 600;
+                  } else if (titleStr.includes(`v${normV}`) || titleStr.includes(`v${dashV}`)) {
+                    score += 500;
+                  } else if (titleStr.includes(normV) || rawId.toLowerCase().includes(dashV)) {
+                    score += 150;
                   }
                 }
               }
 
               if (currentVerDir && rawId.includes(`/${currentVerDir}/`)) score += 10;
               if (activeLocaleId && rawId.includes(`/${activeLocaleId}/`)) score += 5;
+              if (isHeading) score -= 10;
 
-              return { doc, score };
-            }).filter((h: any) => h.score > 0).sort((a: any, b: any) => b.score - a.score);
+              const fullUrl = rawId.startsWith('http') ? rawId : new URL(cleanId, pBaseUrl).href;
+              const existing = pageMap.get(baseId);
+              if (!existing || existing.score < score) {
+                pageMap.set(baseId, { doc, score, fullUrl });
+              }
+            }
+
+            const scored = Array.from(pageMap.values()).filter((h: any) => h.score > 0).sort((a: any, b: any) => b.score - a.score);
 
             for (const hit of scored.slice(0, 3)) {
-              const doc = hit.doc;
+              const { doc, fullUrl } = hit;
               const rawId = doc.id || '';
-              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
-              const fullUrl = rawId.startsWith('http') ? rawId : new URL(cleanId, pBaseUrl).href;
-              
               if (!hits.some(existing => existing.url === fullUrl)) {
                 hits.push({
                   project: p.name || p.prefix,
