@@ -50,6 +50,10 @@ export class DocmdAIAssistantUI {
     this.engine.registerTool({
       name: 'get_site_structure',
       description: 'Get the complete documentation site structure, including available versions (current and historical), supported languages/locales, workspace projects, search capabilities, and page navigation hierarchy with titles and URLs.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
       execute: async () => {
         return this.getSiteStructure();
       }
@@ -57,13 +61,32 @@ export class DocmdAIAssistantUI {
 
     this.engine.registerTool({
       name: 'search_documentation',
-      description: `Search documentation pages across all projects in this workspace using full-text keyword matching ${isSemanticUsable ? 'and semantic vector search' : '(keyword search active; semantic search disabled)'}. Always supply concise, targeted search terms for highest accuracy.`,
+      description: `Search documentation pages across all projects in this workspace using full-text keyword matching ${isSemanticUsable ? 'and semantic vector search' : '(keyword search active; semantic search disabled)'}. Always supply concise, targeted search terms for highest accuracy. You can optionally filter by version (e.g. "0.9.0", "0.8.0", "latest") or workspace project (e.g. "/", "assistant", "search").`,
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Targeted search query keywords or phrases (e.g. "comparison", "docmd.config.json", "zero-config", "docusaurus", "release notes").'
+          },
+          version: {
+            type: 'string',
+            description: 'Optional documentation version filter (e.g. "0.9.0", "0.8.0", "latest", "09", "08") to search exclusively in that version branch.'
+          },
+          project: {
+            type: 'string',
+            description: 'Optional workspace project name or prefix filter (e.g. "/", "assistant", "search") to search within a specific project.'
+          }
+        },
+        required: ['query']
+      },
       execute: async (rawArgs: any) => {
         const query = typeof rawArgs === 'string'
           ? rawArgs
           : (rawArgs?.query || rawArgs?.q || rawArgs?.search_query || rawArgs?.text || rawArgs?.input || '');
-        const project = typeof rawArgs === 'object' ? rawArgs?.project : undefined;
-        return await this.searchAllWorkspaceIndexes(query, project);
+        const project = typeof rawArgs === 'object' ? (rawArgs?.project || rawArgs?.projectFilter) : undefined;
+        const version = typeof rawArgs === 'object' ? (rawArgs?.version || rawArgs?.versionFilter) : undefined;
+        return await this.searchAllWorkspaceIndexes(query, project, version);
       }
     });
 
@@ -443,7 +466,16 @@ CRITICAL SCOPE & NAVIGATION RULES:
    - Do not read entire documentation sets or fetch excessive pages unless necessary.
    - Use \`search_documentation\` first to identify the exact single page or section needed.
    - Only call \`read_documentation_page\` on that specific page when required to fetch precise code snippets or steps.
-   - Keep answers clean, structured, and focused directly on what the user asked.`;
+   - Keep answers clean, structured, and focused directly on what the user asked.
+6. CONFIGURATION ACCURACY (ZERO FABRICATION):
+   - When asked for configuration, starter templates, or config files: NEVER guess or fabricate non-existent keys (such as \`socialLinks\`, \`nav\`, \`sidebar\` path maps, or \`search.provider\`).
+   - The official configuration manifest is \`docmd.config.json\` (top-level keys: \`title\`, \`url\`, \`src\`, \`theme\`, \`layout\`, \`plugins\`, \`i18n\`, \`versions\`).
+   - ALWAYS search with \`search_documentation(query: "configuration overview")\` or \`"zero-config"\` before answering configuration questions.
+7. COMPARISONS & COMPETITORS:
+   - When asked why docmd is better than others, its advantages, or how it compares to Docusaurus, VitePress, MkDocs, or Starlight:
+   - Search for "comparison" with \`search_documentation\` to retrieve and cite the official comparison benchmarks and payload matrices from \`/comparison/\`.
+8. VERSION FILTERING:
+   - The \`search_documentation\` tool supports a \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version: "0.8.0"\` to filter results strictly to that version branch.`;
 
     const defaultBasePrompt = `You are docmd assistant — a professional, precise, and concise technical AI assistant for this documentation site.
 
@@ -453,11 +485,13 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
 3. PROFESSIONAL & CONCISE: Provide direct, succinct, and professional answers. Do NOT use excessive emojis (keep emojis to a minimum or none). Avoid conversational fluff, boilerplate apologies, or asking for permission. Get straight to the answer.
 4. TARGETED RETRIEVAL & MINIMAL TOKEN USAGE:
    - Only retrieve what is strictly necessary. Never attempt to read the entire documentation or fetch excessive pages.
-   - Use \`search_documentation\` first with targeted keywords (e.g. "0.9.1 release notes" or "ai relay config") to locate the exact page.
+   - Use \`search_documentation\` first with targeted keywords (e.g. "comparison", "docmd.config.json", "0.9.5 release notes") to locate the exact page.
    - Only invoke \`read_documentation_page\` when you need specific code blocks or configuration details from that single page.
 5. TOOL SELECTION & EXECUTION:
    - Use \`get_site_structure\` whenever you need extended structural inspection of available documentation versions, supported locales, or navigation trees.
-   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms (e.g. "0.9.1 release notes" or "cards container") for highest accuracy.
+   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms (e.g. "comparison", "configuration overview", "cards container") for highest accuracy.
+   - For comparisons, search for "comparison" to retrieve comparison tables against competitors.
+   - For configuration, search for "configuration overview" or "zero-config" to get authentic \`docmd.config.json\` properties.
 6. CLEAN WRITING & LIST FORMATTING:
    - Write cleanly and directly without artificial gaps, repeated quotes, or messy text breaks.
    - For lists, use standard numbered lists (1., 2., 3.) or bullet points (-). Do not leave blank lines between list items unless separating distinct multi-paragraph steps.
@@ -482,7 +516,7 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     };
   }
 
-  private async searchAllWorkspaceIndexes(rawQuery: any, projectFilter?: string): Promise<any[]> {
+  private async searchAllWorkspaceIndexes(rawQuery: any, projectFilter?: string, versionFilter?: string): Promise<any[]> {
     const hits: Array<{ project: string; title: string; url: string; snippet: string; searchType: 'keyword' | 'semantic' }> = [];
     const query = typeof rawQuery === 'string'
       ? rawQuery
@@ -511,6 +545,32 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     const allVerList: Array<{ id: string; dir?: string; label?: string }> = Array.isArray(versionsObj.all) ? versionsObj.all : [];
     const currentVerId = String(versionsObj.current || '');
     const currentVerDir = versionsObj.current ? (allVerList.find(v => v.id === versionsObj.current)?.dir || `v${versionsObj.current}`) : '';
+
+    // Resolve explicit version filter if provided
+    let explicitVersionId: string | null = null;
+    let explicitVersionDir: string | null = null;
+    let explicitVersionLabel: string | null = null;
+    if (versionFilter) {
+      const vClean = String(versionFilter).toLowerCase().trim().replace(/^v/, '');
+      if (vClean === 'latest' || vClean === 'current' || vClean === currentVerId.replace(/^v/, '')) {
+        explicitVersionId = currentVerId;
+        explicitVersionDir = currentVerDir;
+      } else {
+        const found = allVerList.find(v => {
+          const vid = String(v.id || '').toLowerCase().replace(/^v/, '');
+          const vdir = String(v.dir || '').toLowerCase().replace(/^v/, '');
+          const vlbl = String(v.label || '').toLowerCase().replace(/^v/, '');
+          return vid === vClean || vdir === vClean || vlbl === vClean || vlbl.startsWith(vClean);
+        });
+        if (found) {
+          explicitVersionId = String(found.id);
+          explicitVersionDir = String(found.dir || `v${found.id}`);
+          explicitVersionLabel = String(found.label || found.id);
+        } else {
+          explicitVersionId = vClean;
+        }
+      }
+    }
     
     // Collect older version tokens
     const olderVerTokens: string[] = [];
@@ -524,7 +584,9 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         }
       }
     }
-    const isExplicitOlderVerRequest = olderVerTokens.some(tok => cleanQueryLower.includes(tok));
+    const isExplicitOlderVerRequest = explicitVersionId
+      ? explicitVersionId !== currentVerId
+      : olderVerTokens.some(tok => cleanQueryLower.includes(tok));
 
     const i18nObj = cfg.i18n || {};
     const allLocales: Array<{ id: string }> = Array.isArray(i18nObj.locales) ? i18nObj.locales : [];
@@ -537,9 +599,23 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     const nonActiveLocaleIds = allLocales.filter(l => l.id !== activeLocaleId).map(l => l.id.toLowerCase());
     const isExplicitLocaleRequest = nonActiveLocaleIds.some(locId => cleanQueryLower.includes(locId));
 
-    const isPathExcluded = (rawId: string): boolean => {
+    const isPathExcluded = (rawId: string, itemVersion?: string): boolean => {
       const norm = String(rawId || '').replace(/^\//, '').toLowerCase();
-      if (!isExplicitOlderVerRequest) {
+      const itemVerLower = String(itemVersion || '').toLowerCase().replace(/^v/, '');
+
+      if (explicitVersionId) {
+        if (explicitVersionId === currentVerId) {
+          for (const tok of olderVerTokens) {
+            if (norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`)) return true;
+          }
+        } else {
+          const tokens = [explicitVersionId.toLowerCase(), `v${explicitVersionId.toLowerCase()}`];
+          if (explicitVersionDir) tokens.push(explicitVersionDir.toLowerCase());
+          if (explicitVersionLabel) tokens.push(explicitVersionLabel.toLowerCase().replace(/^v/, ''));
+          const matchesExplicit = tokens.some(tok => norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`) || itemVerLower === tok);
+          if (!matchesExplicit) return true;
+        }
+      } else if (!isExplicitOlderVerRequest) {
         for (const tok of olderVerTokens) {
           if (norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`)) {
             return true;
@@ -562,10 +638,31 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     // 1. Local Active Search Index (via window.docmdSearch)
     try {
       if ((window as any).docmdSearch && typeof (window as any).docmdSearch.search === 'function') {
-        const localHits = await (window as any).docmdSearch.search(query);
+        const searchOpts: any = {};
+        if (explicitVersionId) {
+          searchOpts.version = explicitVersionId;
+        }
+        let localHits = await (window as any).docmdSearch.search(query, searchOpts);
+
+        // Conversational query expansion: if looking for comparison / advantages / competitor comparisons
+        const isComparisonQuery = /\b(better|advantages?|versus|vs|compare|comparison|competitors?|alternatives?|docusaurus|vitepress|mkdocs|starlight)\b/i.test(cleanQueryLower);
+        if (isComparisonQuery && !cleanQueryLower.includes('comparison')) {
+          try {
+            const compHits = await (window as any).docmdSearch.search('comparison', searchOpts);
+            if (Array.isArray(compHits)) {
+              if (!Array.isArray(localHits)) localHits = [];
+              for (const ch of compHits) {
+                if (!localHits.some((lh: any) => lh.id === ch.id)) {
+                  localHits.unshift({ ...ch, score: 999 });
+                }
+              }
+            }
+          } catch { /* silent */ }
+        }
+
         if (Array.isArray(localHits)) {
           const filteredAndScored = localHits
-            .filter((item: any) => !isPathExcluded(item.id || item.url || ''))
+            .filter((item: any) => !isPathExcluded(item.id || item.url || '', item.version))
             .map((item: any) => {
               const rawId = String(item.id || item.url || '');
               const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
@@ -627,7 +724,7 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
 
             const filteredDocs = docs.filter((doc: any) => {
               const rawId = String(doc.id || doc.url || '');
-              return !isPathExcluded(rawId);
+              return !isPathExcluded(rawId, doc.version);
             });
 
             const scored = filteredDocs.map((doc: any) => {
