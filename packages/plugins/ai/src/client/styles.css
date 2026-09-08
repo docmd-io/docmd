@@ -566,3 +566,24 @@ body.dark :root {
   word-break: break-word;
 }
 
+.docmd-ai-content ol,
+.docmd-ai-content ul {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.docmd-ai-content li {
+  margin-bottom: 0.35rem;
+  line-height: 1.55;
+}
+
+.docmd-ai-content li:last-child {
+  margin-bottom: 0;
+}
+
+.docmd-ai-sub-item {
+  display: inline-block;
+  margin-left: 0.75rem;
+  margin-top: 0.15rem;
+  opacity: 0.88;
+}

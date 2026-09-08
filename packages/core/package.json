@@ -1,7 +1,7 @@
 {
   "name": "@docmd/core",
-  "version": "0.9.4",
-  "description": "Build production-ready documentation from Markdown in seconds. No React, no bloat, just content.",
+  "version": "0.9.5",
+  "description": "Documentation compiler for humans and machines. One Markdown source, one command — generates website, search, AI context, and knowledge formats together.",
   "type": "module",
   "browser": false,
   "main": "dist/index.js",

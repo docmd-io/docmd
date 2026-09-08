@@ -43,6 +43,11 @@ export interface PluginDescriptor {
   version: string;
   /** Declared hook categories this plugin uses. */
   capabilities: Capability[];
+  /**
+   * Whether this plugin requires an active docmd live development server.
+   * When true, client assets and scripts are automatically omitted during static builds (`docmd build`).
+   */
+  requiresLiveServer?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Готовая к продакшену документация из Markdown за считанные секунды.</b><br/>Нулевая конфигурация. Нативно для ИИ. Создано для разработчиков.</p>
+  <p><b>Документация для людей и машин.</b><br/>Один источник Markdown → веб-сайт, поиск, AI-контекст и протоколы агентов. Всё генерируется вместе.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm версия"></a>

@@ -101,11 +101,17 @@
       if (!container) return;
       const menu = container.querySelector('.version-dropdown-menu, .language-switcher-menu, .project-switcher-menu');
       if (!menu) return;
+      // All sidebar, header, options-menu and menubar dropdowns are cleanly positioned by CSS
+      if (container.closest('.sidebar, .sidebar-top-group, .sidebar-bottom-group, .sidebar-project-switcher-wrapper, .sidebar-version-wrapper, .sidebar-language-wrapper, .docmd-options-menu, .header-right, .menubar-options, .menubar-right, .summer-topbar__right, .summer-subnav__right') ||
+          container.classList.contains('project-compact') ||
+          container.classList.contains('language-compact')) {
+        return;
+      }
+
       menu.style.left = '';
       menu.style.right = '';
       menu.style.top = '';
       menu.style.bottom = '';
-      menu.style.transform = '';
 
       if (!container.classList.contains('open')) return;
 
@@ -119,11 +125,9 @@
         if (rect.right > viewportW - margin) {
           menu.style.left = 'auto';
           menu.style.right = '0';
-          menu.style.transform = 'translateY(0)';
         } else if (rect.left < margin) {
           menu.style.left = '0';
           menu.style.right = 'auto';
-          menu.style.transform = 'translateY(0)';
         }
 
         if (rect.bottom > viewportH - margin && containerRect.top > rect.height + margin) {

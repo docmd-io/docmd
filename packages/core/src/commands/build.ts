@@ -105,7 +105,7 @@ export async function buildSite(configPath: string, opts: any = {}) {
     const workerPool = opts.workerPool || new WorkerPool(workerScript, { config: workerConfig, cwd: process.cwd() });
     config._workerPool = workerPool;
 
-    const hooks = await loadPlugins(config, { resolvePaths: [__dirname] });
+    const hooks = await loadPlugins(config, { resolvePaths: [__dirname], isDev: options.isDev });
 
     // Phase 3 PR 3.A (F6): a plugin the user listed in `config.plugins` but
     // which failed to load is a build failure, not a warning. Without this

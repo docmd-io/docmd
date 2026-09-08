@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Produktionsreife Dokumentation aus Markdown, in Sekunden.</b><br/>Zero Config. AI-nativ. Für Entwickler gebaut.</p>
+  <p><b>Dokumentation für Menschen und Maschinen.</b><br/>Eine Markdown-Quelle → Website, Suche, KI-Kontext und Agent-Protokolle. Alles in einem Build.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm version"></a>
@@ -183,8 +183,8 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:0.9.0
 ### Zero Config, sofortiger Start
 Zeigen Sie docmd auf einen beliebigen Markdown-Ordner und es läuft. Die Navigation wird automatisch aus Ihrer Verzeichnisstruktur erstellt. Sie können Ihre erste Doku schreiben und in unter einer Minute live haben — kein Boilerplate, keine zu konfigurierende Build-Pipeline, keine Vorab-Entscheidungen.
 
-### Winzig standardmäßig, schnell überall
-Der Standard-JavaScript-Payload ist ~18 kb. Seiten navigieren als sofortige SPA. Die Ausgabe ist statisches HTML — SEO-optimiert, mit Sitemap, kanonischen URLs und Open-Graph-Metadaten. Offline-Volltextsuche ist eingebaut, kein Cloud-Dienst nötig.
+### Leichtgewichtig von Haus aus, schnell überall
+Kein Framework-Runtime — die Ausgabe ist statisches HTML und minimales Vanilla-JavaScript. Seiten navigieren als sofortige SPA. SEO-optimiert, mit Sitemap, kanonischen URLs und Open-Graph-Metadaten. Offline-Volltextsuche ist eingebaut, kein Cloud-Dienst nötig.
 
 ### AI-nativ
 docmd behandelt KI als erstklassige Möglichkeit, Dokumentationen zu konsumieren — ohne die Dokumentation selbst zu ersetzen.
@@ -301,7 +301,7 @@ Vollständige Referenz: [Node-API](https://docs.docmd.io/de/development/node-api
 
 ## Unterstützung
 
-- docmd bekannt zu machen ist der direkteste Weg, seine Entwicklung zu unterstützen. [Teilen Sie es auf X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Produktionsreife%20Doku%20aus%20Markdown%20in%20Sekunden.) mit Freunden oder geben Sie ihm einen Stern.
+- docmd bekannt zu machen ist der direkteste Weg, seine Entwicklung zu unterstützen. [Teilen Sie es auf X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Dokumentation%20f%C3%BCr%20Menschen%20und%20Maschinen.) mit Freunden oder geben Sie ihm einen Stern.
 - Falls docmd Ihnen Zeit spart, hilft ein [GitHub-Sponsoring](https://github.com/sponsors/mgks) sehr weiter.
 - Ideen oder Bugs? Eröffnen Sie ein Issue oder eine PR, gerne auch mit eigenen Plugins.
 

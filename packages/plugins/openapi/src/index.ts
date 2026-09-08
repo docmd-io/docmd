@@ -23,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const plugin: PluginDescriptor = {
   name: 'openapi',
-  version: '0.9.4',
+  version: '0.9.5',
   capabilities: ['markdown', 'assets']
 };
 
@@ -438,62 +438,132 @@ function renderOperation(method: string, path_: string, op: OAOperation, spec: O
 </div>`;
 }
 
-/** Parse OpenAPI spec from a file path (JSON or YAML). specPath is validated
- *  upstream by safePath() in renderSpec(); this function assumes it is safe. */
-function parseSpec(specPath: string): OASpec {
-  // eslint-disable-next-line docmd/no-unsafe-fs-read -- specPath is validated by safePath() in renderSpec()
-  const raw = fs.readFileSync(specPath, 'utf8');
-  // JSON detection
+/** Parse OpenAPI spec content from a string (JSON or YAML). */
+function parseSpecContent(raw: string, label = '<inline>'): OASpec {
   const trimmed = raw.trimStart();
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     return JSON.parse(raw);
   }
-  // Minimal YAML parser for OpenAPI specs (handles the common subset)
-  // We avoid a full YAML dep by using JSON if possible, otherwise note the limitation
   try {
-    // Try to require js-yaml if available (won't throw at import time since it's optional)
     const yaml = require('js-yaml');
     return yaml.load(raw) as OASpec;
   } catch {
     throw new Error(
-      `OpenAPI plugin: YAML spec at "${specPath}" requires js-yaml to be installed.\nRun: npm install js-yaml`
+      `OpenAPI plugin: YAML spec at "${label}" requires js-yaml to be installed.\nRun: npm install js-yaml`
     );
   }
 }
 
-/** Render full spec as HTML */
-function renderSpec(specPath: string, rootDir: string, options: any): string {
+/** Resolve OpenAPI spec file path safely with workspace and relative path support. */
+function resolveSpecFile(specPath: string, rootDir: string, env: any): { absPath?: string; error?: string } {
   // Phase 1.A: CWE-22 fix (S-2, N-S2). Use safePath() to enforce boundary.
-  // Absolute paths and ../ traversal are rejected by safePath() (throws).
-  let absPath: string;
-  try {
-    absPath = safePath(rootDir, asUserPath(specPath));
-  } catch (_e: any) {
-    return `<div class="oa-error">OpenAPI spec path escapes project root: <code>${esc(specPath)}</code></div>`;
-  }
+  const isDirectEscape = specPath.startsWith('/') || specPath.startsWith('\\') || /^[a-zA-Z]:/.test(specPath);
 
-  if (!fs.existsSync(absPath)) {
-    const docsPath = path.join(rootDir, 'docs', specPath);
-    if (fs.existsSync(docsPath)) {
-      absPath = docsPath;
-    } else {
-      return `<div class="oa-error">OpenAPI spec not found: <code>${esc(specPath)}</code></div>`;
+  // Find project boundary (directory containing docmd.config.json or package.json, or rootDir/cwd)
+  let projectBoundary = rootDir || process.cwd();
+  if (env?.filePath) {
+    let cur = path.dirname(env.filePath);
+    while (cur && cur !== path.dirname(cur)) {
+      if (fs.existsSync(path.join(cur, 'docmd.config.json')) || fs.existsSync(path.join(cur, 'package.json'))) {
+        projectBoundary = cur;
+        break;
+      }
+      cur = path.dirname(cur);
     }
   }
 
-  let spec: OASpec;
+  // Reject paths that escape project root
+  if (isDirectEscape) {
+    try {
+      safePath(projectBoundary, asUserPath(specPath));
+    } catch (_e: any) {
+      return { error: `<div class="oa-error">OpenAPI spec path escapes project root: <code>${esc(specPath)}</code></div>` };
+    }
+  }
+
+  const candidateDirs: string[] = [];
+
+  // 1. Current markdown file directory & ancestors
+  if (env?.filePath) {
+    const fileDir = path.dirname(env.filePath);
+    candidateDirs.push(fileDir);
+    let cur = fileDir;
+    while (cur && cur !== path.dirname(cur)) {
+      candidateDirs.push(cur);
+      candidateDirs.push(path.join(cur, 'assets'));
+      candidateDirs.push(path.join(cur, 'docs'));
+      if (cur === projectBoundary) break;
+      cur = path.dirname(cur);
+    }
+  }
+
+  // 2. Project boundary & cwd
+  candidateDirs.push(projectBoundary);
+  candidateDirs.push(path.join(projectBoundary, 'docs'));
+  candidateDirs.push(path.join(projectBoundary, 'assets'));
+  candidateDirs.push(process.cwd());
+  candidateDirs.push(path.join(process.cwd(), 'docs'));
+
+  for (const dir of candidateDirs) {
+    try {
+      const resolved = safePath(dir, asUserPath(specPath));
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        return { absPath: resolved };
+      }
+    } catch {
+      // safePath threw for this candidate dir
+    }
+  }
+
+  // Check if safePath rejects it
   try {
-    spec = parseSpec(absPath);
-  } catch (e: any) {
-    return `<div class="oa-error">Failed to parse OpenAPI spec: ${esc(String(e.message))}</div>`;
+    safePath(projectBoundary, asUserPath(specPath));
+  } catch (_e: any) {
+    return { error: `<div class="oa-error">OpenAPI spec path escapes project root: <code>${esc(specPath)}</code></div>` };
+  }
+
+  return { error: `<div class="oa-error">OpenAPI spec not found: <code>${esc(specPath)}</code></div>` };
+}
+
+/** Render full spec as HTML */
+function renderSpec(rawContent: string, rootDir: string, options: any, env?: any): string {
+  const trimmed = rawContent.trim();
+
+  let spec: OASpec;
+  let specPathForDownload = '';
+
+  // 1. Check if inline JSON/YAML spec
+  if (trimmed.startsWith('{') || trimmed.startsWith('openapi:') || trimmed.startsWith('swagger:')) {
+    try {
+      spec = parseSpecContent(trimmed, '<inline>');
+    } catch (e: any) {
+      return `<div class="oa-error">Failed to parse OpenAPI spec: ${esc(String(e.message))}</div>`;
+    }
+  } else {
+    // 2. Treat as spec file path
+    const { absPath, error } = resolveSpecFile(trimmed, rootDir, env);
+    if (error || !absPath) {
+      return error || `<div class="oa-error">OpenAPI spec not found: <code>${esc(trimmed)}</code></div>`;
+    }
+    try {
+      // eslint-disable-next-line docmd/no-unsafe-fs-read -- validated by safePath in resolveSpecFile
+      spec = parseSpecContent(fs.readFileSync(absPath, 'utf8'), absPath);
+      specPathForDownload = trimmed;
+    } catch (e: any) {
+      return `<div class="oa-error">Failed to parse OpenAPI spec: ${esc(String(e.message))}</div>`;
+    }
   }
 
   const info = spec.info || {};
   let html = `<div class="oa-spec">`;
 
   if (options?.info !== false && info.title) {
-    const downloadLink = options?.download
-      ? `<a href="${esc(specPath)}" class="oa-download-link" title="Download OpenAPI Spec" target="_blank">JSON / YAML</a>`
+    // Convert the spec path to a root-relative URL so the link resolves
+    // correctly regardless of which page depth it is rendered on.
+    // e.g. "./api-specs/my-api.yaml" -> "/api-specs/my-api.yaml"
+    const downloadHref = '/' + specPathForDownload.replace(/^\.\//, '').replace(/^\//, '');
+    const downloadLink = (options?.download && specPathForDownload)
+      ? `<a href="${esc(downloadHref)}" class="oa-download-link" title="Download OpenAPI Spec" target="_blank">JSON / YAML</a>`
       : '';
     html += `<div class="oa-spec-header">
       <h2 class="oa-spec-title">${esc(info.title)}</h2>
@@ -549,9 +619,11 @@ export function markdownSetup(md: any, options: any): void {
       return originalFence(tokens, idx, opts, env, self);
     }
 
-    const specPath = token.content.trim();
-    const pluginOptions = options?.config?.plugins?.openapi || {};
-    return renderSpec(specPath, srcDir, pluginOptions);
+    const rawContent = token.content.trim();
+    // options IS the plugin's own config sub-object (e.g. { download: true });
+    // fallback to options?.config?.plugins?.openapi if passed full config
+    const pluginOptions = (options?.config?.plugins?.openapi || ((typeof options === 'object' && options !== null) ? options : {})) || {};
+    return renderSpec(rawContent, srcDir, pluginOptions, env);
   };
 }
 

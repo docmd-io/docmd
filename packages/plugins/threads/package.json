@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-threads",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "type": "module",
   "description": "Inline discussion threads for docmd.",
   "main": "dist/index.js",
@@ -29,7 +29,8 @@
       "assets",
       "actions",
       "translations"
-    ]
+    ],
+    "requiresLiveServer": true
   },
   "scripts": {
     "build": "tsc && node build.js",

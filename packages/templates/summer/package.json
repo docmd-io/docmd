@@ -1,6 +1,6 @@
 {
   "name": "@docmd/template-summer",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Summer template for docmd. A bright, hopeful, summer-feel layout with a top search bar and halo accents.",
   "type": "module",
   "main": "dist/index.js",

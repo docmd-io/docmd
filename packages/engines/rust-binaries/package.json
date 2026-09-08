@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-rust-binaries",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Pre-built Rust binaries for the docmd engine. All platforms bundled.",
   "scripts": {
     "build": "node build.js"

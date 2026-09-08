@@ -528,6 +528,51 @@ export async function devWorkspace(
     });
     wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
 
+    // Action dispatcher for workspace plugin actions/events
+    (async () => {
+      try {
+        const { createActionDispatcher, loadPlugins, hooks } = await import('@docmd/api');
+        await loadPlugins(workspaceConfig as any, { resolvePaths: [CWD] });
+        const dispatcher = createActionDispatcher(hooks, {
+          projectRoot: CWD,
+          config: workspaceConfig as any,
+          broadcast: (event: string, data: any) => {
+            if (wss) {
+              wss.clients.forEach((client: any) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({ type: 'event', name: event, data }));
+                }
+              });
+            }
+          }
+        });
+
+        for (const fn of hooks.onDevServerReady) {
+          await fn(server, wss);
+        }
+
+        wss.on('connection', (ws: any) => {
+          ws.on('message', async (raw: any) => {
+            let msg: any;
+            try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+            if (msg.type === 'call') {
+              try {
+                const { result } = await dispatcher.handleCall(msg.action, msg.payload);
+                ws.send(JSON.stringify({ id: msg.id, type: 'response', result, reload: false }));
+              } catch (e: any) {
+                ws.send(JSON.stringify({ id: msg.id, type: 'response', error: e.message }));
+              }
+            } else if (msg.type === 'event') {
+              dispatcher.handleEvent(msg.name, msg.data);
+            }
+          });
+        });
+      } catch (err: any) {
+        TUI.warn(`Workspace plugin dispatcher setup: ${err.message}`);
+      }
+    })();
+
     const localUrl = `http://127.0.0.1:${port}`;
     const networkUrl = networkIp ? `http://${networkIp}:${port}` : null;
 
@@ -622,7 +667,10 @@ export async function devWorkspace(
           } else {
             lastContentRebuildAt = Date.now();
           }
-          broadcastReload();
+          const { wasWrittenByRpc } = await import('@docmd/api');
+          if (!wasWrittenByRpc(fullChangedPath)) {
+            broadcastReload();
+          }
           TUI.step(`Rebuilt [${label}] ${isConfigUpdate ? 'with new config' : displayPath} in ${rebuildElapsed()}`, 'DONE', TUI.blue, true);
         } catch (err: any) {
           TUI.step(`Rebuild [${label}] ${displayPath}`, 'FAIL', TUI.blue, true);

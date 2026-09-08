@@ -18,11 +18,11 @@ import nativeFs from 'fs';
 import { fileURLToPath } from 'url';
 import type { PluginDescriptor, ActionContext, Asset } from '@docmd/api';
 import { scriptLiteral } from '@docmd/utils';
-import { DocmdAssistantEngine } from 'docmd-assistant';
+import { DocmdAssistantEngine, createStandardTools } from 'docmd-assistant';
 
 export const plugin: PluginDescriptor = {
   name: 'ai',
-  version: '0.9.4',
+  version: '0.9.5',
   capabilities: ['init', 'body', 'assets', 'actions', 'translations', 'post-build']
 };
 
@@ -53,6 +53,7 @@ export interface AIPluginOptions {
   position?: 'bottom-center' | 'bottom-right' | 'bottom-left';
   reasoning?: boolean | 'none' | 'low' | 'medium' | 'high';
   contextLimit?: number;
+  contextWindow?: number;
   rateLimit?: {
     maxRequests?: number;
     windowMs?: number;
@@ -60,17 +61,18 @@ export interface AIPluginOptions {
 }
 
 /** Default system prompt for documentation assistant */
-const DEFAULT_SYSTEM_PROMPT = `You are docmd assistant — an expert, precise documentation assistant strictly dedicated to answering technical questions about this documentation site.
+const DEFAULT_SYSTEM_PROMPT = `You are docmd assistant — a professional, precise, and concise technical documentation assistant strictly dedicated to answering questions about this documentation site.
 
 CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
-1. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, APIs, tools, installation, configuration, and documentation provided on this site. If a user asks off-topic, general knowledge, or unrelated questions, politely refuse and explain that you are strictly trained to assist with this documentation.
-2. STRICT FACTUALITY & ZERO FABRICATION: Ground all responses, configuration snippets, and code examples STRICTLY in facts and evidence explicitly retrieved from tool data or documentation results. NEVER invent, guess, or fabricate non-existent configuration wrapper keys (e.g. guessing a \`ui: {}\` key), non-existent API parameters, or unverified settings.
-3. AGGRESSIVE TOOL USAGE:
-   - Use the \`get_site_structure\` tool FIRST whenever the user asks about available versions (e.g. current vs historical versions), supported languages/locales, site navigation, page hierarchy, or where topics are located.
-   - Use the \`search_documentation\` tool to query documentation page content. Full-text keyword search is ALWAYS active; semantic vector search is conditional (active only when enabled in site config). ALWAYS supply concise, high-precision search keywords (e.g. "containers hero" or "api setup") rather than conversational sentences.
-4. ACCURACY & SOURCE CITATIONS: Ground all responses directly in retrieved tool data or documentation results. Reference relevant page titles or section headers when available.
-5. VERSION & LOCALIZATION AWARENESS: Be aware of the active documentation version and locale. Utilize localized and versioned results matching the user's request.
-6. TECHNICAL & CONCISE: Provide clear, structured Markdown responses with code blocks where appropriate. Do not engage in casual off-topic banter.`;
+1. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, tools, APIs, guides, and documentation provided on this site. If a user asks off-topic, general knowledge, or unrelated questions, politely decline and explain that you are strictly dedicated to assisting with this site's documentation. If asked who you are, identify yourself as docmd assistant serving this documentation site.
+2. STRICT FACTUALITY & ZERO FABRICATION: Ground all responses, configuration snippets, code examples, and commands STRICTLY in verified facts retrieved from this site using your tools. NEVER invent, guess, or fabricate non-existent configuration keys, non-existent API parameters, or unverified settings. If the documentation does not contain information about a requested setting or feature, state clearly what is documented rather than guessing.
+3. PROACTIVE TOOL USAGE:
+   - Use \`get_site_structure\` whenever you need structural inspection of available documentation versions, supported locales, or navigation trees.
+   - Use \`search_documentation\` to query documentation page content. Pass concise, targeted keywords for highest accuracy.
+   - Use \`read_documentation_page\` to fetch full page content when you need detailed guides, code blocks, or configuration tables.
+4. ACCURACY & SOURCE CITATIONS: Ground all responses directly in retrieved tool data or documentation results. Reference relevant page titles or section headers with Markdown hyperlinks.
+5. VERSION & LOCALIZATION AWARENESS: Respect the active documentation version and locale. Utilize localized and versioned results matching the user's request.
+6. TECHNICAL & CONCISE: Provide clear, well-structured Markdown responses. Avoid conversational filler or boilerplate apologies. Get straight to the answer.`;
 
 /** Resolved configuration cache per build */
 let _resolvedOptions: AIPluginOptions = {};
@@ -330,6 +332,22 @@ export const actions = {
       }
     });
 
+    // Register standard tools from docmd-assistant (navigate_to_page, copy_code_snippet, read_documentation_page, search_documentation)
+    const standardTools = createStandardTools(
+      async (query: string) => {
+        const results = await searchDocumentationRAG(ctx.projectRoot, query, opts.contextLimit || 5);
+        return results.map(r => ({ title: r.title, path: r.url, snippet: r.content }));
+      },
+      async (pagePath: string) => {
+        const results = await searchDocumentationRAG(ctx.projectRoot, pagePath, 1);
+        return results[0] ? { title: results[0].title, content: results[0].content } : { content: `Page not found: ${pagePath}` };
+      }
+    );
+    for (const tool of standardTools) {
+      engine.registerTool(tool);
+    }
+
+    // Override search_documentation with workspace-aware RAG search that includes semantic capability info
     engine.registerTool({
       name: 'search_documentation',
       description: `Search documentation pages across all projects in this workspace using keyword full-text matching ${isSemanticUsable ? 'and semantic vector search' : '(keyword search active; semantic search disabled)'}. Always supply concise, targeted keywords for best results.`,
@@ -390,6 +408,8 @@ export function generateScripts(config: any, _options?: any): { headScriptsHtml:
   };
   if (pluginOptions.provider) clientConfig.provider = pluginOptions.provider;
   if (pluginOptions.model) clientConfig.model = pluginOptions.model;
+  if (pluginOptions.contextWindow !== undefined) clientConfig.contextWindow = pluginOptions.contextWindow;
+  if (pluginOptions.contextLimit !== undefined) clientConfig.contextLimit = pluginOptions.contextLimit;
 
   return {
     headScriptsHtml: '',

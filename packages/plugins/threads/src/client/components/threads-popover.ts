@@ -1,8 +1,9 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { getThreadSvg } from '../lib/icons';
 
 import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 
 @customElement('threads-popover')
 export class ThreadsPopover extends LitElement {
@@ -47,7 +48,7 @@ export class ThreadsPopover extends LitElement {
         style="position:fixed; left:${this.x}px; top:${this.y - 10}px; transform:translate(-50%, -100%);"
       >
         <sl-button size="small" variant="text" @click=${this.addComment}>
-          <sl-icon slot="prefix" name="chat-left-text" label="Add comment"></sl-icon>
+          <span slot="prefix" style="display:inline-flex;align-items:center;margin-right:6px;">${unsafeHTML(getThreadSvg('chat-left-text', 14))}</span>
           Add comment
         </sl-button>
       </div>

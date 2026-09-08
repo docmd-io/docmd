@@ -1,6 +1,6 @@
 [package]
 name        = "docmd-engine"
-version     = "0.9.4"
+version     = "0.9.5"
 edition     = "2021"
 description = "Native Node.js addon for the docmd Rust engine"
 license     = "MIT"

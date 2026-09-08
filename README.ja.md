@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Markdown から数秒で本番運用可能なドキュメントを生成。</b><br/>設定不要。AI ネイティブ。開発者のために設計。</p>
+  <p><b>人間と機械のためのドキュメント。</b><br/>ひとつの Markdown ソース → ウェブサイト、検索、AI コンテキスト、エージェントプロトコル。すべてをまとめて生成。</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm version"></a>
@@ -294,7 +294,7 @@ await build('./docmd.config.json', { isDev: false });
 
 ## 支援・サポート
 
-- docmd の開発を最も直接的に支援する方法は、周囲の開発者に共有することです。[X で共有する](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Markdown%20から数秒で本番運用可能なドキュメントを生成。) か、スターを付けてください。
+- docmd の開発を最も直接的に支援する方法は、周囲の開発者に共有することです。[X で共有する](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20人間と機械のためのドキュメント。) か、スターを付けてください。
 - docmd が開発時間の節約に役立った場合は、[GitHub スポンサー](https://github.com/sponsors/mgks) をご検討ください。
 - アイデアやバグ報告、独自プラグインの PR も大歓迎です！
 

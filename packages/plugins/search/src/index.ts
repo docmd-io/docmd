@@ -33,7 +33,7 @@ const require = createRequire(import.meta.url);
 
 export const plugin: PluginDescriptor = {
   name: 'search',
-  version: '0.9.4',
+  version: '0.9.5',
   // `init` lets onConfigResolved run at config-parse time — that's where we
   // compute the single `searchConfig` object. The build pipeline reads
   // it from `config._searchConfig` everywhere else, so there's exactly

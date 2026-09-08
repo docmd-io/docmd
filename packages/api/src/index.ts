@@ -31,7 +31,7 @@ export {
 } from './runtime-deps.js';
 
 // RPC action/event dispatcher
-export { createActionDispatcher } from './rpc.js';
+export { createActionDispatcher, markFileWrittenByRpc, wasWrittenByRpc } from './rpc.js';
 
 // Path safety helper — canonical implementation lives in @docmd/utils.
 // Re-exported here for backward compatibility with existing plugin imports.

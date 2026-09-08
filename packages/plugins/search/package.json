@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-search",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Offline full-text search for docmd.",
   "type": "module",
   "main": "dist/index.js",
@@ -30,7 +30,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "markdown-it": "^14.3.0",
+    "markdown-it": "^14.3.1",
     "minisearch": "^7.2.0"
   },
   "peerDependencies": {

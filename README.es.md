@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Documentación lista para producción desde Markdown, en segundos.</b><br/>Sin configuración. Nativo de IA. Creado para desarrolladores.</p>
+  <p><b>Documentación para humanos y máquinas.</b><br/>Una fuente Markdown → sitio web, búsqueda, contexto IA y protocolos de agentes. Todo generado junto.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="versión npm"></a>
@@ -185,7 +185,7 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:0.9.0
 Apunta docmd a cualquier carpeta con Markdown y funcionará. La navegación se genera automáticamente a partir de tu estructura de archivos. Puedes escribir tu primer documento y ponerlo en línea en menos de un minuto — sin código base repetitivo, sin canalización de compilación que configurar, sin decisiones previas.
 
 ### Diminuto por defecto, rápido en todas partes
-La carga útil de JavaScript por defecto es de ~18 kb. La navegación entre páginas funciona como una SPA instantánea. El resultado es HTML estático — optimizado para SEO, con mapa del sitio, URLs canónicas y metadatos de Open Graph incluidos. Búsqueda de texto completo sin conexión integrada, sin requerir servicios en la nube.
+Sin framework runtime — la salida es HTML estático y JavaScript vanilla mínimo. La navegación entre páginas funciona como una SPA instantánea. Optimizado para SEO, con mapa del sitio, URLs canónicas y metadatos de Open Graph incluidos. Búsqueda de texto completo sin conexión integrada, sin requerir servicios en la nube.
 
 ### Nativo de IA
 docmd trata a la IA como una forma de primera clase para consumir documentación — sin reemplazar la documentación misma.

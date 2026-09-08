@@ -10,7 +10,7 @@
 
   <br/>
 
-  <p><b>Production-ready documentation from Markdown, in seconds.</b><br/>Zero config. AI-native. Built for developers.</p>
+  <p><b>Documentation for humans and machines.</b><br/>One Markdown source → website, search, AI context, and agent protocols. All generated together.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm version"></a>
@@ -178,8 +178,8 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:0.9.0
 ### Zero config, instant start
 Point docmd at any Markdown folder and it runs. Navigation is built automatically from your file structure. You can write your first doc and have it live in under a minute — no boilerplate, no build pipeline to configure, no decisions to make upfront.
 
-### Tiny by default, fast everywhere
-The default JavaScript payload is ~18 kb. Pages navigate as an instant SPA. The output is static HTML — SEO-optimised, with sitemap, canonical URLs, and Open Graph metadata included. Offline full-text search is built in, no cloud service required.
+### Lightweight by default, fast everywhere
+No framework runtime — the output is static HTML and minimal vanilla JavaScript. Pages navigate as an instant SPA. SEO-optimised, with sitemap, canonical URLs, and Open Graph metadata included. Offline full-text search is built in, no cloud service required.
 
 ### AI-native
 docmd treats AI as a first-class way to consume documentation — without replacing the documentation itself.
@@ -296,7 +296,7 @@ Full reference: [Node API](https://docs.docmd.io/development/node-api-reference/
 
 ## Support
 
-- Getting the word out is the most direct way to support docmd's development. [Share it on X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Production-ready%20docs%20from%20Markdown%20in%20seconds.) with friends or give it a star.
+- Getting the word out is the most direct way to support docmd's development. [Share it on X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Documentation%20for%20humans%20and%20machines.) with friends or give it a star.
 - If docmd saves you time, a [GitHub sponsorship](https://github.com/sponsors/mgks) goes a long way.
 - Got ideas or bugs? Open an issue or PR, feel free to contribute your own plugins.
 

@@ -5,44 +5,50 @@
  */
 
 #docmd-ai-plugin-root {
-  font-family: var(--docmd-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-  /* docmd Theme System Tokens */
-  --ai-bg: var(--docmd-bg-card, var(--docmd-bg, #0f172a));
-  --ai-header-bg: var(--docmd-bg-header, var(--docmd-bg-secondary, #1e293b));
-  --ai-border: var(--docmd-border, rgba(255, 255, 255, 0.12));
-  --ai-text: var(--docmd-text, #f8fafc);
-  --ai-text-muted: var(--docmd-text-muted, #94a3b8);
-  --ai-primary: var(--docmd-primary, #0669d4);
-  --ai-radius: var(--docmd-radius, 12px);
-  --ai-bubble-user: var(--docmd-primary, #0669d4);
-  --ai-bubble-assistant: var(--docmd-bg-bubble, var(--docmd-bg-secondary, #1e293b));
-  --ai-input-bg: var(--docmd-bg-input, var(--docmd-bg-secondary, #1e293b));
-  --ai-shadow: var(--docmd-shadow, 0 4px 20px rgba(0, 0, 0, 0.15));
+  font-family: var(--summer-font-sans, var(--font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif));
+  /* Adaptive template & design tokens */
+  --ai-primary: var(--summer-accent, var(--link-color, var(--primary-color, #0669d4)));
+  --ai-primary-hover: var(--summer-accent-hover, var(--link-color-hover, #0b76b3));
+  --ai-bg: var(--summer-surface, var(--bg-color, #ffffff));
+  --ai-header-bg: var(--summer-surface-2, var(--header-bg, var(--sidebar-bg, #f8fafc)));
+  --ai-border: var(--summer-border, var(--border-color, rgba(0, 0, 0, 0.08)));
+  --ai-text: var(--summer-fg, var(--text-color, #0f172a));
+  --ai-text-muted: var(--summer-fg-muted, var(--text-muted, #64748b));
+  --ai-radius: var(--summer-radius-lg, var(--radius-lg, 12px));
+  --ai-bubble-user: var(--summer-accent, var(--link-color, var(--primary-color, #0669d4)));
+  --ai-bubble-assistant: var(--summer-surface-3, var(--sidebar-bg, #f1f5f9));
+  --ai-input-bg: var(--summer-surface-2, var(--sidebar-bg, #f8fafc));
+  --ai-shadow: var(--shadow-lg, 0 4px 20px rgba(0, 0, 0, 0.12));
 }
 
 /* Light Theme Overrides */
 html[data-theme="light"] #docmd-ai-plugin-root,
-body.light #docmd-ai-plugin-root {
-  --ai-bg: var(--docmd-bg-card, var(--docmd-bg, #ffffff));
-  --ai-header-bg: var(--docmd-bg-header, var(--docmd-bg-secondary, #f8fafc));
-  --ai-border: var(--docmd-border, rgba(0, 0, 0, 0.08));
-  --ai-text: var(--docmd-text, #0f172a);
-  --ai-text-muted: var(--docmd-text-muted, #64748b);
-  --ai-bubble-assistant: var(--docmd-bg-bubble, var(--docmd-bg-secondary, #f1f5f9));
-  --ai-input-bg: var(--docmd-bg-input, var(--docmd-bg-secondary, #f8fafc));
-  --ai-shadow: var(--docmd-shadow, 0 4px 16px rgba(0, 0, 0, 0.06));
+body.light #docmd-ai-plugin-root,
+:root:not([data-theme="dark"]) #docmd-ai-plugin-root {
+  --ai-bg: var(--summer-surface, var(--bg-color, #ffffff));
+  --ai-header-bg: var(--summer-surface-2, var(--header-bg, var(--sidebar-bg, #f8fafc)));
+  --ai-border: var(--summer-border, var(--border-color, rgba(0, 0, 0, 0.08)));
+  --ai-text: var(--summer-fg, var(--text-color, #0f172a));
+  --ai-text-muted: var(--summer-fg-muted, var(--text-muted, #64748b));
+  --ai-bubble-assistant: var(--summer-surface-3, var(--sidebar-bg, #f1f5f9));
+  --ai-input-bg: var(--summer-surface-2, var(--sidebar-bg, #f8fafc));
+  --ai-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.06));
 }
 
 /* Dark Theme Overrides */
 html[data-theme="dark"] #docmd-ai-plugin-root,
-body.dark #docmd-ai-plugin-root {
-  --ai-bg: var(--docmd-bg-card, var(--docmd-bg, #0f172a));
-  --ai-header-bg: var(--docmd-bg-header, var(--docmd-bg-secondary, #1e293b));
-  --ai-border: var(--docmd-border, rgba(255, 255, 255, 0.12));
-  --ai-text: var(--docmd-text, #f8fafc);
-  --ai-text-muted: var(--docmd-text-muted, #94a3b8);
-  --ai-bubble-assistant: var(--docmd-bg-bubble, var(--docmd-bg-secondary, #1e293b));
-  --ai-input-bg: var(--docmd-bg-input, var(--docmd-bg-secondary, #1e293b));
+body.dark #docmd-ai-plugin-root,
+:root[data-theme="dark"] #docmd-ai-plugin-root {
+  --ai-primary: var(--summer-accent, var(--link-color, var(--primary-color, #38bdf8)));
+  --ai-bg: var(--summer-surface, var(--bg-color, #0d0d0f));
+  --ai-header-bg: var(--summer-surface-2, var(--sidebar-bg, #16161a));
+  --ai-border: var(--summer-border, var(--border-color, #27272a));
+  --ai-text: var(--summer-fg, var(--text-color, #f8fafc));
+  --ai-text-muted: var(--summer-fg-muted, var(--text-muted, #94949e));
+  --ai-bubble-user: var(--summer-accent, var(--link-color, var(--primary-color, #38bdf8)));
+  --ai-bubble-assistant: var(--summer-surface-3, var(--sidebar-bg, #1a1a1e));
+  --ai-input-bg: var(--summer-surface-2, var(--sidebar-bg, #16161a));
+  --ai-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 /* --- Floating Bottom Prompt Bar --- */
@@ -368,8 +374,8 @@ body.dark #docmd-ai-plugin-root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px 4px 12px;
+  background: rgba(0, 0, 0, 0.28);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -380,6 +386,40 @@ body.dark #docmd-ai-plugin-root {
   text-transform: lowercase;
   font-weight: 600;
   letter-spacing: 0.03em;
+}
+
+.docmd-ai-code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: var(--ai-text-muted, #94a3b8);
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+
+.docmd-ai-code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.docmd-ai-code-copy-btn.copied {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.docmd-ai-code-copy-btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .docmd-ai-chat-bubble pre {
@@ -626,4 +666,58 @@ body.dark #docmd-ai-plugin-root {
 
 .docmd-ai-content {
   word-break: break-word;
+}
+
+.docmd-ai-content ol,
+.docmd-ai-content ul {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.docmd-ai-content li {
+  margin-bottom: 0.35rem;
+  line-height: 1.55;
+}
+
+.docmd-ai-content li:last-child {
+  margin-bottom: 0;
+}
+
+/* Template-specific styling enhancements for AI Assistant */
+body:has(.summer-layout) .docmd-ai-bar,
+body.summer-template .docmd-ai-bar {
+  border-radius: var(--summer-radius, 20px);
+}
+body:has(.summer-layout) .docmd-ai-bar input,
+body.summer-template .docmd-ai-bar input {
+  font-family: var(--summer-font-sans, inherit);
+}
+body:has(.summer-layout) .docmd-ai-trigger-pill,
+body.summer-template .docmd-ai-trigger-pill {
+  border-radius: var(--summer-radius, 20px);
+  border-color: var(--summer-border);
+}
+body:has(.summer-layout) .docmd-ai-trigger-pill:hover,
+body.summer-template .docmd-ai-trigger-pill:hover {
+  border-color: var(--summer-accent);
+}
+body:has(.summer-layout) .docmd-ai-drawer-header,
+body.summer-template .docmd-ai-drawer-header {
+  font-family: var(--summer-font-sans, inherit);
+  border-bottom-color: var(--summer-border);
+}
+body:has(.summer-layout) .docmd-ai-send-btn,
+body.summer-template .docmd-ai-send-btn {
+  background: var(--summer-accent);
+}
+body:has(.summer-layout) .docmd-ai-send-btn:hover,
+body.summer-template .docmd-ai-send-btn:hover {
+  background: var(--summer-accent-hover, #e64500);
+}
+
+.docmd-ai-sub-item {
+  display: inline-block;
+  margin-left: 0.75rem;
+  margin-top: 0.15rem;
+  opacity: 0.88;
 }
