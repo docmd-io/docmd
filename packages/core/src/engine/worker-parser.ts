@@ -77,7 +77,7 @@ async function init() {
   const cwd = workerData.cwd;
 
   // 1. Re-hydrate hooks by loading plugins within the worker boundary.
-  hooks = await loadPlugins(config, { resolvePaths: [cwd] });
+  hooks = await loadPlugins(config, { resolvePaths: [cwd], isDev: Boolean(config?._isDev) });
 
   // 2. Re-hydrate UI strings for the markdown processor (for heading anchors, etc.)
   const localeId = config._activeLocale?.id || null;

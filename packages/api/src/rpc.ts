@@ -84,6 +84,10 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
      * Dispatch a call-style action.  Returns `{ result, reload }`.
      */
     async handleCall(action: string, payload: any): Promise<DispatchResult> {
+      if (action === 'system:ping') {
+        return { result: { ok: true, timestamp: Date.now() }, reload: false };
+      }
+
       const handler = hooks.actions[action];
       if (!handler) throw new Error(`Unknown action: ${action}`);
 

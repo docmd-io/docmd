@@ -29,7 +29,8 @@
       "assets",
       "actions",
       "translations"
-    ]
+    ],
+    "requiresLiveServer": true
   },
   "scripts": {
     "build": "tsc && node build.js",

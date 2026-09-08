@@ -1,6 +1,6 @@
 {
   "$meta": {
-    "generatedAt": "2026-09-08T07:31:25.607Z",
+    "generatedAt": "2026-09-08T13:26:29.491Z",
     "generator": "scripts/build-plugin-registry.mjs",
     "packageCount": 16
   },
@@ -184,7 +184,8 @@
       "assets",
       "actions",
       "translations"
-    ]
+    ],
+    "requiresLiveServer": true
   },
   "summer": {
     "package": "@docmd/template-summer",

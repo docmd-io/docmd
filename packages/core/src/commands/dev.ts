@@ -388,7 +388,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
         wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
 
         // Action dispatcher for plugin actions/events
-        await loadPlugins(config, { resolvePaths: [__dirname] });
+        await loadPlugins(config, { resolvePaths: [__dirname], isDev: true });
         const dispatcher = createActionDispatcher(hooks, {
           projectRoot: CWD,
           config,

@@ -148,6 +148,7 @@ for (const { dir, kind } of SCAN_DIRS) {
       capabilities,
     };
     if (docmd && docmd.preview) entry.preview = docmd.preview;
+    if (docmd && docmd.requiresLiveServer !== undefined) entry.requiresLiveServer = docmd.requiresLiveServer;
 
     registry[key] = entry;
     count++;

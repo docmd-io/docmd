@@ -451,6 +451,7 @@ export async function loadConfig(configPath: string, options: any = {}) {
       // The DOCMD_DEV env is set by the semantic-search subprocess re-run so
       // child builds spawned from dev also get the override.
       const isDevContext = options.isDev || process.env.DOCMD_DEV === 'true';
+      normalized._isDev = isDevContext;
       if (isDevContext && normalized._baseAutoDerived && !process.env.DOCMD_PROJECT_PREFIX) {
         normalized.base = '/';
         delete normalized._baseAutoDerived;

@@ -119,6 +119,10 @@ function validateDescriptor(descriptor: any): ValidationResult {
     }
   }
 
+  if (descriptor.requiresLiveServer !== undefined && typeof descriptor.requiresLiveServer !== 'boolean') {
+    errors.push('`requiresLiveServer` must be a boolean');
+  }
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -335,7 +339,9 @@ export function resolveTemplateName(key: string): string {
 // Load & Register
 // ---------------------------------------------------------------------------
 
-export async function loadPlugins(config: any, opts?: { resolvePaths?: string[] }): Promise<PluginHooks> {
+export async function loadPlugins(config: any, opts?: { resolvePaths?: string[]; isDev?: boolean }): Promise<PluginHooks> {
+  const isDev = Boolean(opts?.isDev ?? config?._isDev ?? (process.env.DOCMD_DEV === 'true'));
+
   // The monorepo dev fallback (loading plugins/templates from
   // packages/plugins or packages/templates in the monorepo source)
   // should ONLY fire when the process is running from inside the
@@ -606,7 +612,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[] 
       const manifestCapabilities = (loadRuntimeRegistry()[shortNameForManifest]?.capabilities) as string[] | undefined;
 
       try {
-        registerPlugin(name, pluginModule, options, manifestCapabilities);
+        registerPlugin(name, pluginModule, options, manifestCapabilities, isDev);
       } catch (regError: any) {
         warnOnce(`register:${name}`, TUI.yellow(`Plugin loaded but failed to register: ${name}`) + TUI.dim(`\n   > ${regError.message}`));
       }
@@ -692,12 +698,23 @@ function registerPlugin(
   plugin: PluginModule,
   options: any,
   manifestCapabilities?: string[],   // Stage 4: from registry entry, for cross-check
+  isDev = false,
 ) {
   const shortName = name.replace(/^@docmd\/plugin-/, '').replace(/^@docmd\/template-/, '');
   const isOfficial = name.startsWith('@docmd/plugin-') || name.startsWith('@docmd/template-');
 
   // --- §1: Validate descriptor ---
   const descriptor = plugin.plugin || null;
+
+  // --- Live Server Requirement Check ---
+  const manifestEntry = loadRuntimeRegistry()[shortKey(name) ?? shortName];
+  const requiresLive = descriptor?.requiresLiveServer === true || manifestEntry?.requiresLiveServer === true;
+  const isDevOnly = requiresLive && options?.devOnly !== false && options?.liveOnly !== false;
+  const skipClientAssets = !isDev && isDevOnly;
+
+  if (skipClientAssets) {
+    warnOnce(`liveserver:${name}`, TUI.dim(`[${shortName}] requires live dev server — omitting client assets from static build`));
+  }
 
   if (descriptor) {
     const { valid, errors } = validateDescriptor(descriptor);
@@ -752,7 +769,7 @@ function registerPlugin(
   }
 
   // generateMetaTags → injectHead
-  if (typeof plugin.generateMetaTags === 'function') {
+  if (!skipClientAssets && typeof plugin.generateMetaTags === 'function') {
     if (hasCapabilityForHook(descriptor, 'generateMetaTags')) {
       const fn = plugin.generateMetaTags;
       hooks.injectHead.push(async (config: any, pageContext: any, root: any) => {
@@ -770,7 +787,7 @@ function registerPlugin(
   }
 
   // generateScripts → injectHead + injectBody
-  if (typeof plugin.generateScripts === 'function') {
+  if (!skipClientAssets && typeof plugin.generateScripts === 'function') {
     if (hasCapabilityForHook(descriptor, 'generateScripts')) {
       const fn = plugin.generateScripts;
       // D-H3: pass a `target` arg so plugins can render different content
@@ -817,7 +834,7 @@ function registerPlugin(
   }
 
   // getAssets
-  if (typeof plugin.getAssets === 'function') {
+  if (!skipClientAssets && typeof plugin.getAssets === 'function') {
     if (hasCapabilityForHook(descriptor, 'getAssets')) {
       const fn = plugin.getAssets;
       hooks.assets.push(async () => (await safeCall('getAssets', name, fn, options)) as any[] || []);
