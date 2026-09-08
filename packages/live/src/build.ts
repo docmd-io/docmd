@@ -161,7 +161,7 @@ async function build(outputPath?: string) {
         if (Object.keys(snippets).length > 0) {
             indexHtml = indexHtml.replace(
                 /const SNIPPETS = \{[\s\S]*?\};/,
-                `const SNIPPETS = ${JSON.stringify(snippets, null, 4)};`
+                () => `const SNIPPETS = ${JSON.stringify(snippets, null, 4)};`
             );
         }
 
