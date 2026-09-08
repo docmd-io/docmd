@@ -63,6 +63,7 @@
     "package": "@docmd/plugin-threads",
     "description": "Inline discussion threads for docmd",
     "configKey": "threads",
+    "requiresLiveServer": true,
     "defaultConfig": "{}"
   },
   "math": {

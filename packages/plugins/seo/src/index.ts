@@ -21,7 +21,7 @@ import { attrEsc } from '@docmd/utils';
 
 export const plugin: PluginDescriptor = {
   name: 'seo',
-  version: '0.9.4',
+  version: '0.9.5',
   capabilities: ['head', 'post-build']
 };
 

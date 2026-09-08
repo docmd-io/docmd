@@ -9,8 +9,9 @@ import type { PluginDescriptor } from '@docmd/api';
 
 export const plugin: PluginDescriptor = {
   name: 'threads',
-  version: '0.9.4',
-  capabilities: ['markdown', 'body', 'assets', 'actions', 'translations']
+  version: '0.9.5',
+  capabilities: ['markdown', 'body', 'assets', 'actions', 'translations'],
+  requiresLiveServer: true
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -180,6 +180,11 @@ addInProcess(
   'Plugin AI disable flags (Issue #209)',
   await import('./cli-contracts/plugin-ai-disable.test.js')
 );
+addInProcess(
+  'issue-fixes-0-9-5',
+  'Pre-release 0.9.5 fixes (#220, #210/PR #211, #223)',
+  await import('./cli-contracts/issue-fixes-0-9-5.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(

@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-rust",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Rust-accelerated engine for docmd. The postinstall script downloads a pre-built platform binary from npm CDN (unpkg/jsdelivr). No code is executed beyond copying the .node file. Source: https://github.com/docmd-io/docmd",
   "type": "module",
   "main": "dist/index.js",

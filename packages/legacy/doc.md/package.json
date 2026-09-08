@@ -1,6 +1,6 @@
 {
   "name": "doc.md",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Discontinued from 0.8.x, use @docmd/core instead.",
   "bin": {
     "docmd": "bin/docmd.js"

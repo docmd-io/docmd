@@ -29,6 +29,27 @@
   const docmd = window.docmd || {};
   window.docmd = docmd;
 
+  /**
+   * Returns true if the WebSocket connection to the live dev server is currently active.
+   */
+  docmd.isLive = function() {
+    return socket !== null && socket.readyState === 1;
+  };
+
+  /**
+   * Ping the live dev server RPC bridge. Resolves true if connected and responsive.
+   */
+  docmd.ping = async function(timeoutMs = 2000) {
+    if (!docmd.isLive()) return false;
+    try {
+      const timer = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs));
+      const res = await Promise.race([docmd.call('system:ping', {}), timer]);
+      return !!(res && res.ok);
+    } catch {
+      return false;
+    }
+  };
+
   // Restore scroll position after reload
   const savedScroll = sessionStorage.getItem('docmd:scrollY');
   if (savedScroll) {

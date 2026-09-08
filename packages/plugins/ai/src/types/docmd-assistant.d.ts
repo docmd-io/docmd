@@ -54,5 +54,8 @@ declare module 'docmd-assistant' {
     executeTool(name: string, args: any): Promise<any>;
   }
 
-  export function createStandardTools(customSearch?: (...args: any[]) => any): any[];
+  export function createStandardTools(
+    customSearch?: (...args: any[]) => any,
+    customReader?: (...args: any[]) => any
+  ): any[];
 }

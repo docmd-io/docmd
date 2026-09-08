@@ -1,11 +1,12 @@
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import type { Thread, Anchor, AuthorsMap } from '../../types';
+import type { Thread, Comment, Anchor, AuthorsMap } from '../../types';
 import * as api from '../lib/api';
 import { initIdentity, getIdentityPayload } from '../lib/identity';
 import { computeAnchor, getSelectionPosition, isWithinContent } from '../lib/selection';
 import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
+import { createSvgElement, getThreadSvg } from '../lib/icons';
 
 import './threads-popover';
 import './threads-inline-editor';
@@ -51,10 +52,8 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
 
-    // Activate sidebar mode if configured
-    if (this.sidebarEnabled) {
-      this.initSidebarColumn();
-    }
+    // Always initialize sidebar column so the panel is available for FAB toggle
+    this.initSidebarColumn();
 
     this.loadThreads();
     this.injectNewThreadButton();
@@ -74,7 +73,8 @@ export class ThreadsApp extends LitElement {
    * Find the content area of the page.
    */
   private getContentArea(): Element | null {
-    return document.querySelector('[data-docmd-content]')
+    return document.querySelector('.summer-content')
+      || document.querySelector('[data-docmd-content]')
       || document.querySelector('.docmd-content')
       || document.querySelector('.main-content')
       || document.querySelector('article')
@@ -89,7 +89,8 @@ export class ThreadsApp extends LitElement {
     // Avoid duplicates
     if (document.querySelector('threads-identity')) return;
 
-    const target = document.querySelector('.docmd-options-menu')
+    const target = document.querySelector('.summer-topbar__right')
+      || document.querySelector('.docmd-options-menu')
       || document.querySelector('.header-right');
     if (!target) return;
 
@@ -124,10 +125,7 @@ export class ThreadsApp extends LitElement {
 
       const btn = document.createElement('button');
       btn.className = 'threads-new-thread-btn';
-      const icon = document.createElement('sl-icon');
-      icon.setAttribute('name', 'plus-lg');
-      icon.setAttribute('style', 'font-size:14px;');
-      btn.appendChild(icon);
+      btn.appendChild(createSvgElement('plus', 13));
       btn.appendChild(document.createTextNode(' ' + t('newThread')));
       btn.title = t('startThread');
       btn.addEventListener('click', (e) => {
@@ -157,11 +155,7 @@ export class ThreadsApp extends LitElement {
           body: e.detail.body,
         });
         this.removeInlineEditor();
-        if (typeof docmd !== 'undefined' && docmd.scheduleReload) {
-          docmd.scheduleReload('threads');
-        } else {
-          await this.loadThreads();
-        }
+        await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
         editor.submitting = false;
@@ -241,17 +235,16 @@ export class ThreadsApp extends LitElement {
     editor.addEventListener('inline-submit', async (e: CustomEvent) => {
       const identity = getIdentityPayload();
       try {
-        await api.createThread({
+        const createdThread = await api.createThread({
           anchor,
           ...identity,
           body: e.detail.body,
         });
         this.removeInlineEditor();
-        if (typeof docmd !== 'undefined' && docmd.scheduleReload) {
-          docmd.scheduleReload('threads');
-        } else {
-          await this.loadThreads();
+        if (anchor?.quote && createdThread?.id && blockEl) {
+          this.wrapAnchorInMark(blockEl, anchor.quote, createdThread.id);
         }
+        await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
         editor.submitting = false;
@@ -262,6 +255,29 @@ export class ThreadsApp extends LitElement {
 
     blockEl.insertAdjacentElement('afterend', editor);
     this.inlineEditorEl = editor;
+  }
+
+  private wrapAnchorInMark(blockEl: HTMLElement, quote: string, threadId: string): void {
+    const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+    let textNode: Node | null;
+    while ((textNode = walker.nextNode())) {
+      const val = textNode.nodeValue || '';
+      const idx = val.indexOf(quote);
+      if (idx >= 0) {
+        const range = document.createRange();
+        range.setStart(textNode, idx);
+        range.setEnd(textNode, idx + quote.length);
+        const mark = document.createElement('mark');
+        mark.className = 'threads-highlight';
+        mark.dataset.threadId = threadId;
+        try {
+          range.surroundContents(mark);
+        } catch {
+          // Ignore if boundary cross
+        }
+        break;
+      }
+    }
   }
 
   // ─── Page lifecycle ───────────────────────────────────────────────
@@ -278,11 +294,14 @@ export class ThreadsApp extends LitElement {
         api.fetchThreads(),
         api.fetchAuthors(),
       ]);
-      this.threads = threads;
-      this.authorsMap = authors;
+      if (Array.isArray(threads)) {
+        this.threads = threads;
+      }
+      if (authors && typeof authors === 'object') {
+        this.authorsMap = authors;
+      }
     } catch (err) {
       console.error('[threads] Failed to load threads:', err);
-      this.threads = [];
     }
     this.scanRenderedHighlights();
     this.updateFabBadge();
@@ -317,13 +336,19 @@ export class ThreadsApp extends LitElement {
       mark.classList.add(colorClass);
       colorIndex++;
 
-      // 2. Apply matching border color to thread card (always, regardless of mode)
-      const threadEl = document.querySelector<HTMLElement>(`.threads-thread[data-thread-id="${threadId}"]`);
-      if (threadEl) {
-        threadEl.classList.add(colorClass.replace('threads-hl-', 'threads-border-'));
+      const threadData = this.threads.find(t => t.id === threadId);
 
-        // 3. Move thread card inline only when sidebar mode is OFF (the default)
-        if (!this.sidebarEnabled) {
+      // 2. In inline mode, ensure the thread card exists right after the block
+      if (!this.sidebarEnabled) {
+        let threadEl = document.querySelector<HTMLElement>(`.threads-thread[data-thread-id="${threadId}"]:not(.tc-panel .threads-thread)`);
+        if (!threadEl && threadData) {
+          threadEl = this.renderThreadCard(threadData, false);
+        }
+
+        if (threadEl) {
+          threadEl.classList.add('threads-thread--inline');
+          threadEl.classList.add(colorClass.replace('threads-hl-', 'threads-border-'));
+
           let blockEl: Element | null = mark;
           while (blockEl && blockEl !== document.body) {
             if (blockEl instanceof HTMLElement && BLOCK_TAGS.has(blockEl.tagName)) {
@@ -332,39 +357,39 @@ export class ThreadsApp extends LitElement {
             blockEl = blockEl.parentElement;
           }
 
-          if (blockEl && blockEl !== document.body) {
+          if (blockEl && blockEl !== document.body && threadEl.parentElement !== blockEl.parentElement) {
             blockEl.insertAdjacentElement('afterend', threadEl);
           }
         }
       }
 
-      // 4. Click handler: scroll to thread and flash
+      // 3. Click handler: always open thread in sidebar panel and focus it
       mark.style.cursor = 'pointer';
-      mark.addEventListener('click', () => {
-        const el = document.querySelector(`.threads-thread[data-thread-id="${threadId}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('threads-thread--flash');
-          setTimeout(() => el.classList.remove('threads-thread--flash'), 2000);
+      mark.onclick = (e) => {
+        e.stopPropagation();
+        this.closeAiDrawerIfOpen();
+        document.body.classList.add('tc-panel-open');
+        this.populateSidebarPanel();
+        const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
+        if (targetInPanel) {
+          targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetInPanel.classList.add('threads-thread--flash');
+          setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
         }
-      });
+      };
     }
 
-    // 5. Inject reply buttons into all thread cards
+    // 4. Inject reply buttons into any static server-rendered thread cards
     this.injectReplyButtons();
 
-    // Handle sidebar visibility based on mode
-    const sidebar = document.querySelector('.threads-sidebar');
-    if (!this.sidebarEnabled) {
-      // Inline mode: hide the sidebar if all threads were moved out
-      if (sidebar instanceof HTMLElement) {
-        const remainingThreads = sidebar.querySelectorAll('.threads-thread');
-        if (remainingThreads.length === 0) {
-          sidebar.style.display = 'none';
-        }
-      }
-    } else {
-      // Sidebar mode: move thread cards into the right panel
+    // 5. Hide any raw .threads-sidebar bottom element rendered by markdown-it
+    const bottomSidebar = document.querySelector('.threads-sidebar');
+    if (bottomSidebar instanceof HTMLElement) {
+      bottomSidebar.style.display = 'none';
+    }
+
+    // 6. If sidebar mode or panel is open, populate the right sidebar panel
+    if (this.sidebarEnabled || document.body.classList.contains('tc-panel-open')) {
       this.populateSidebarPanel();
     }
   }
@@ -419,10 +444,7 @@ export class ThreadsApp extends LitElement {
         // Reply button
         const replyBtn = document.createElement('button');
         replyBtn.className = 'threads-comment-reply-btn';
-        const replyIcon = document.createElement('sl-icon');
-        replyIcon.setAttribute('name', 'reply');
-        replyIcon.setAttribute('style', 'font-size:13px;');
-        replyBtn.appendChild(replyIcon);
+        replyBtn.appendChild(createSvgElement('reply', 13));
         replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
         replyBtn.title = t('replyToComment');
         replyBtn.addEventListener('click', (e) => {
@@ -434,10 +456,7 @@ export class ThreadsApp extends LitElement {
         // Delete button
         const delBtn = document.createElement('button');
         delBtn.className = 'threads-delete-btn';
-        const delIcon = document.createElement('sl-icon');
-        delIcon.setAttribute('name', 'trash');
-        delIcon.setAttribute('style', 'font-size:13px;');
-        delBtn.appendChild(delIcon);
+        delBtn.appendChild(createSvgElement('trash', 13));
         delBtn.title = t('deleteComment');
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -470,10 +489,7 @@ export class ThreadsApp extends LitElement {
 
       const btn = document.createElement('button');
       btn.className = 'threads-new-comment-btn';
-      const plusIcon = document.createElement('sl-icon');
-      plusIcon.setAttribute('name', 'plus-lg');
-      plusIcon.setAttribute('style', 'font-size:13px;');
-      btn.appendChild(plusIcon);
+      btn.appendChild(createSvgElement('plus', 13));
       btn.appendChild(document.createTextNode(' ' + t('newComment')));
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -484,19 +500,13 @@ export class ThreadsApp extends LitElement {
       // Collapse/expand toggle button
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'threads-collapse-btn';
-      const upIcon = document.createElement('sl-icon');
-      upIcon.setAttribute('name', 'chevron-up');
-      upIcon.setAttribute('style', 'font-size:14px;');
-      toggleBtn.appendChild(upIcon);
+      toggleBtn.appendChild(createSvgElement('chevron-up', 14));
       toggleBtn.title = t('collapseThread');
       toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const isCollapsed = threadEl.classList.toggle('threads-thread--collapsed');
         toggleBtn.innerHTML = '';
-        const icon = document.createElement('sl-icon');
-        icon.setAttribute('name', isCollapsed ? 'chevron-down' : 'chevron-up');
-        icon.setAttribute('style', 'font-size:14px;');
-        toggleBtn.appendChild(icon);
+        toggleBtn.appendChild(createSvgElement(isCollapsed ? 'chevron-down' : 'chevron-up', 14));
         toggleBtn.title = isCollapsed ? t('expandThread') : t('collapseThread');
       });
       footer.appendChild(toggleBtn);
@@ -509,7 +519,7 @@ export class ThreadsApp extends LitElement {
    * Build a summary string like "3 comments by Alice, Bob, and 1 more".
    * Uses only the first name of each author.
    */
-  private buildCollapseSummary(comments: NodeListOf<HTMLElement>): string {
+  private buildCollapseSummary(comments: NodeListOf<HTMLElement> | HTMLElement[]): string {
     const count = comments.length;
     const authors = new Set<string>();
     for (const c of comments) {
@@ -597,11 +607,7 @@ export class ThreadsApp extends LitElement {
           parentId: parentCommentId,
         });
         this.removeInlineEditor();
-        if (typeof docmd !== 'undefined' && docmd.scheduleReload) {
-          docmd.scheduleReload('threads');
-        } else {
-          await this.loadThreads();
-        }
+        await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to add comment:', err);
         editor.submitting = false;
@@ -679,8 +685,10 @@ export class ThreadsApp extends LitElement {
   private initSidebarColumn(): void {
     if (document.querySelector('.tc-sidebar-column')) return;
 
-    // Activate sidebar mode via body class
-    document.body.classList.add('tc-sidebar-active', 'tc-has-sidebar');
+    if (this.sidebarEnabled) {
+      // Activate permanent sidebar mode via body class
+      document.body.classList.add('tc-sidebar-active', 'tc-has-sidebar');
+    }
 
     // Create sidebar column
     const column = document.createElement('div');
@@ -690,12 +698,11 @@ export class ThreadsApp extends LitElement {
     const toggle = document.createElement('button');
     toggle.className = 'tc-sidebar-toggle';
     toggle.title = t('openThreadsPanel');
-    const toggleIcon = document.createElement('sl-icon');
-    toggleIcon.setAttribute('name', 'chat-dots');
-    toggleIcon.setAttribute('style', 'font-size:16px;');
-    toggle.appendChild(toggleIcon);
+    toggle.appendChild(createSvgElement('messages-square', 18));
     toggle.addEventListener('click', () => {
+      this.closeAiDrawerIfOpen();
       document.body.classList.add('tc-panel-open');
+      this.populateSidebarPanel();
     });
     column.appendChild(toggle);
 
@@ -718,25 +725,34 @@ export class ThreadsApp extends LitElement {
     
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'tc-panel__header-actions';
+
+    const newThreadBtn = document.createElement('button');
+    newThreadBtn.className = 'tc-panel__new-btn';
+    newThreadBtn.title = t('newThread') || 'Start new discussion';
+    newThreadBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;display:inline-flex;align-items:center;margin-right:4px;border-radius:4px;';
+    newThreadBtn.appendChild(createSvgElement('plus', 16));
+    newThreadBtn.addEventListener('click', () => {
+      const content = this.getContentArea();
+      const firstHeading = content?.querySelector('h1, h2, h3, h4, p');
+      if (firstHeading) {
+        firstHeading.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        this.startNewThread(firstHeading);
+      }
+    });
+    actionsDiv.appendChild(newThreadBtn);
+
     const cBtn = document.createElement('button');
     cBtn.className = 'tc-panel__close-btn';
     cBtn.title = t('closePanel');
-    cBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;';
-    const closeIcon = document.createElement('sl-icon');
-    closeIcon.setAttribute('name', 'x-lg');
-    closeIcon.setAttribute('variant', 'solid');
-    closeIcon.setAttribute('style', 'font-size:16px;');
-    cBtn.appendChild(closeIcon);
+    cBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;display:inline-flex;align-items:center;border-radius:4px;';
+    cBtn.appendChild(createSvgElement('x', 16));
+    cBtn.addEventListener('click', () => {
+      document.body.classList.remove('tc-panel-open');
+    });
     actionsDiv.appendChild(cBtn);
 
     header.appendChild(titleDiv);
     header.appendChild(actionsDiv);
-    const closeBtn = header.querySelector('.tc-panel__close-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        document.body.classList.remove('tc-panel-open');
-      });
-    }
     panel.appendChild(header);
 
     // Panel body (thread cards go here)
@@ -749,7 +765,7 @@ export class ThreadsApp extends LitElement {
   }
 
   /**
-   * Move thread cards from the bottom .threads-sidebar into the sidebar panel body.
+   * Populate the sidebar panel body with thread cards directly from this.threads data.
    */
   private populateSidebarPanel(): void {
     const panelBody = document.querySelector('.tc-panel__body');
@@ -758,10 +774,21 @@ export class ThreadsApp extends LitElement {
     // Clear existing panel threads
     panelBody.textContent = '';
 
-    // Move all thread cards into the panel
-    const threadCards = document.querySelectorAll('.threads-sidebar .threads-thread');
-    for (const card of threadCards) {
-      panelBody.appendChild(card);
+    if (this.threads.length === 0) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'tc-panel__empty';
+      emptyState.innerHTML = `
+        <div style="text-align:center;padding:40px 16px;color:var(--tc-muted-fg);">
+          <div style="margin-bottom:12px;opacity:0.6;display:flex;justify-content:center;">${createSvgElement('messages-square', 32).outerHTML}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--tc-fg);">${t('noThreads') || 'No discussions yet'}</div>
+          <div style="font-size:12px;line-height:1.5;">Select any text on this page to leave a comment, or click the <strong>+</strong> button beside any heading.</div>
+        </div>
+      `;
+      panelBody.appendChild(emptyState);
+    } else {
+      for (const thread of this.threads) {
+        panelBody.appendChild(this.renderThreadCard(thread, true));
+      }
     }
 
     // Update count
@@ -772,6 +799,223 @@ export class ThreadsApp extends LitElement {
     }
   }
 
+  private renderThreadCard(thread: Thread, isSidebar = false): HTMLElement {
+    const threadEl = document.createElement('div');
+    threadEl.className = 'threads-thread' + (thread.resolved ? ' threads-thread--resolved' : '');
+    if (!isSidebar) {
+      threadEl.classList.add('threads-thread--inline');
+    }
+    threadEl.dataset.threadId = thread.id;
+
+    // Anchor quote badge for both sidebar and inline preview
+    const mark = document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${thread.id}"]`);
+    const quoteText = mark?.textContent?.trim() || '';
+    if (quoteText) {
+      const quoteHeader = document.createElement('div');
+      quoteHeader.className = 'threads-thread__quote-badge';
+      quoteHeader.appendChild(createSvgElement('quote', 12));
+      const textSpan = document.createElement('span');
+      textSpan.className = 'threads-thread__quote-text';
+      textSpan.textContent = `"${quoteText}"`;
+      quoteHeader.appendChild(textSpan);
+
+      if (isSidebar) {
+        quoteHeader.title = 'Jump to highlight in text';
+        quoteHeader.addEventListener('click', (e) => {
+          e.stopPropagation();
+          mark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          mark?.classList.add('threads-thread--flash');
+          setTimeout(() => mark?.classList.remove('threads-thread--flash'), 2000);
+        });
+      } else {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'threads-thread__open-panel-btn';
+        openBtn.title = 'Open discussion in sidebar';
+        openBtn.innerHTML = `<span>Sidebar</span>${getThreadSvg('external-link', 11)}`;
+        openBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.closeAiDrawerIfOpen();
+          document.body.classList.add('tc-panel-open');
+          this.populateSidebarPanel();
+          const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${thread.id}"]`);
+          if (targetInPanel) {
+            targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetInPanel.classList.add('threads-thread--flash');
+            setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
+          }
+        });
+        quoteHeader.appendChild(openBtn);
+      }
+      threadEl.appendChild(quoteHeader);
+    }
+
+    // Render comments
+    const topLevelComments = thread.comments.filter(c => !c.parent_id);
+    const replyComments = thread.comments.filter(c => !!c.parent_id);
+
+    for (const comment of topLevelComments) {
+      const commentEl = this.renderCommentElement(thread.id, comment, false);
+      const replies = replyComments.filter(r => r.parent_id === comment.id);
+      if (replies.length > 0) {
+        const repliesContainer = document.createElement('div');
+        repliesContainer.className = 'threads-replies';
+        for (const reply of replies) {
+          repliesContainer.appendChild(this.renderCommentElement(thread.id, reply, true));
+        }
+        commentEl.appendChild(repliesContainer);
+      }
+      threadEl.appendChild(commentEl);
+    }
+
+    // Footer with summary, new comment, resolve/unresolve, and collapse toggle
+    const footer = document.createElement('div');
+    footer.className = 'threads-thread__footer';
+
+    const allCommentEls = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'threads-thread__summary';
+    summaryEl.textContent = this.buildCollapseSummary(allCommentEls);
+    footer.appendChild(summaryEl);
+
+    // "+ New Comment" button
+    const btn = document.createElement('button');
+    btn.className = 'threads-new-comment-btn';
+    btn.appendChild(createSvgElement('plus', 13));
+    btn.appendChild(document.createTextNode(' ' + t('newComment')));
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openReplyEditor(threadEl, thread.id, null);
+    });
+    footer.appendChild(btn);
+
+    // Resolve / Unresolve button
+    const resolveBtn = document.createElement('button');
+    resolveBtn.className = 'threads-resolve-btn';
+    resolveBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;padding:4px 8px;margin-left:auto;color:' + (thread.resolved ? 'var(--tc-muted-fg)' : 'hsl(142 60% 45%)') + ';display:inline-flex;align-items:center;gap:4px;font-family:var(--tc-font);';
+    resolveBtn.appendChild(createSvgElement(thread.resolved ? 'x' : 'check', 13));
+    resolveBtn.appendChild(document.createTextNode(thread.resolved ? ' ' + (t('unresolve') || 'Unresolve') : ' ' + (t('resolve') || 'Resolve')));
+    resolveBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const identity = getIdentityPayload();
+        await api.resolveThread(thread.id, { resolved_by: identity.author });
+        await this.loadThreads();
+      } catch (err) {
+        console.error('[threads] Failed to toggle resolve:', err);
+      }
+    });
+    footer.appendChild(resolveBtn);
+
+    // Collapse toggle button
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'threads-collapse-btn';
+    toggleBtn.appendChild(createSvgElement('chevron-up', 14));
+    toggleBtn.title = t('collapseThread');
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = threadEl.classList.toggle('threads-thread--collapsed');
+      toggleBtn.innerHTML = '';
+      toggleBtn.appendChild(createSvgElement(isCollapsed ? 'chevron-down' : 'chevron-up', 14));
+      toggleBtn.title = isCollapsed ? t('expandThread') : t('collapseThread');
+    });
+    footer.appendChild(toggleBtn);
+
+    threadEl.appendChild(footer);
+    return threadEl;
+  }
+
+  private renderCommentElement(threadId: string, comment: Comment, isReply = false): HTMLElement {
+    const commentEl = document.createElement('div');
+    commentEl.className = 'threads-comment' + (isReply ? ' threads-comment--reply' : '');
+    commentEl.dataset.commentId = comment.id;
+    if (comment.parent_id) commentEl.dataset.parentId = comment.parent_id;
+    commentEl.dataset.author = comment.author;
+    commentEl.dataset.date = comment.date;
+    if (comment.edited_at) commentEl.dataset.edited = comment.edited_at;
+
+    // Avatar column
+    const avatarCol = document.createElement('div');
+    avatarCol.className = 'threads-comment__avatar-col';
+    const authorInfo = this.resolveAuthor(comment.author);
+    if (authorInfo?.avatarUrl) {
+      const avatar = document.createElement('img');
+      avatar.className = 'threads-comment__avatar';
+      avatar.src = authorInfo.avatarUrl;
+      avatar.alt = authorInfo.name || comment.author;
+      avatarCol.appendChild(avatar);
+    } else {
+      const avatarPlaceholder = document.createElement('div');
+      avatarPlaceholder.className = 'threads-comment__avatar';
+      avatarPlaceholder.style.cssText = 'display:flex;align-items:center;justify-content:center;background:var(--tc-muted);color:var(--tc-muted-fg);border-radius:50%;font-size:11px;font-weight:600;';
+      avatarPlaceholder.textContent = (comment.author || '?').charAt(0).toUpperCase();
+      avatarCol.appendChild(avatarPlaceholder);
+    }
+    commentEl.appendChild(avatarCol);
+
+    // Meta header
+    const meta = document.createElement('div');
+    meta.className = 'threads-comment__meta';
+
+    const authorStrong = document.createElement('strong');
+    authorStrong.textContent = authorInfo?.name || comment.author;
+    meta.appendChild(authorStrong);
+
+    const dot = document.createTextNode(' · ');
+    meta.appendChild(dot);
+
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = comment.date;
+    meta.appendChild(dateSpan);
+
+    // Actions
+    const actions = document.createElement('div');
+    actions.className = 'threads-comment__actions';
+
+    // Reply button
+    const replyBtn = document.createElement('button');
+    replyBtn.className = 'threads-comment-reply-btn';
+    replyBtn.appendChild(createSvgElement('reply', 13));
+    replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
+    replyBtn.title = t('replyToComment');
+    replyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const parentThreadEl = commentEl.closest('.threads-thread') as HTMLElement;
+      if (parentThreadEl) {
+        this.openReplyEditor(parentThreadEl, threadId, comment.id);
+      }
+    });
+    actions.appendChild(replyBtn);
+
+    // Delete button
+    const delBtn = document.createElement('button');
+    delBtn.className = 'threads-delete-btn';
+    delBtn.appendChild(createSvgElement('trash', 13));
+    delBtn.title = t('deleteComment');
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.deleteTarget = { type: 'comment', id: comment.id, threadId };
+      const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+      if (dialog) dialog.open = true;
+    });
+    actions.appendChild(delBtn);
+
+    meta.appendChild(actions);
+    commentEl.appendChild(meta);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'threads-comment__body';
+    const paragraphs = comment.body.split(/\n\n+/);
+    for (const pText of paragraphs) {
+      const p = document.createElement('p');
+      p.textContent = pText;
+      body.appendChild(p);
+    }
+    commentEl.appendChild(body);
+
+    return commentEl;
+  }
+
   // ─── Floating action button ──────────────────────────────────────
 
   private injectFab(): void {
@@ -780,10 +1024,7 @@ export class ThreadsApp extends LitElement {
     const fab = document.createElement('button');
     fab.className = 'threads-fab';
     fab.title = t('jumpToThreads');
-    const fabIcon = document.createElement('sl-icon');
-    fabIcon.setAttribute('name', 'chat-dots');
-    fabIcon.setAttribute('style', 'font-size:20px;');
-    fab.appendChild(fabIcon);
+    fab.appendChild(createSvgElement('messages-square', 18));
 
     const badge = document.createElement('span');
     badge.className = 'threads-fab__badge';
@@ -791,17 +1032,26 @@ export class ThreadsApp extends LitElement {
     fab.appendChild(badge);
 
     fab.addEventListener('click', () => {
-      const firstThread = document.querySelector('.threads-thread, .threads-sidebar');
-      if (firstThread) {
-        firstThread.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (firstThread.classList.contains('threads-thread')) {
-          firstThread.classList.add('threads-thread--flash');
-          setTimeout(() => firstThread.classList.remove('threads-thread--flash'), 2000);
-        }
+      const isOpen = document.body.classList.contains('tc-panel-open');
+      if (isOpen) {
+        document.body.classList.remove('tc-panel-open');
+      } else {
+        this.closeAiDrawerIfOpen();
+        document.body.classList.add('tc-panel-open');
+        this.populateSidebarPanel();
       }
     });
 
     document.body.appendChild(fab);
+  }
+
+  private closeAiDrawerIfOpen(): void {
+    const aiDrawer = document.getElementById('docmd-ai-drawer');
+    const aiBar = document.getElementById('docmd-ai-bar-wrap');
+    if (aiDrawer?.classList.contains('open')) {
+      aiDrawer.classList.remove('open');
+      aiBar?.classList.remove('hidden');
+    }
   }
 
   private updateFabBadge(): void {
@@ -831,17 +1081,26 @@ export class ThreadsApp extends LitElement {
     if (dialog) dialog.open = false;
 
     if (!this.deleteTarget) return;
-    if (this.deleteTarget.type === 'thread') {
-      await api.deleteThread(this.deleteTarget.id);
-    } else {
-      await api.deleteComment(this.deleteTarget.threadId!, this.deleteTarget.id);
-    }
+    const target = this.deleteTarget;
     this.deleteTarget = null;
-    if (typeof docmd !== 'undefined' && docmd.scheduleReload) {
-      docmd.scheduleReload('threads');
-    } else {
-      await this.loadThreads();
+
+    try {
+      if (target.type === 'thread') {
+        await api.deleteThread(target.id);
+        const marks = document.querySelectorAll<HTMLElement>(`mark.threads-highlight[data-thread-id="${target.id}"]`);
+        marks.forEach(m => {
+          const parent = m.parentNode;
+          while (m.firstChild) parent?.insertBefore(m.firstChild, m);
+          m.remove();
+        });
+        document.querySelectorAll(`.threads-thread[data-thread-id="${target.id}"]`).forEach(el => el.remove());
+      } else {
+        await api.deleteComment(target.threadId!, target.id);
+      }
+    } catch (err) {
+      console.error('[threads] Failed to delete:', err);
     }
+    await this.loadThreads();
   }
 
   private cancelDelete(): void {

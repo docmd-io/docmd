@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Production-ready documentation from Markdown, in seconds.</b><br/>Zero config. AI-native. Built for developers.</p>
+  <p><b>Documentation for humans and machines.</b><br/>One Markdown source → website, search, AI context, and agent protocols. All generated together.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm version"></a>
@@ -44,21 +44,14 @@
 
 </div>
 
-> ## ✦ 0.9 Series — AI, Automation & Security
+> ## ✦ 0.9 Series — Documentation for Humans and Machines
 >
-> The 0.9.x series is where docmd expands from an AI-ready documentation
-> generator into a documentation platform designed for both **people and
-> AI agents**.
+> docmd compiles your Markdown into everything the modern stack needs —
+> a fast static website for human readers, search indexes, AI context
+> files (`llms.txt`), MCP server endpoints for coding agents, and
+> structured knowledge bundles (OKF) for RAG pipelines.
 >
-> The series introduces the **AI Assistant**, allowing documentation to
-> be queried conversationally using your own provider, local AI, or the
-> **docmd Cloud Relay** for static sites that don't have their own backend.
-> It also expands docmd's AI ecosystem with MCP, generated LLM context,
-> Agent Skills, and structured knowledge formats.
->
-> Alongside AI, this series focuses on **security, privacy and automation**,
-> while continuing to improve the core documentation experience, search,
-> deployment and developer workflows.
+> One source. One build. Every output.
 >
 > [Follow the 0.9 roadmap →](https://github.com/orgs/docmd-io/discussions/10)
 
@@ -154,38 +147,38 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:0.9.0
 
 ## Why docmd?
 
+Other documentation tools build a website. docmd builds **an entire knowledge ecosystem**:
+
+```
+Markdown source
+     │
+     ▼  docmd
+     │
+     ├──→  Static website       (for browsers and readers)
+     ├──→  Search index         (offline full-text, no cloud needed)
+     ├──→  llms.txt             (for LLMs and chatbots)
+     ├──→  OKF bundles          (for RAG pipelines and knowledge systems)
+     ├──→  Sitemap + SEO meta   (for search engines)
+     ├──→  robots.txt + OG tags (for crawlers and social cards)
+     ├──→  MCP server           (for IDE agents like Cursor, Claude Code)
+     └──→  Cloud Relay          (hosted AI search for static sites)
+```
+
+One source, one command. No other documentation tool generates all of these together.
+
 <div align="center">
   <img width="1000" alt="image" src="https://raw.githubusercontent.com/docmd-io/docmd/refs/heads/main/assets/docmd-comparison.webp" />
 </div>
 
-<!--
-| Feature | docmd | Docusaurus | MkDocs | VitePress | Mintlify |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Config required** | **None** | `docusaurus.config.js` | `mkdocs.yml` | `config.mts` | `docs.json` |
-| **JS payload** | **~18 kb** | ~250 kb | ~40 kb | ~50 kb | ~120 kb |
-| **Navigation** | **Instant SPA** | React SPA | Full reload | Vue SPA | Hosted SPA |
-| **Versioning** | **Native** | Native (complex) | mike plugin | Manual | Native |
-| **i18n** | **Native** | Native (complex) | Plugin-based | Native | Native |
-| **Multi-project** | **Native** | Plugin | Plugin | - | - |
-| **Search** | **Built-in** | Algolia (cloud) | Built-in | MiniSearch | Cloud |
-| **AI Assistant** | **Built-in — BYOK + Cloud Relay** | - | - | - | Built-in (Cloud) |
-| **AI context (`llms.txt`)** | **Built-in** | - | - | - | Built-in |
-| **MCP server** | **Built-in** | - | - | - | Built-in |
-| **Agent skills** | **Built-in** | - | - | - | - |
-| **Docker image** | **Official** | - | Official | - | - |
-| **Self-hosted** | **Yes** | Yes | Yes | Yes | - |
-| **Cost** | **Free (OSS)** | Free (OSS) | Free (OSS) | Free (OSS) | Freemium |
--->
-
-**See Complete [Comparison with Docusaurus, Mintlify and others →](https://docs.docmd.io/comparison/)**
+**See Complete [Comparison with Docusaurus, Mintlify and others →](https://docs.docmd.io/comparison/)"
 
 ## Features
 
 ### Zero config, instant start
 Point docmd at any Markdown folder and it runs. Navigation is built automatically from your file structure. You can write your first doc and have it live in under a minute — no boilerplate, no build pipeline to configure, no decisions to make upfront.
 
-### Tiny by default, fast everywhere
-The default JavaScript payload is ~18 kb. Pages navigate as an instant SPA. The output is static HTML — SEO-optimised, with sitemap, canonical URLs, and Open Graph metadata included. Offline full-text search is built in, no cloud service required.
+### Lightweight by default, fast everywhere
+No framework runtime — the output is static HTML and minimal vanilla JavaScript. Pages navigate as an instant SPA. SEO-optimised, with sitemap, canonical URLs, and Open Graph metadata included. Offline full-text search is built in, no cloud service required.
 
 ### AI-native
 docmd treats AI as a first-class way to consume documentation — without replacing the documentation itself.
@@ -302,7 +295,7 @@ Full reference: [Node API](https://docs.docmd.io/development/node-api-reference/
 
 ## Support
 
-- Getting the word out is the most direct way to support docmd's development. [Share it on X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Production-ready%20docs%20from%20Markdown%20in%20seconds.) with friends or give it a star.
+- Getting the word out is the most direct way to support docmd's development. [Share it on X](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20Documentation%20for%20humans%20and%20machines.) with friends or give it a star.
 - If docmd saves you time, a [GitHub sponsorship](https://github.com/sponsors/mgks) goes a long way.
 - Got ideas or bugs? Open an issue or PR, feel free to contribute your own plugins.
 

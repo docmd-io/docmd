@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>Une documentation prête pour la production à partir de Markdown, en quelques secondes.</b><br/>Zéro configuration. Conçu pour les développeurs. Nativement optimisé pour l'IA.</p>
+  <p><b>Documentation pour les humains et les machines.</b><br/>Une source Markdown → site web, recherche, contexte IA et protocoles d'agents. Le tout généré ensemble.</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="version npm"></a>

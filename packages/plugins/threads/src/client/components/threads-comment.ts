@@ -1,11 +1,12 @@
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { getThreadSvg } from '../lib/icons';
 import type { Comment } from '../../types';
 
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 import '@shoelace-style/shoelace/dist/components/avatar/avatar.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 import '@shoelace-style/shoelace/dist/components/popup/popup.js';
 
 const EMOJI_PRESETS = ['\u{1F44D}', '\u{1F44E}', '\u{1F602}', '\u{1F389}', '\u{1F914}', '\u{2764}\u{FE0F}', '\u{1F680}', '\u{1F440}'];
@@ -158,10 +159,10 @@ export class ThreadsComment extends LitElement {
           ${this.isOwn && !this.editing ? html`
             <div class="tc-comment__menu">
               <sl-button size="small" variant="text" title="Edit" @click=${this.startEdit}>
-                <sl-icon name="pencil"></sl-icon>
+                <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('pencil', 13))}</span>
               </sl-button>
               <sl-button size="small" variant="text" title="Delete" @click=${this.requestDelete}>
-                <sl-icon name="trash"></sl-icon>
+                <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('trash', 13))}</span>
               </sl-button>
             </div>
           ` : nothing}
@@ -190,7 +191,7 @@ export class ThreadsComment extends LitElement {
               title="Add reaction"
               @click=${this.toggleEmojiPicker}
             >
-              <sl-icon name="emoji-smile"></sl-icon>
+              <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('emoji-smile', 14))}</span>
             </sl-button>
             <sl-popup
               placement="bottom-start"

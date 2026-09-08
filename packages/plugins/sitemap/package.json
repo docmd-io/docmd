@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-sitemap",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Sitemap generator plugin for docmd.",
   "type": "module",
   "main": "dist/index.js",

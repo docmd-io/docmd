@@ -426,10 +426,35 @@ declare const MiniSearch: any;
 
         window.closeDocmdSearch = closeSearch;
         (window as any).docmdSearch = {
-            search: async (query: string) => {
+            search: async (query: string, options?: { version?: string; versions?: string[]; filter?: (doc: any) => boolean }) => {
                 if (!isIndexLoaded) await loadIndex();
                 if (miniSearch) {
-                    return miniSearch.search(query).map((r: any) => ({
+                    const searchOpts: any = {};
+                    if (options?.filter) {
+                        searchOpts.filter = options.filter;
+                    } else if (options?.version) {
+                        const targetV = options.version.toLowerCase().trim().replace(/^v/, '');
+                        searchOpts.filter = (doc: any) => {
+                            const docV = String(doc.version || '').toLowerCase().trim().replace(/^v/, '');
+                            const docId = String(doc.id || '').toLowerCase().trim();
+                            if (docV === targetV || docV.startsWith(targetV)) return true;
+                            if (targetV.length === 2 && docV.replace(/\./g, '').startsWith(targetV)) return true;
+                            return docId.startsWith(`${targetV}/`) || docId.includes(`/${targetV}/`) || docId.startsWith(`v${targetV}/`) || docId.includes(`/v${targetV}/`);
+                        };
+                    } else if (Array.isArray(options?.versions) && options.versions.length > 0) {
+                        const targets = new Set(options.versions.map(v => v.toLowerCase().trim().replace(/^v/, '')));
+                        searchOpts.filter = (doc: any) => {
+                            const docV = String(doc.version || '').toLowerCase().trim().replace(/^v/, '');
+                            const docId = String(doc.id || '').toLowerCase().trim();
+                            for (const targetV of targets) {
+                                if (docV === targetV || docV.startsWith(targetV)) return true;
+                                if (targetV.length === 2 && docV.replace(/\./g, '').startsWith(targetV)) return true;
+                                if (docId.startsWith(`${targetV}/`) || docId.includes(`/${targetV}/`) || docId.startsWith(`v${targetV}/`) || docId.includes(`/v${targetV}/`)) return true;
+                            }
+                            return false;
+                        };
+                    }
+                    return miniSearch.search(query, searchOpts).map((r: any) => ({
                         title: r.title,
                         id: r.id,
                         version: r.version,

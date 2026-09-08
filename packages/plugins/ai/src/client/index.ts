@@ -4,15 +4,15 @@
  * Features clean modern styling, adaptive light/dark theme, documentation RAG grounding, and Cmd+I shortcut.
  */
 
-import { DocmdAssistantEngine } from 'docmd-assistant';
+import { DocmdAssistantEngine, createStandardTools } from 'docmd-assistant';
 
 export class DocmdAIAssistantUI {
-  private engine: any;
+  private engine: any = null;
   private container: HTMLElement | null = null;
   private isDrawerOpened = false;
   private isPending = false;
-  private projectId: string;
-  private isUnconfigured: boolean;
+  private projectId = '';
+  private isUnconfigured = false;
 
   constructor() {
     const rawCfg = (window as any).__docmd_ai_config || (window as any).__DOCMD_AI_CONFIG__;
@@ -31,14 +31,29 @@ export class DocmdAIAssistantUI {
       provider: cfg.provider,
       model: cfg.model,
       systemPrompt: initialSystemPrompt,
-      reasoning: cfg.reasoning ?? false
+      reasoning: cfg.reasoning ?? false,
+      contextWindow: cfg.contextWindow
     });
 
     const isSemanticUsable = cfg.searchCapabilities?.semantic === true;
 
+    // Register standard tools from docmd-assistant (navigate_to_page, copy_code_snippet, read_documentation_page)
+    const standardTools = createStandardTools(
+      async (query: string) => {
+        return await this.searchAllWorkspaceIndexes(query);
+      }
+    );
+    for (const tool of standardTools) {
+      this.engine.registerTool(tool);
+    }
+
     this.engine.registerTool({
       name: 'get_site_structure',
       description: 'Get the complete documentation site structure, including available versions (current and historical), supported languages/locales, workspace projects, search capabilities, and page navigation hierarchy with titles and URLs.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
       execute: async () => {
         return this.getSiteStructure();
       }
@@ -46,13 +61,32 @@ export class DocmdAIAssistantUI {
 
     this.engine.registerTool({
       name: 'search_documentation',
-      description: `Search documentation pages across all projects in this workspace using full-text keyword matching ${isSemanticUsable ? 'and semantic vector search' : '(keyword search active; semantic search disabled)'}. Always supply concise, targeted search terms for highest accuracy.`,
+      description: `Search documentation pages across all projects in this workspace using full-text keyword matching ${isSemanticUsable ? 'and semantic vector search' : '(keyword search active; semantic search disabled)'}. Always supply concise, targeted search terms for highest accuracy. You can optionally filter by version (e.g. "0.9.0", "0.8.0", "latest") or workspace project (e.g. "/", "assistant", "search").`,
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Targeted search query keywords or phrases (e.g. "installation", "quickstart", "api reference", "release notes", "configuration").'
+          },
+          version: {
+            type: 'string',
+            description: 'Optional documentation version filter (e.g. "0.9.0", "0.8.0", "latest", "09", "08") to search exclusively in that version branch.'
+          },
+          project: {
+            type: 'string',
+            description: 'Optional workspace project name or prefix filter (e.g. "/", "assistant", "search") to search within a specific project.'
+          }
+        },
+        required: ['query']
+      },
       execute: async (rawArgs: any) => {
         const query = typeof rawArgs === 'string'
           ? rawArgs
           : (rawArgs?.query || rawArgs?.q || rawArgs?.search_query || rawArgs?.text || rawArgs?.input || '');
-        const project = typeof rawArgs === 'object' ? rawArgs?.project : undefined;
-        return await this.searchAllWorkspaceIndexes(query, project);
+        const project = typeof rawArgs === 'object' ? (rawArgs?.project || rawArgs?.projectFilter) : undefined;
+        const version = typeof rawArgs === 'object' ? (rawArgs?.version || rawArgs?.versionFilter) : undefined;
+        return await this.searchAllWorkspaceIndexes(query, project, version);
       }
     });
 
@@ -227,6 +261,29 @@ export class DocmdAIAssistantUI {
     const msgsContainer = document.getElementById('docmd-ai-messages');
     msgsContainer?.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+
+      const copyBtn = target.closest('.docmd-ai-code-copy-btn') as HTMLButtonElement | null;
+      if (copyBtn) {
+        const wrap = copyBtn.closest('.docmd-ai-code-wrap');
+        const codeEl = wrap?.querySelector('code');
+        if (codeEl) {
+          const textToCopy = codeEl.textContent || '';
+          const copySvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`;
+          const checkSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+          navigator.clipboard.writeText(textToCopy).then(() => {
+            copyBtn.classList.add('copied');
+            copyBtn.innerHTML = `${checkSvg}<span>Copied</span>`;
+            setTimeout(() => {
+              copyBtn.classList.remove('copied');
+              copyBtn.innerHTML = `${copySvg}<span>Copy</span>`;
+            }, 2000);
+          }).catch((err) => {
+            console.error('[docmd-ai] Failed to copy code snippet:', err);
+          });
+        }
+        return;
+      }
+
       if (target && target.classList.contains('docmd-ai-pill-btn')) {
         if (this.isPending) return;
         const prompt = target.getAttribute('data-prompt');
@@ -275,6 +332,9 @@ export class DocmdAIAssistantUI {
     const drawer = document.getElementById('docmd-ai-drawer');
     barWrap?.classList.add('hidden');
     drawer?.classList.add('open');
+    if (typeof document !== 'undefined' && document.body.classList.contains('tc-panel-open')) {
+      document.body.classList.remove('tc-panel-open');
+    }
   }
 
   private closeDrawer(): void {
@@ -399,20 +459,38 @@ CRITICAL SCOPE & NAVIGATION RULES:
 1. SCOPE PRIORITIZATION: Prioritize answers using content from the Current Active Project ("${currentProjectName}")${hasVersions && activeVersion ? `, active version branch (${activeVersion.label})` : ''}${hasLocales && activeLocale ? `, and active language (${activeLocale.label})` : ''}.
 2. STRICT ACTIVE / LATEST VERSION ONLY: ONLY cite, explain, recommend, and link to pages from the active version (${activeVersion?.label || defaultVer?.label}) or latest branch (${defaultVer?.label}). Never suggest, cite, or list deprecated historical versions unless the user explicitly asks for an older version.
 3. AUTONOMOUS & PROACTIVE TOOL EXECUTION:
-   - Always use your tools proactively. NEVER ask the user "Would you like me to search?" or "Should I check?". Directly invoke \`search_documentation\` or \`get_site_structure\` to retrieve facts before answering.
-   - For any question about version numbers, latest releases, recent updates, or changelogs, you MUST search the release notes with \`search_documentation\` (query: "release notes" or specific version like "0.9.1") to find the newest release note before giving the final answer. Never state that a release does not exist without searching.
-4. ACCURATE HYPERLINKS: ALWAYS ground page hyperlinks strictly in real search results or valid project URLs (${siteBaseUrl}). Never invent or hallucinate invalid subpaths.`;
+   - Always use your tools proactively. NEVER ask the user "Would you like me to search?" or "Should I check?". Directly invoke \`search_documentation\`, \`get_site_structure\`, or \`read_documentation_page\` to retrieve facts before answering.
+   - For questions about releases, versions, updates, or changelogs, search with \`search_documentation\` to retrieve the relevant release notes.
+4. ACCURATE HYPERLINKS: ALWAYS ground page hyperlinks strictly in real search results or valid project URLs (${siteBaseUrl}). Never invent or hallucinate invalid subpaths.
+5. TOKEN EFFICIENCY & TARGETED RETRIEVAL:
+   - Do not read entire documentation sets or fetch excessive pages unless necessary.
+   - Use \`search_documentation\` first to identify the exact single page or section needed.
+   - Only call \`read_documentation_page\` on that specific page when required to fetch precise code snippets or steps.
+   - Keep answers clean, structured, and focused directly on what the user asked.
+6. STRICT FACTUALITY (ZERO FABRICATION):
+   - Ground all answers, configuration snippets, code examples, and commands strictly in verified facts retrieved from this documentation site.
+   - NEVER guess or fabricate non-existent keys, options, or parameters. If the documentation does not evidence a setting, state clearly what is verified and do not invent hypothetical configs.
+7. VERSION FILTERING:
+   - The \`search_documentation\` tool supports an optional \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version\` to filter results strictly to that version branch.`;
 
-    const defaultBasePrompt = `You are docmd assistant — a professional, precise, and concise technical AI assistant for this documentation site.
+    const defaultBasePrompt = `You are docmd assistant, the AI documentation guide for "${siteTitle}" — a professional, precise, and concise technical assistant.
 
 CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
-1. IDENTITY: Your name is "docmd assistant". You are an expert AI guide specifically for this documentation site. Never identify yourself simply as "docmd" or "I am docmd".
-2. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, APIs, tools, installation, configuration, and documentation provided on this site. Politely decline off-topic queries.
+1. IDENTITY: Your name is "docmd assistant". You are an expert AI documentation assistant dedicated to "${siteTitle}". If asked who you are, state that you are docmd assistant, serving the documentation for "${siteTitle}".
+2. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, tools, APIs, guides, and documentation provided on this site. Politely decline off-topic queries.
 3. PROFESSIONAL & CONCISE: Provide direct, succinct, and professional answers. Do NOT use excessive emojis (keep emojis to a minimum or none). Avoid conversational fluff, boilerplate apologies, or asking for permission. Get straight to the answer.
-4. TOOL SELECTION & EXECUTION:
-   - Use \`get_site_structure\` whenever you need extended structural inspection of available documentation versions, supported locales, or navigation trees.
-   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms (e.g. "0.9.1 release notes" or "cards container") for highest accuracy.
-5. HYPERLINKS & CITATIONS: Always include clickable Markdown hyperlinks \`[Page Title](path)\` in your response for referenced pages.`;
+4. TARGETED RETRIEVAL & MINIMAL TOKEN USAGE:
+   - Only retrieve what is strictly necessary. Never attempt to read the entire documentation or fetch excessive pages.
+   - Use \`search_documentation\` first with targeted keywords to locate the exact page.
+   - Only invoke \`read_documentation_page\` when you need specific code blocks or configuration details from that single page.
+5. TOOL SELECTION & EXECUTION:
+   - Use \`get_site_structure\` whenever you need structural inspection of available documentation versions, supported locales, or navigation trees.
+   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms for highest accuracy.
+   - Use \`read_documentation_page\` when you need full section context or deep code examples.
+6. CLEAN WRITING & LIST FORMATTING:
+   - Write cleanly and directly without artificial gaps, repeated quotes, or messy text breaks.
+   - For lists, use standard numbered lists (1., 2., 3.) or bullet points (-). Do not leave blank lines between list items unless separating distinct multi-paragraph steps.
+7. HYPERLINKS & CITATIONS: Always include clickable Markdown hyperlinks \`[Page Title](path)\` in your response for referenced pages.`;
 
     const basePrompt = cfg.systemPrompt || defaultBasePrompt;
     return `${basePrompt}\n\n${workspaceContext}`;
@@ -433,7 +511,7 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     };
   }
 
-  private async searchAllWorkspaceIndexes(rawQuery: any, projectFilter?: string): Promise<any[]> {
+  private async searchAllWorkspaceIndexes(rawQuery: any, projectFilter?: string, versionFilter?: string): Promise<any[]> {
     const hits: Array<{ project: string; title: string; url: string; snippet: string; searchType: 'keyword' | 'semantic' }> = [];
     const query = typeof rawQuery === 'string'
       ? rawQuery
@@ -462,6 +540,32 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     const allVerList: Array<{ id: string; dir?: string; label?: string }> = Array.isArray(versionsObj.all) ? versionsObj.all : [];
     const currentVerId = String(versionsObj.current || '');
     const currentVerDir = versionsObj.current ? (allVerList.find(v => v.id === versionsObj.current)?.dir || `v${versionsObj.current}`) : '';
+
+    // Resolve explicit version filter if provided
+    let explicitVersionId: string | null = null;
+    let explicitVersionDir: string | null = null;
+    let explicitVersionLabel: string | null = null;
+    if (versionFilter) {
+      const vClean = String(versionFilter).toLowerCase().trim().replace(/^v/, '');
+      if (vClean === 'latest' || vClean === 'current' || vClean === currentVerId.replace(/^v/, '')) {
+        explicitVersionId = currentVerId;
+        explicitVersionDir = currentVerDir;
+      } else {
+        const found = allVerList.find(v => {
+          const vid = String(v.id || '').toLowerCase().replace(/^v/, '');
+          const vdir = String(v.dir || '').toLowerCase().replace(/^v/, '');
+          const vlbl = String(v.label || '').toLowerCase().replace(/^v/, '');
+          return vid === vClean || vdir === vClean || vlbl === vClean || vlbl.startsWith(vClean);
+        });
+        if (found) {
+          explicitVersionId = String(found.id);
+          explicitVersionDir = String(found.dir || `v${found.id}`);
+          explicitVersionLabel = String(found.label || found.id);
+        } else {
+          explicitVersionId = vClean;
+        }
+      }
+    }
     
     // Collect older version tokens
     const olderVerTokens: string[] = [];
@@ -475,7 +579,9 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         }
       }
     }
-    const isExplicitOlderVerRequest = olderVerTokens.some(tok => cleanQueryLower.includes(tok));
+    const isExplicitOlderVerRequest = explicitVersionId
+      ? explicitVersionId !== currentVerId
+      : olderVerTokens.some(tok => cleanQueryLower.includes(tok));
 
     const i18nObj = cfg.i18n || {};
     const allLocales: Array<{ id: string }> = Array.isArray(i18nObj.locales) ? i18nObj.locales : [];
@@ -488,9 +594,23 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     const nonActiveLocaleIds = allLocales.filter(l => l.id !== activeLocaleId).map(l => l.id.toLowerCase());
     const isExplicitLocaleRequest = nonActiveLocaleIds.some(locId => cleanQueryLower.includes(locId));
 
-    const isPathExcluded = (rawId: string): boolean => {
+    const isPathExcluded = (rawId: string, itemVersion?: string): boolean => {
       const norm = String(rawId || '').replace(/^\//, '').toLowerCase();
-      if (!isExplicitOlderVerRequest) {
+      const itemVerLower = String(itemVersion || '').toLowerCase().replace(/^v/, '');
+
+      if (explicitVersionId) {
+        if (explicitVersionId === currentVerId) {
+          for (const tok of olderVerTokens) {
+            if (norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`)) return true;
+          }
+        } else {
+          const tokens = [explicitVersionId.toLowerCase(), `v${explicitVersionId.toLowerCase()}`];
+          if (explicitVersionDir) tokens.push(explicitVersionDir.toLowerCase());
+          if (explicitVersionLabel) tokens.push(explicitVersionLabel.toLowerCase().replace(/^v/, ''));
+          const matchesExplicit = tokens.some(tok => norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`) || itemVerLower === tok);
+          if (!matchesExplicit) return true;
+        }
+      } else if (!isExplicitOlderVerRequest) {
         for (const tok of olderVerTokens) {
           if (norm === tok || norm.startsWith(`${tok}/`) || norm.includes(`/${tok}/`)) {
             return true;
@@ -507,45 +627,89 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
       return false;
     };
 
-    const queryTokens = cleanQueryLower.replace(/[\-_.]/g, ' ').split(/\s+/).filter((t: string) => t.length > 0);
-    const versionMatches = cleanQuery.match(/\d+[\.\-_]\d+[\.\-_]\d+/g);
+    const STOP_WORDS = new Set([
+      'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he',
+      'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the', 'to', 'was', 'were',
+      'will', 'with', 'what', 'why', 'how', 'can', 'you', 'me', 'i', 'do', 'does', 'did', 'than'
+    ]);
+    const rawTokens = cleanQueryLower.replace(/[\-_.]/g, ' ').split(/\s+/).filter((t: string) => t.length > 0);
+    const queryTokens = rawTokens.filter((t: string) => !STOP_WORDS.has(t));
+    const versionMatches = cleanQuery.match(/\d+[\.\-_]\d+([\.\-_]\d+)?/g);
 
     // 1. Local Active Search Index (via window.docmdSearch)
     try {
       if ((window as any).docmdSearch && typeof (window as any).docmdSearch.search === 'function') {
-        const localHits = await (window as any).docmdSearch.search(query);
-        if (Array.isArray(localHits)) {
-          const filteredAndScored = localHits
-            .filter((item: any) => !isPathExcluded(item.id || item.url || ''))
-            .map((item: any) => {
-              const rawId = String(item.id || item.url || '');
-              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
-              const titleLower = String(item.title || cleanId).toLowerCase();
-              const textLower = String(item.text || item.snippet || '').toLowerCase();
-              const idLower = cleanId.toLowerCase();
+        const searchOpts: any = {};
+        if (explicitVersionId) {
+          searchOpts.version = explicitVersionId;
+        }
+        let localHits = await (window as any).docmdSearch.search(query, searchOpts);
 
-              let score = typeof item.score === 'number' ? item.score : 1;
-              for (const tok of queryTokens) {
-                if (titleLower.includes(tok)) score += 15;
-                if (idLower.includes(tok)) score += 10;
-                if (textLower.includes(tok)) score += 2;
-              }
-              if (versionMatches) {
-                for (const vm of versionMatches) {
-                  const normV = vm.replace(/[\-_]/g, '.');
-                  const dashV = vm.replace(/[\.]/g, '-');
-                  if (titleLower.includes(normV) || titleLower.includes(dashV) || idLower.includes(dashV) || idLower.includes(normV)) {
-                    score += 60;
-                  }
+        // Conversational query expansion: if looking for comparison or advantages
+        const isComparisonQuery = /\b(better|advantages?|versus|vs|compare|comparison)\b/i.test(cleanQueryLower);
+        if (isComparisonQuery && !cleanQueryLower.includes('comparison')) {
+          try {
+            const compHits = await (window as any).docmdSearch.search('comparison', searchOpts);
+            if (Array.isArray(compHits)) {
+              if (!Array.isArray(localHits)) localHits = [];
+              for (const ch of compHits) {
+                if (!localHits.some((lh: any) => lh.id === ch.id)) {
+                  localHits.unshift({ ...ch, score: 999 });
                 }
               }
-              return { item, score, cleanId };
-            })
-            .sort((a, b) => b.score - a.score);
+            }
+          } catch { /* silent */ }
+        }
 
-          for (const entry of filteredAndScored) {
-            const { item, cleanId } = entry;
+        if (Array.isArray(localHits)) {
+          const pageMap = new Map<string, { item: any; score: number; cleanId: string; fullUrl: string }>();
+          const filtered = localHits.filter((item: any) => !isPathExcluded(item.id || item.url || '', item.version));
+
+          for (const item of filtered) {
+            const rawId = String(item.id || item.url || '');
+            const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
+            const baseId = cleanId.split('#')[0];
+            const isHeading = cleanId.includes('#');
+
+            const titleLower = String(item.title || cleanId).toLowerCase();
+            const textLower = String(item.text || item.snippet || '').toLowerCase();
+            const idLower = cleanId.toLowerCase();
+
+            let score = typeof item.score === 'number' ? item.score : 1;
+            for (const tok of (queryTokens.length > 0 ? queryTokens : rawTokens)) {
+              if (titleLower.includes(tok)) score += 25;
+              if (idLower.includes(tok)) score += 15;
+              if (textLower.includes(tok)) score += 2;
+            }
+
+            if (versionMatches) {
+              for (const vm of versionMatches) {
+                const normV = vm.replace(/[\-_]/g, '.');
+                const dashV = vm.replace(/[\.]/g, '-');
+                // Exact version match in ID (e.g. /0-8-0/ or 0.8.0) gets massive priority
+                if (idLower.includes(`/${dashV}/`) || idLower.endsWith(`/${dashV}`) || idLower.includes(`-${dashV}-`)) {
+                  score += 600;
+                } else if (titleLower.includes(`v${normV}`) || titleLower.includes(`v${dashV}`) || titleLower.includes(` ${normV} `) || titleLower.includes(` ${normV}-`)) {
+                  score += 500;
+                } else if (titleLower.includes(normV) || idLower.includes(dashV)) {
+                  score += 150;
+                }
+              }
+            }
+
+            if (isHeading) score -= 10;
+
             const fullUrl = cleanId.startsWith('http') ? cleanId : new URL(cleanId, siteBaseUrl).href;
+            const existing = pageMap.get(baseId);
+            if (!existing || existing.score < score) {
+              pageMap.set(baseId, { item, score, cleanId, fullUrl });
+            }
+          }
+
+          const rankedEntries = Array.from(pageMap.values()).sort((a, b) => b.score - a.score);
+
+          for (const entry of rankedEntries) {
+            const { item, cleanId, fullUrl } = entry;
             if (!hits.some(existing => existing.url === fullUrl)) {
               hits.push({
                 project: 'Current Project',
@@ -568,7 +732,7 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         
         try {
           const pPrefix = p.prefix || '/';
-          const pBaseUrl = new URL(pPrefix.replace(/^\//, ''), siteBaseUrl).href;
+          const pBaseUrl = new URL(pPrefix.replace(/^\//, ''), siteBaseUrl).href.replace(/\/?$/, '/');
           const searchIndexPath = `${pBaseUrl}_docmd-search/search-index.json`;
           
           const res = await fetch(searchIndexPath);
@@ -578,17 +742,23 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
 
             const filteredDocs = docs.filter((doc: any) => {
               const rawId = String(doc.id || doc.url || '');
-              return !isPathExcluded(rawId);
+              return !isPathExcluded(rawId, doc.version);
             });
 
-            const scored = filteredDocs.map((doc: any) => {
+            const pageMap = new Map<string, { doc: any; score: number; fullUrl: string }>();
+
+            for (const doc of filteredDocs) {
               const titleStr = String(doc.title || doc.id || '').toLowerCase();
               const textStr = String(doc.text || '').toLowerCase();
               const rawId = String(doc.id || '');
+              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
+              const baseId = cleanId.split('#')[0];
+              const isHeading = cleanId.includes('#');
+
               let score = 0;
-              for (const term of queryTokens) {
-                if (titleStr.includes(term)) score += 15;
-                if (rawId.toLowerCase().includes(term)) score += 10;
+              for (const term of (queryTokens.length > 0 ? queryTokens : rawTokens)) {
+                if (titleStr.includes(term)) score += 25;
+                if (rawId.toLowerCase().includes(term)) score += 15;
                 if (textStr.includes(term)) score += 2;
               }
 
@@ -596,24 +766,32 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
                 for (const vm of versionMatches) {
                   const normV = vm.replace(/[\-_]/g, '.');
                   const dashV = vm.replace(/[\.]/g, '-');
-                  if (titleStr.includes(normV) || titleStr.includes(dashV) || rawId.toLowerCase().includes(dashV)) {
-                    score += 60;
+                  if (rawId.toLowerCase().includes(`/${dashV}/`) || rawId.toLowerCase().endsWith(`/${dashV}`)) {
+                    score += 600;
+                  } else if (titleStr.includes(`v${normV}`) || titleStr.includes(`v${dashV}`)) {
+                    score += 500;
+                  } else if (titleStr.includes(normV) || rawId.toLowerCase().includes(dashV)) {
+                    score += 150;
                   }
                 }
               }
 
               if (currentVerDir && rawId.includes(`/${currentVerDir}/`)) score += 10;
               if (activeLocaleId && rawId.includes(`/${activeLocaleId}/`)) score += 5;
+              if (isHeading) score -= 10;
 
-              return { doc, score };
-            }).filter((h: any) => h.score > 0).sort((a: any, b: any) => b.score - a.score);
+              const fullUrl = rawId.startsWith('http') ? rawId : new URL(cleanId, pBaseUrl).href;
+              const existing = pageMap.get(baseId);
+              if (!existing || existing.score < score) {
+                pageMap.set(baseId, { doc, score, fullUrl });
+              }
+            }
+
+            const scored = Array.from(pageMap.values()).filter((h: any) => h.score > 0).sort((a: any, b: any) => b.score - a.score);
 
             for (const hit of scored.slice(0, 3)) {
-              const doc = hit.doc;
+              const { doc, fullUrl } = hit;
               const rawId = doc.id || '';
-              const cleanId = rawId.startsWith('/') ? rawId.slice(1) : rawId;
-              const fullUrl = rawId.startsWith('http') ? rawId : new URL(cleanId, pBaseUrl).href;
-              
               if (!hits.some(existing => existing.url === fullUrl)) {
                 hits.push({
                   project: p.name || p.prefix,
@@ -695,6 +873,12 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
       case 'folder-tree':
         return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>`;
+      case 'book-open':
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>`;
+      case 'navigation':
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>`;
+      case 'copy':
+        return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`;
       case 'cog':
         return `<svg class="docmd-ai-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
       case 'brain':
@@ -739,8 +923,33 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         res = await this.engine.sendMessageStream(queryWithContext, {
           onStatus: (status: any) => {
             if (statusWrap && status) {
+              const statusObj = typeof status === 'string' ? { text: status } : { ...status };
+              let statusText = statusObj.text || 'Thinking...';
+              let statusIcon = statusObj.icon;
+              if (/^Running\s+([a-z0-9_]+)\.\.\./i.test(statusText)) {
+                const tool = statusText.match(/^Running\s+([a-z0-9_]+)\.\.\./i)?.[1] || '';
+                if (tool === 'read_documentation_page') { statusText = 'Reading documentation...'; statusIcon = statusIcon || 'book-open'; }
+                else if (tool === 'search_documentation') { statusText = 'Searching documentation...'; statusIcon = statusIcon || 'search'; }
+                else if (tool === 'navigate_to_page') { statusText = 'Navigating to page...'; statusIcon = statusIcon || 'navigation'; }
+                else if (tool === 'get_site_structure') { statusText = 'Inspecting site navigation & structure...'; statusIcon = statusIcon || 'folder-tree'; }
+                else if (tool === 'copy_code_snippet') { statusText = 'Copying code snippet...'; statusIcon = statusIcon || 'copy'; }
+                else {
+                  const readable = tool.replace(/^([a-z])/, (m: string) => m.toUpperCase()).replace(/_/g, ' ');
+                  statusText = `${readable}...`;
+                }
+              } else if (/^[a-z]+(_[a-z0-9]+)+$/.test(statusText)) {
+                if (statusText === 'read_documentation_page') { statusText = 'Reading documentation...'; statusIcon = statusIcon || 'book-open'; }
+                else if (statusText === 'search_documentation') { statusText = 'Searching documentation...'; statusIcon = statusIcon || 'search'; }
+                else if (statusText === 'navigate_to_page') { statusText = 'Navigating to page...'; statusIcon = statusIcon || 'navigation'; }
+                else if (statusText === 'get_site_structure') { statusText = 'Inspecting site navigation & structure...'; statusIcon = statusIcon || 'folder-tree'; }
+                else if (statusText === 'copy_code_snippet') { statusText = 'Copying code snippet...'; statusIcon = statusIcon || 'copy'; }
+                else {
+                  const readable = statusText.replace(/^([a-z])/, (m: string) => m.toUpperCase()).replace(/_/g, ' ');
+                  statusText = `${readable}...`;
+                }
+              }
               statusWrap.style.display = 'inline-flex';
-              statusWrap.innerHTML = `${this.getStatusSvgIcon(status.icon)} <span>${this.escapeHtml(status.text || 'Thinking...')}</span>`;
+              statusWrap.innerHTML = `${this.getStatusSvgIcon(statusIcon)} <span>${this.escapeHtml(statusText)}</span>`;
               if (msgs) msgs.scrollTop = msgs.scrollHeight;
             }
           },
@@ -852,8 +1061,6 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
       .trim();
 
     if (!cleaned) cleaned = raw;
-    let text = this.escapeHtml(cleaned);
-
 
     const cfg = (window as any).__docmd_ai_config || {};
     const getSiteBaseUrl = (): string => {
@@ -890,27 +1097,43 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
       }
     };
 
-    // Code blocks with syntax highlighting
+    // Extract code blocks from RAW cleaned markdown BEFORE escapeHtml to prevent double-escaping
     const codeBlocks: string[] = [];
-    text = text.replace(/```(\w+)?[ \t]*\r?\n([\s\S]*?)```/g, (_match, lang, code) => {
-      const languageStr = lang ? `<div class="docmd-ai-code-header"><span class="docmd-ai-code-lang">${lang.toLowerCase()}</span></div>` : '';
+    const copySvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`;
+    const renderCodeBlock = (lang: string, code: string) => {
+      const cleanLang = (lang || '').trim().toLowerCase();
+      const langSpan = cleanLang
+        ? `<span class="docmd-ai-code-lang">${cleanLang}</span>`
+        : `<span class="docmd-ai-code-lang">code</span>`;
+      const copyBtn = `<button class="docmd-ai-code-copy-btn" type="button" title="Copy code" aria-label="Copy code">${copySvg}<span>Copy</span></button>`;
+      const headerStr = `<div class="docmd-ai-code-header">${langSpan}${copyBtn}</div>`;
+      const escapedCode = code.trim()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      return `<div class="docmd-ai-code-wrap">${headerStr}<pre><code>${escapedCode}</code></pre></div>`;
+    };
+
+    // Extract code blocks from raw cleaned text (not yet HTML-escaped)
+    cleaned = cleaned.replace(/```(\w+)?[ \t]*\r?\n([\s\S]*?)```/g, (_match, lang, code) => {
       const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push(`<div class="docmd-ai-code-wrap">${languageStr}<pre><code>${code.trim()}</code></pre></div>`);
+      codeBlocks.push(renderCodeBlock(lang || '', code));
       return placeholder;
     });
-    // Fallback: code blocks where lang runs into code on same line (no newline after lang)
-    text = text.replace(/```(\w+)([ \t]+[^\n][\s\S]*?)```/g, (_match, lang, code) => {
-      const languageStr = `<div class="docmd-ai-code-header"><span class="docmd-ai-code-lang">${lang.toLowerCase()}</span></div>`;
+    cleaned = cleaned.replace(/```(\w+)([ \t]+[^\n][\s\S]*?)```/g, (_match, lang, code) => {
       const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push(`<div class="docmd-ai-code-wrap">${languageStr}<pre><code>${code.trim()}</code></pre></div>`);
+      codeBlocks.push(renderCodeBlock(lang || '', code));
       return placeholder;
     });
-    // Catch-all: bare ``` blocks with no language
-    text = text.replace(/```\r?\n?([\s\S]*?)```/g, (_match, code) => {
+    cleaned = cleaned.replace(/```\r?\n?([\s\S]*?)```/g, (_match, code) => {
       const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push(`<div class="docmd-ai-code-wrap"><pre><code>${code.trim()}</code></pre></div>`);
+      codeBlocks.push(renderCodeBlock('', code));
       return placeholder;
     });
+
+    // NOW escape HTML on the remaining non-code markdown text
+    let text = this.escapeHtml(cleaned);
 
     // Headings (# h1, ## h2, ### h3, #### h4)
     text = text.replace(/^#### (.*$)/gim, '<h5>$1</h5>');
@@ -918,25 +1141,46 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
     text = text.replace(/^## (.*$)/gim, '<h3>$1</h3>');
     text = text.replace(/^# (.*$)/gim, '<h3>$1</h3>');
 
-    // Unordered lists
-    text = text.replace(/(?:^\s*[-*]\s+.*(?:\r?\n|$))+/gm, (match) => {
-      const items = match
-        .trim()
-        .split('\n')
-        .map(line => `<li>${line.replace(/^\s*[-*]\s+/, '')}</li>`)
-        .join('');
-      return `<ul>${items}</ul>`;
-    });
+    const parseListItems = (rawListText: string, isOrdered: boolean): string => {
+      const lines = rawListText.split(/\r?\n/);
+      const items: string[] = [];
+      let currentItemText = '';
+      const itemRegex = isOrdered ? /^\s*(\d+)[\.\)]\s+(.*)$/ : /^\s*[-*+]\s+(.*)$/;
 
-    // Ordered lists
-    text = text.replace(/(?:^\s*\d+\.\s+.*(?:\r?\n|$))+/gm, (match) => {
-      const items = match
-        .trim()
-        .split('\n')
-        .map(line => `<li>${line.replace(/^\s*\d+\.\s+/, '')}</li>`)
-        .join('');
-      return `<ol>${items}</ol>`;
-    });
+      for (const line of lines) {
+        const mainMatch = line.match(itemRegex);
+        if (mainMatch) {
+          if (currentItemText) {
+            items.push(`<li>${currentItemText.trim()}</li>`);
+          }
+          currentItemText = isOrdered ? mainMatch[2] : mainMatch[1];
+        } else if (line.trim().length === 0) {
+          // blank line inside a loose list, skip
+          continue;
+        } else if (currentItemText) {
+          const subBullet = line.match(/^\s+[-*+]\s+(.*)$/);
+          if (subBullet) {
+            currentItemText += `<br/><span class="docmd-ai-sub-item">• ${subBullet[1].trim()}</span>`;
+          } else {
+            currentItemText += ' ' + line.trim();
+          }
+        }
+      }
+      if (currentItemText) {
+        items.push(`<li>${currentItemText.trim()}</li>`);
+      }
+      if (items.length === 0) return rawListText;
+      const tag = isOrdered ? 'ol' : 'ul';
+      return `\n\n<${tag}>${items.join('')}</${tag}>\n\n`;
+    };
+
+    // Ordered lists (supports loose lists with single blank lines between items, and indented continuation lines)
+    const orderedListRegex = /(?:^[ \t]*\d+[\.\)][ \t]+.*(?:\r?\n|$))(?:[ \t]*(?:\r?\n)|[ \t]+\S.*(?:\r?\n|$)|^[ \t]*\d+[\.\)][ \t]+.*(?:\r?\n|$))*/gm;
+    text = text.replace(orderedListRegex, (match) => parseListItems(match, true));
+
+    // Unordered lists (supports loose lists and indented continuation lines)
+    const unorderedListRegex = /(?:^[ \t]*[-*+][ \t]+.*(?:\r?\n|$))(?:[ \t]*(?:\r?\n)|[ \t]+\S.*(?:\r?\n|$)|^[ \t]*[-*+][ \t]+.*(?:\r?\n|$))*/gm;
+    text = text.replace(unorderedListRegex, (match) => parseListItems(match, false));
 
     // Blockquotes
     text = text.replace(/(?:^\s*&gt;\s+.*(?:\r?\n|$))+/gm, (match) => {

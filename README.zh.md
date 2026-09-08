@@ -16,7 +16,7 @@
 
   <br/>
 
-  <p><b>秒级将 Markdown 转换为生产级文档站点。</b><br/>零配置。AI 原生。专为开发者打造。</p>
+  <p><b>为人类和机器构建的文档。</b><br/>一份 Markdown 源文件 → 网站、搜索、AI 上下文、Agent 协议。一次构建，全部生成。</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@docmd/core"><img src="https://img.shields.io/npm/v/@docmd/core.svg?style=flat-square&color=CB3837" alt="npm version"></a>
@@ -177,7 +177,7 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:0.9.0
 将 docmd 指向任意 Markdown 文件夹即可直接启动。导航目录会根据文件目录结构自动构建。一分钟内即可完成第一份文档的编写与上线 — 无需配置样板文件，无需搭建构建流水线。
 
 ### 极致轻量，流畅无阻
-默认 JavaScript 资源仅 ~18 kb。页面间秒级 SPA 无缝无刷新跳转。输出标准的静态 HTML，天然具备 SEO 优化，内置 sitemap、规范链接 (canonical URLs) 及 Open Graph 社交元数据。内置离线全文搜索，无需任何第三方云服务。
+无框架运行时 — 输出标准的静态 HTML 和极简原生 JavaScript。页面间秒级 SPA 无缝无刷新跳转。天然具备 SEO 优化，内置 sitemap、规范链接 (canonical URLs) 及 Open Graph 社交元数据。内置离线全文搜索，无需任何第三方云服务。
 
 ### AI 原生架构
 docmd 将 AI 视为了解与消费文档的首要方式 — 但同时保留了文档本身的良好阅读体验。
@@ -294,7 +294,7 @@ await build('./docmd.config.json', { isDev: false });
 
 ## 支持项目
 
-- 向身边的朋友推广是支持 docmd 发展最直接有效的方式。[在 X / Twitter 上分享](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20秒级将%20Markdown%20转换为生产级文档站点。) 或点亮一个 Star。
+- 向身边的朋友推广是支持 docmd 发展最直接有效的方式。[在 X / Twitter 上分享](https://twitter.com/intent/tweet?url=https://github.com/docmd-io/docmd&text=docmd%20-%20为人类和机器构建的文档。) 或点亮一个 Star。
 - 如果 docmd 为您节省了时间，非常欢迎通过 [GitHub Sponsor 赞助项目](https://github.com/sponsors/mgks)。
 - 想法或 Bug 反馈？欢迎提交 Issue 或 Pull Request，也十分欢迎贡献您自制的插件！
 

@@ -112,7 +112,7 @@
    *                       this and renders all groups open by default). %>
   data-spa-enabled="<%= (config.layout?.spa !== false).toString() %>"
   data-copy-code-enabled="<%= (config.copyCode === true).toString() %>"
-  data-default-collapsed="<%= sidebarConfig?.defaultCollapsed === true %>">
+  data-default-collapsed="<%= sidebarConfig?.defaultCollapsed === true %>"<% if (locals.sourceFile) { %> data-source-file="<%= sourceFile %>"<% } %>>
   <a href="#main-content" class="skip-link"><%= typeof t === 'function' ? t('skipToContent') : 'Skip to content' %></a>
 
   <%# ─────────────────────────────────────────────────────────────
