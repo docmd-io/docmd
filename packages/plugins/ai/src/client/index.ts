@@ -1115,20 +1115,25 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
       return `<div class="docmd-ai-code-wrap">${headerStr}<pre><code>${escapedCode}</code></pre></div>`;
     };
 
-    // Extract code blocks from raw cleaned text (not yet HTML-escaped)
-    cleaned = cleaned.replace(/```(\w+)?[ \t]*\r?\n([\s\S]*?)```/g, (_match, lang, code) => {
+    // Extract code blocks from raw cleaned text (supporting 4-backtick fences to retain nested blocks)
+    cleaned = cleaned.replace(/(?:^|\n)([ \t]*)(`{4,}|~{4,})([ \t]*\S*.*)\r?\n([\s\S]*?)\r?\n\1\2[ \t]*(?=\r?\n|$)/g, (_match, _indent, _fence, lang, code) => {
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(renderCodeBlock(lang.trim(), code));
+      return `\n${placeholder}\n`;
+    });
+    cleaned = cleaned.replace(/(?:^|\n)([ \t]*)(`{3}|~{3})([ \t]*\S*.*)\r?\n([\s\S]*?)\r?\n\1\2[ \t]*(?=\r?\n|$)/g, (_match, _indent, _fence, lang, code) => {
+      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(renderCodeBlock(lang.trim(), code));
+      return `\n${placeholder}\n`;
+    });
+    cleaned = cleaned.replace(/(`{3,})(\w+)?[ \t]*\r?\n([\s\S]*?)\1/g, (_match, _fence, lang, code) => {
       const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
       codeBlocks.push(renderCodeBlock(lang || '', code));
       return placeholder;
     });
-    cleaned = cleaned.replace(/```(\w+)([ \t]+[^\n][\s\S]*?)```/g, (_match, lang, code) => {
+    cleaned = cleaned.replace(/(`{3,})(\w+)([ \t]+[^\n][\s\S]*?)\1/g, (_match, _fence, lang, code) => {
       const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
       codeBlocks.push(renderCodeBlock(lang || '', code));
-      return placeholder;
-    });
-    cleaned = cleaned.replace(/```\r?\n?([\s\S]*?)```/g, (_match, code) => {
-      const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-      codeBlocks.push(renderCodeBlock('', code));
       return placeholder;
     });
 

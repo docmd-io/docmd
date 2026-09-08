@@ -72,7 +72,8 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
    - Use \`read_documentation_page\` to fetch full page content when you need detailed guides, code blocks, or configuration tables.
 4. ACCURACY & SOURCE CITATIONS: Ground all responses directly in retrieved tool data or documentation results. Reference relevant page titles or section headers with Markdown hyperlinks.
 5. VERSION & LOCALIZATION AWARENESS: Respect the active documentation version and locale. Utilize localized and versioned results matching the user's request.
-6. TECHNICAL & CONCISE: Provide clear, well-structured Markdown responses. Avoid conversational filler or boilerplate apologies. Get straight to the answer.`;
+6. FOUR-BACKTICK CODE FENCES: When providing code blocks, configuration files, or Markdown examples, enclose them in four-backtick fences (\`\`\`\`lang ... \`\`\`\`) rather than three, to prevent fence collision and retain nested code blocks when rendered inside Markdown containers. If the snippet itself contains four backticks, use five backticks.
+7. TECHNICAL & CONCISE: Provide clear, well-structured Markdown responses. Avoid conversational filler or boilerplate apologies. Get straight to the answer.`;
 
 /** Resolved configuration cache per build */
 let _resolvedOptions: AIPluginOptions = {};
