@@ -14,7 +14,7 @@
 
 import { renderIcon } from '../utils/icon-renderer.js';
 import { processHref } from '../utils/normalize-href.js';
-import { ensureLineBreakIfNeeded } from '../utils/container-helper.js';
+import { ensureLineBreakIfNeeded, parseContainerHeader } from '../utils/container-helper.js';
 
 function unquote(value: string): string {
   if (!value) return '';
@@ -38,37 +38,16 @@ function cleanLink(raw: string): string {
 }
 
 function parseButtonArgs(rawInput: string): { text: string; link: string; icon: string; color: string } {
-  let text = 'Button';
-  let link = '';
-  let icon = '';
-  let color = '';
-
-  const match = rawInput.match(/^\s*(?:["']([^"']+)["']|(\S+))(.*)$/);
-  if (!match) return { text, link, icon, color };
-
-  text = match[1] || match[2] || 'Button';
-  if (!match[1] && match[2]) text = text.replace(/_/g, ' ');
-  const rest = (match[3] || '').trim();
-
-  const optionRegex = /(?:icon|color|style|link|url|href):(?:"[^"]*"|'[^']*'|\S+)/gi;
-  const optionsFound: string[] = rest.match(optionRegex) || [];
-
-  for (const opt of optionsFound) {
-    if (/^icon:/i.test(opt)) icon = unquote(opt.substring(5));
-    else if (/^color:/i.test(opt)) color = unquote(opt.substring(6));
-    else if (/^style:/i.test(opt)) color = unquote(opt.substring(6));
-    else if (/^(?:link|url|href):/i.test(opt)) link = cleanLink(opt);
+  const parsed = parseContainerHeader(rawInput, ['title', 'url']);
+  let text = parsed.title || parsed.text || parsed.label || 'Button';
+  // If text came from an unquoted bare positional word with underscores (legacy syntax e.g. "Installation_Guide")
+  // and wasn't explicitly provided as a named key-value
+  if (!rawInput.match(/\b(?:title|text|label):/i) && !rawInput.match(/^\s*["']/)) {
+    text = text.replace(/_/g, ' ');
   }
-
-  if (!link && rest) {
-    const nonOptionRest = rest.replace(optionRegex, '').trim();
-    if (nonOptionRest) {
-      const positionalMatch = nonOptionRest.match(/^(?:"([^"]*)"|'([^']*)'|(\S+))/);
-      if (positionalMatch) {
-        link = cleanLink(positionalMatch[1] || positionalMatch[2] || positionalMatch[3] || '');
-      }
-    }
-  }
+  const link = cleanLink(parsed.url || parsed.link || parsed.href || '');
+  const icon = parsed.icon || '';
+  const color = parsed.color || parsed.style || '';
 
   return { text, link, icon, color };
 }

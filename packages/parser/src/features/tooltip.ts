@@ -14,44 +14,13 @@
 
 import { createDepthTrackingContainer } from './common-containers.js';
 import { processHref } from '../utils/normalize-href.js';
-
-function unquote(value: string): string {
-  if (!value) return '';
-  if (value.length >= 2) {
-    const first = value.charAt(0);
-    const last = value.charAt(value.length - 1);
-    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-      return value.slice(1, -1);
-    }
-  }
-  return value;
-}
+import { parseContainerHeader } from '../utils/container-helper.js';
 
 function parseTooltipArgs(rawInput: string): { tooltipText: string; displayTerm: string; url: string } {
-  let mainArg = '';
-  let tooltipText = '';
-  let explicitTerm = '';
-  let url = '';
-
-  const match = rawInput.match(/^\s*(?:["']([^"']+)["']|(\S+))(.*)$/);
-  if (match) {
-    mainArg = unquote(match[1] || match[2] || '');
-    const rest = (match[3] || '').trim();
-
-    const optionRegex = /(?:term|text|url|link|href):(?:"[^"]*"|'[^']*'|\S+)/gi;
-    const optionsFound: string[] = rest.match(optionRegex) || [];
-
-    for (const opt of optionsFound) {
-      if (/^term:/i.test(opt)) explicitTerm = unquote(opt.substring(5));
-      else if (/^text:/i.test(opt)) tooltipText = unquote(opt.substring(5));
-      else if (/^url:/i.test(opt)) url = unquote(opt.substring(4));
-      else if (/^link:/i.test(opt)) url = unquote(opt.substring(5));
-      else if (/^href:/i.test(opt)) url = unquote(opt.substring(5));
-    }
-  }
-
-  if (!tooltipText) tooltipText = mainArg || 'Tooltip';
-  const displayTerm = explicitTerm || (mainArg !== tooltipText ? mainArg : tooltipText);
+  const parsed = parseContainerHeader(rawInput, ['text']);
+  const tooltipText = parsed.text || parsed.title || parsed.label || 'Tooltip';
+  const displayTerm = parsed.term || tooltipText;
+  const url = parsed.url || parsed.link || parsed.href || '';
 
   return { tooltipText, displayTerm, url };
 }

@@ -12,7 +12,7 @@
  * --------------------------------------------------------------------
  */
 
-import { stripContainerComment } from '../utils/container-helper.js';
+import { stripContainerComment, parseContainerHeader } from '../utils/container-helper.js';
 
 function smartDedent(str) {
   const lines = str.split('\n');
@@ -26,8 +26,13 @@ function smartDedent(str) {
   return lines.map(line => line.trim().length ? line.substring(minIndent) : '').join('\n');
 }
 
-function parseQuotedTitle(info) {
+function parseQuotedTitle(info: string): string {
   if (!info) return '';
+  const parsed = parseContainerHeader(info, ['title']);
+  return parsed.title || parsed.version || parsed.label || parsed.text || parseLegacyQuotedTitle(info);
+}
+
+function parseLegacyQuotedTitle(info: string): string {
   const cleaned = stripContainerComment(info);
   const match = cleaned.match(/"([^"]*)"/);
   return match ? match[1] : cleaned.trim();

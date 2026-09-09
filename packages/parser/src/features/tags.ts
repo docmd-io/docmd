@@ -14,7 +14,7 @@
 
 import { renderIcon } from '../utils/icon-renderer.js';
 import { processHref } from '../utils/normalize-href.js';
-import { ensureLineBreakIfNeeded } from '../utils/container-helper.js';
+import { ensureLineBreakIfNeeded, parseContainerHeader } from '../utils/container-helper.js';
 
 function unquote(value: string): string {
   if (!value) return '';
@@ -42,38 +42,11 @@ function resolveTagColor(val: string): string {
 }
 
 function parseTagArgs(rawInput: string): { text: string; icon: string; color: string; link: string } {
-  let text = 'Tag';
-  let icon = '';
-  let color = '';
-  let link = '';
-
-  const match = rawInput.match(/^\s*(?:["']([^"']+)["']|(\S+))(.*)$/);
-  if (!match) return { text, icon, color, link };
-
-  text = match[1] || match[2] || 'Tag';
-  const rest = (match[3] || '').trim();
-
-  const optionRegex = /(?:icon|color|style|link|url|href):(?:"[^"]*"|'[^']*'|\S+)/gi;
-  const optionsFound: string[] = rest.match(optionRegex) || [];
-
-  for (const opt of optionsFound) {
-    if (/^icon:/i.test(opt)) icon = unquote(opt.substring(5));
-    else if (/^color:/i.test(opt)) color = unquote(opt.substring(6));
-    else if (/^style:/i.test(opt)) color = unquote(opt.substring(6));
-    else if (/^link:/i.test(opt)) link = unquote(opt.substring(5));
-    else if (/^url:/i.test(opt)) link = unquote(opt.substring(4));
-    else if (/^href:/i.test(opt)) link = unquote(opt.substring(5));
-  }
-
-  if (!link && rest) {
-    const nonOptionRest = rest.replace(optionRegex, '').trim();
-    if (nonOptionRest) {
-      const positionalMatch = nonOptionRest.match(/^(?:"([^"]*)"|'([^']*)'|(\S+))/);
-      if (positionalMatch) {
-        link = unquote(positionalMatch[1] || positionalMatch[2] || positionalMatch[3] || '');
-      }
-    }
-  }
+  const parsed = parseContainerHeader(rawInput, ['title', 'url']);
+  const text = parsed.title || parsed.text || parsed.label || 'Tag';
+  const icon = parsed.icon || '';
+  const color = parsed.color || parsed.style || '';
+  const link = parsed.url || parsed.link || parsed.href || '';
 
   return { text, icon, color, link };
 }
