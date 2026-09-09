@@ -27,9 +27,21 @@
     </div>
     <% } %>
 
+    <% if (optionsMenu.components.print !== false) { %>
+    <button class="print-button" aria-label="<%= typeof t === 'function' ? t('print') : 'Print' %>" title="<%= typeof t === 'function' ? t('print') : 'Print' %>">
+        <%- renderIcon('printer', { class: 'icon-print' }) %>
+    </button>
+    <% } %>
+
     <% if (optionsMenu.components.themeSwitch !== false) { %>
-    <button class="theme-toggle-button" aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
+    <button class="theme-toggle-button" aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>" title="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
         <%- renderIcon('sun', { class: 'icon-sun' }) %> <%- renderIcon('moon', { class: 'icon-moon' }) %>
+    </button>
+    <% } %>
+
+    <% if (optionsMenu.components.focusMode !== false) { %>
+    <button class="focus-mode-toggle-button" aria-label="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %>" title="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %> (Alt+F)">
+        <%- renderIcon('maximize-2', { class: 'icon-focus-enter' }) %>
     </button>
     <% } %>
 

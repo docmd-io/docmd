@@ -42,5 +42,8 @@
   "selectProject": "Select project",
   "poweredBy": "Powered by",
   "viewSource": "View source",
-  "goToTop": "Go to top"
+  "goToTop": "Go to top",
+  "print": "Print",
+  "focusMode": "Focus mode",
+  "exitFocusMode": "Exit Focus mode"
 }

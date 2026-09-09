@@ -983,6 +983,8 @@ body.has-menubar-header .docmd-menubar {
 }
 
 .docmd-options-menu .theme-toggle-button,
+.docmd-options-menu .print-button,
+.docmd-options-menu .focus-mode-toggle-button,
 .docmd-options-menu .sponsor-link-button,
 .docmd-options-menu .docmd-search-trigger {
     display: inline-flex;
@@ -1001,6 +1003,8 @@ body.has-menubar-header .docmd-menubar {
 }
 
 .docmd-options-menu .theme-toggle-button,
+.docmd-options-menu .print-button,
+.docmd-options-menu .focus-mode-toggle-button,
 .docmd-options-menu .sponsor-link-button {
     width: var(--ui-element-size);
 }
@@ -3961,4 +3965,226 @@ ul.contains-task-list>li::marker {
 
 .changelog-body .heading-anchor {
     display: none;
+}
+
+/* ==========================================================================
+   Focus Mode (Zen Reading Experience - docmd v0.9.6)
+   ========================================================================== */
+
+.docmd-focus-title {
+    display: none;
+}
+
+.docmd-focus-toolbar {
+    display: none;
+    position: fixed;
+    top: 1.25rem;
+    right: 1.5rem;
+    z-index: 10000;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.45rem;
+    background: color-mix(in srgb, var(--bg-color, #ffffff) 84%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.docmd-focus-toolbar .docmd-focus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 9999px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.docmd-focus-toolbar .docmd-focus-btn:hover {
+    color: var(--text-heading);
+    background: color-mix(in srgb, var(--text-color, #000) 8%, transparent);
+}
+
+.docmd-focus-toolbar .docmd-focus-btn.focus-exit-btn:hover {
+    color: var(--primary-color, #3b82f6);
+}
+
+.docmd-focus-toolbar .docmd-focus-btn svg,
+.docmd-focus-toolbar .docmd-focus-btn .lucide-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+/* Active Focus Mode */
+body.focus-mode {
+    overflow-x: hidden;
+}
+
+body.focus-mode .docmd-focus-toolbar {
+    display: flex;
+}
+
+/* Conceal all navigation chrome, sidebars, TOC, breadcrumbs, footers & floating FABs */
+body.focus-mode .sidebar,
+body.focus-mode .page-header,
+body.focus-mode .docmd-menubar,
+body.focus-mode .summer-topbar,
+body.focus-mode .summer-subnav,
+body.focus-mode .summer-sidebar,
+body.focus-mode .summer-pageheader,
+body.focus-mode .summer-toc,
+body.focus-mode .summer-pagenav,
+body.focus-mode .summer-totop,
+body.focus-mode .summer-footer,
+body.focus-mode .docmd-banner,
+body.focus-mode .summer-banner,
+body.focus-mode .docmd-breadcrumbs-row,
+body.focus-mode .toc-sidebar,
+body.focus-mode .page-navigation,
+body.focus-mode .page-footer-actions,
+body.focus-mode .docmd-footer,
+body.focus-mode .docmd-cookie-banner,
+body.focus-mode #ai-assistant-toggle,
+body.focus-mode .ai-assistant-drawer,
+body.focus-mode .ai-assistant-backdrop,
+body.focus-mode #docmd-ai-plugin-root,
+body.focus-mode .docmd-ai-bar-wrap,
+body.focus-mode .docmd-threads-fab,
+body.focus-mode .docmd-threads-sidebar,
+body.focus-mode .docmd-threads-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+body.focus-mode .main-content-wrapper {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+
+body.focus-mode .content-theme-cover {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+
+body.focus-mode .content-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 3.5rem 1.5rem 6rem !important;
+}
+
+body.focus-mode .content-layout {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body.focus-mode .main-content {
+    width: 100% !important;
+    max-width: 820px !important;
+    margin: 0 auto !important;
+    float: none !important;
+}
+
+body.focus-mode .docmd-focus-title {
+    display: block;
+    font-size: 2.25rem;
+    font-weight: 750;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    color: var(--text-heading);
+    margin-top: 0;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* ==========================================================================
+   Print Stylesheet (@media print)
+   ========================================================================== */
+
+@media print {
+    .sidebar,
+    .page-header,
+    .docmd-menubar,
+    .summer-topbar,
+    .summer-subnav,
+    .summer-sidebar,
+    .summer-pageheader,
+    .summer-toc,
+    .summer-pagenav,
+    .summer-totop,
+    .summer-footer,
+    .docmd-focus-toolbar,
+    .docmd-options-menu,
+    .docmd-banner,
+    .summer-banner,
+    .docmd-breadcrumbs-row,
+    .docmd-copy-widgets,
+    .summer-copy-widgets,
+    .toc-sidebar,
+    .page-navigation,
+    .page-footer-actions,
+    .docmd-footer,
+    .docmd-cookie-banner,
+    #ai-assistant-toggle,
+    .ai-assistant-drawer,
+    .ai-assistant-backdrop,
+    #docmd-ai-plugin-root,
+    .docmd-ai-bar-wrap,
+    .docmd-threads-fab,
+    .docmd-threads-sidebar,
+    .docmd-threads-backdrop,
+    .skip-link {
+        display: none !important;
+    }
+
+    body, html {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 11pt !important;
+    }
+
+    .main-content-wrapper,
+    .content-theme-cover,
+    .content-area,
+    .content-layout,
+    .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-shadow: none !important;
+    }
+
+    .docmd-focus-title {
+        display: block !important;
+        font-size: 22pt !important;
+        font-weight: bold !important;
+        margin-bottom: 12pt !important;
+        border-bottom: 1pt solid #ccc !important;
+        color: #000 !important;
+    }
+
+    pre, code {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        break-after: avoid;
+        color: #000 !important;
+    }
 }

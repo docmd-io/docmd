@@ -203,15 +203,23 @@ export function normalizeConfig(userConfig: any, options: any = {}) {
         }
     }
 
-    // --- 3. Options Menu (Search, Theme, Sponsor) ---
+    // --- 3. Options Menu (Search, Theme, Focus Mode, Print, Sponsor) ---
+    const defaultOptionsMenuComponents = {
+        search: true,
+        themeSwitch: true,
+        focusMode: true,
+        print: true,
+        sponsor: null
+    };
+
+    const userOptionsMenu = userLayout.optionsMenu || config.optionsMenu || {};
     config.optionsMenu = {
         position: 'header',
+        ...userOptionsMenu,
         components: {
-            search: true,
-            themeSwitch: true,
-            sponsor: null
-        },
-        ...(userLayout.optionsMenu || config.optionsMenu || {})
+            ...defaultOptionsMenuComponents,
+            ...(userOptionsMenu.components || {})
+        }
     };
 
     // --- 3.1. Site-wide Banner (new in 0.8.7) ---

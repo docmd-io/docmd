@@ -1041,6 +1041,72 @@
     window.docmdNavigate = navigateTo;
   }
 
+  // ---------------------------------------------------------------------------
+  // Focus Mode (Zen Reading Experience - docmd v0.9.6)
+  // ---------------------------------------------------------------------------
+  function initializeFocusMode() {
+    function setFocusMode(enabled) {
+      if (enabled) {
+        document.body.classList.add('focus-mode');
+        try { localStorage.setItem('docmd-focus-mode', 'true'); } catch (_) { }
+      } else {
+        document.body.classList.remove('focus-mode');
+        try { localStorage.setItem('docmd-focus-mode', 'false'); } catch (_) { }
+      }
+      try {
+        window.dispatchEvent(new CustomEvent('docmd:focus-mode', { detail: { enabled } }));
+      } catch (_) { }
+    }
+
+    function toggleFocusMode() {
+      const isCurrentlyFocus = document.body.classList.contains('focus-mode');
+      setFocusMode(!isCurrentlyFocus);
+    }
+
+    // Restore focus mode state if previously enabled
+    try {
+      if (localStorage.getItem('docmd-focus-mode') === 'true') {
+        document.body.classList.add('focus-mode');
+      }
+    } catch (_) { }
+
+    // Wire focus mode and print buttons via event delegation
+    document.addEventListener('click', (e) => {
+      const focusBtn = e.target.closest('.focus-mode-toggle-button');
+      if (focusBtn) {
+        e.preventDefault();
+        toggleFocusMode();
+        return;
+      }
+
+      const printBtn = e.target.closest('.print-button');
+      if (printBtn) {
+        e.preventDefault();
+        window.print();
+        return;
+      }
+    });
+
+    // Keyboard shortcuts: Alt+F to toggle focus mode, Escape to exit focus mode
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      const isInput = tag === 'input' || tag === 'textarea' || (e.target && e.target.isContentEditable);
+
+      if (e.altKey && (e.key === 'f' || e.key === 'F')) {
+        if (!isInput) {
+          e.preventDefault();
+          toggleFocusMode();
+        }
+      } else if (e.key === 'Escape') {
+        const searchOpen = document.querySelector('.docmd-search-modal, .summer-search-dropdown:not([style*="display: none"])');
+        if (!searchOpen && document.body.classList.contains('focus-mode')) {
+          e.preventDefault();
+          setFocusMode(false);
+        }
+      }
+    });
+  }
+
   // 4. BOOTSTRAP
   function bootstrap() {
     if (document.body.dataset.bootstrapped === 'true') return;
@@ -1075,6 +1141,7 @@
     initializeSPA();
     initBanner();
     initCookieConsent();
+    initializeFocusMode();
 
     setTimeout(() => {
       // PWA Unregistration Safety Net:

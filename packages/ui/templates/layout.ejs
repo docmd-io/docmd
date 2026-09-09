@@ -74,6 +74,18 @@
 
     <a href="#main-content" class="skip-link"><%= typeof t === 'function' ? t('skipToContent') : 'Skip to content' %></a>
 
+    <div class="docmd-focus-toolbar" id="docmd-focus-toolbar" aria-label="Focus mode controls">
+      <button class="docmd-focus-btn print-button" type="button" aria-label="<%= typeof t === 'function' ? t('print') : 'Print' %>" title="<%= typeof t === 'function' ? t('print') : 'Print' %>">
+        <%- renderIcon('printer', { class: 'icon-print' }) %>
+      </button>
+      <button class="docmd-focus-btn theme-toggle-button" type="button" aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>" title="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
+        <%- renderIcon('sun', { class: 'icon-sun' }) %> <%- renderIcon('moon', { class: 'icon-moon' }) %>
+      </button>
+      <button class="docmd-focus-btn focus-mode-toggle-button focus-exit-btn" type="button" aria-label="<%= typeof t === 'function' ? t('exitFocusMode') : 'Exit Focus Mode' %> (Esc or Alt+F)" title="<%= typeof t === 'function' ? t('exitFocusMode') : 'Exit Focus Mode' %> (Esc or Alt+F)">
+        <%- renderIcon('minimize-2', { class: 'icon-focus-exit' }) %>
+      </button>
+    </div>
+
     <% const _isTopMenubar = locals.menubarConfig && menubarConfig?.enabled !== false && menubarConfig.position === 'top'; %>
     <% if (locals.config && config.layout && config.layout.banner && _isTopMenubar) { %>
       <%- await include('partials/banner', { config, relativePathToRoot, assetBaseUrl, renderIcon, t: typeof t === 'function' ? t : null }) %>
@@ -232,6 +244,10 @@
                 </div>
                 <% if (headerConfig?.enabled===false) { %>
                   <h1>
+                    <%= pageTitle %>
+                  </h1>
+                <% } else { %>
+                  <h1 class="docmd-focus-title">
                     <%= pageTitle %>
                   </h1>
                 <% } %>

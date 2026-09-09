@@ -4492,3 +4492,188 @@ img.lightbox {
   color: var(--summer-fg);
   background: var(--summer-surface-2);
 }
+
+/* ==========================================================================
+   Focus Mode (Zen Reading Experience - docmd v0.9.6)
+   ========================================================================== */
+
+.summer-template .docmd-focus-title {
+  display: none;
+}
+
+.summer-template .docmd-focus-toolbar {
+  display: none;
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 10000;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  background: color-mix(in srgb, var(--summer-bg, #ffffff) 84%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--summer-border);
+  border-radius: 9999px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.summer-template .docmd-focus-toolbar .docmd-focus-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  color: var(--summer-fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.summer-template .docmd-focus-toolbar .docmd-focus-btn:hover {
+  color: var(--summer-fg);
+  background: var(--summer-surface-2);
+}
+
+.summer-template .docmd-focus-toolbar .docmd-focus-btn.focus-exit-btn:hover {
+  color: var(--summer-primary, #e05d44);
+}
+
+.summer-template .docmd-focus-toolbar .docmd-focus-btn svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* Active Focus Mode */
+body.summer-template.focus-mode {
+  overflow-x: hidden;
+}
+
+body.summer-template.focus-mode .docmd-focus-toolbar {
+  display: flex;
+}
+
+/* Conceal all navigation chrome, topbar, subnav, sidebars, TOC, breadcrumbs, footers & floating FABs */
+body.summer-template.focus-mode .summer-topbar,
+body.summer-template.focus-mode .summer-subnav,
+body.summer-template.focus-mode .summer-sidebar,
+body.summer-template.focus-mode .summer-pageheader,
+body.summer-template.focus-mode .summer-toc,
+body.summer-template.focus-mode .summer-pagenav,
+body.summer-template.focus-mode .summer-totop,
+body.summer-template.focus-mode .summer-footer,
+body.summer-template.focus-mode .summer-banner,
+body.summer-template.focus-mode .summer-pagefooter,
+body.summer-template.focus-mode #ai-assistant-toggle,
+body.summer-template.focus-mode .ai-assistant-drawer,
+body.summer-template.focus-mode .ai-assistant-backdrop,
+body.summer-template.focus-mode #docmd-ai-plugin-root,
+body.summer-template.focus-mode .docmd-ai-bar-wrap,
+body.summer-template.focus-mode .docmd-threads-fab,
+body.summer-template.focus-mode .docmd-threads-sidebar,
+body.summer-template.focus-mode .docmd-threads-backdrop {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+body.summer-template.focus-mode .summer-layout {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.summer-template.focus-mode .summer-main {
+  width: 100% !important;
+  max-width: 820px !important;
+  margin: 0 auto !important;
+  padding: 3.5rem 1.5rem 6rem !important;
+  float: none !important;
+}
+
+body.summer-template.focus-mode .summer-content {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+body.summer-template.focus-mode .docmd-focus-title {
+  display: block !important;
+  font-size: 2.25rem !important;
+  font-weight: 750 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.025em !important;
+  color: var(--summer-fg) !important;
+  margin-top: 0 !important;
+  margin-bottom: 2rem !important;
+  padding-bottom: 1rem !important;
+  border-bottom: 1px solid var(--summer-border) !important;
+}
+
+/* Print stylesheet for Summer template */
+@media print {
+  .summer-topbar,
+  .summer-subnav,
+  .summer-sidebar,
+  .summer-pageheader,
+  .summer-toc,
+  .summer-pagenav,
+  .summer-totop,
+  .summer-footer,
+  .summer-banner,
+  .summer-copy-widgets,
+  .summer-pagefooter,
+  .docmd-focus-toolbar,
+  #ai-assistant-toggle,
+  .ai-assistant-drawer,
+  .ai-assistant-backdrop,
+  #docmd-ai-plugin-root,
+  .docmd-ai-bar-wrap,
+  .docmd-threads-fab,
+  .docmd-threads-sidebar,
+  .docmd-threads-backdrop,
+  .skip-link {
+    display: none !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  .summer-layout,
+  .summer-main,
+  .summer-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  .summer-content__title,
+  .docmd-focus-title {
+    display: block !important;
+    font-size: 22pt !important;
+    font-weight: bold !important;
+    margin-bottom: 12pt !important;
+    border-bottom: 1pt solid #ccc !important;
+    color: #000 !important;
+  }
+
+  pre, code {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+    color: #000 !important;
+  }
+}

@@ -42,5 +42,8 @@
   "selectProject": "选择项目",
   "poweredBy": "由...驱动",
   "viewSource": "查看源代码",
-  "goToTop": "回到顶部"
+  "goToTop": "回到顶部",
+  "print": "打印",
+  "focusMode": "专注模式",
+  "exitFocusMode": "退出专注模式"
 }

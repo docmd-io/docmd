@@ -24,9 +24,21 @@
       </div>
     <% } %>
 
+    <% if (optionsMenu.components.print !== false) { %>
+      <button class="summer-iconbtn print-button" type="button" aria-label="<%= typeof t === 'function' ? t('print') : 'Print' %>" title="<%= typeof t === 'function' ? t('print') : 'Print' %>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect width="12" height="8" x="6" y="14"></rect></svg>
+      </button>
+    <% } %>
+
     <% if (optionsMenu.components.themeSwitch !== false) { %>
-      <button class="summer-iconbtn" data-summer-theme-toggle aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
+      <button class="summer-iconbtn theme-toggle-button" data-summer-theme-toggle aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>" title="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+      </button>
+    <% } %>
+
+    <% if (optionsMenu.components.focusMode !== false) { %>
+      <button class="summer-iconbtn focus-mode-toggle-button" type="button" aria-label="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %>" title="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %> (Alt+F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
       </button>
     <% } %>
 

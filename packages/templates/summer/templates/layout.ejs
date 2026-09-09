@@ -115,6 +115,18 @@
   data-default-collapsed="<%= sidebarConfig?.defaultCollapsed === true %>"<% if (locals.sourceFile) { %> data-source-file="<%= sourceFile %>"<% } %>>
   <a href="#main-content" class="skip-link"><%= typeof t === 'function' ? t('skipToContent') : 'Skip to content' %></a>
 
+  <div class="docmd-focus-toolbar" id="docmd-focus-toolbar" aria-label="Focus mode controls">
+    <button class="docmd-focus-btn print-button" type="button" aria-label="Print" title="Print (⌘P)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect width="12" height="8" x="6" y="14"></rect></svg>
+    </button>
+    <button class="docmd-focus-btn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="Toggle theme" title="Toggle theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+    </button>
+    <button class="docmd-focus-btn focus-mode-toggle-button focus-exit-btn" type="button" aria-label="Exit Focus Mode (Esc or Alt+F)" title="Exit Focus Mode (Esc or Alt+F)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+    </button>
+  </div>
+
   <%# ─────────────────────────────────────────────────────────────
       Optional banner (data-docmd-banner is what docmd-main.js's
       initBanner() listens for so close-state is sessionStorage-persisted)
@@ -204,9 +216,21 @@
       <%# RIGHT — Action icons (theme, language, sponsor, github) %>
       <div class="summer-topbar__right">
         <% const _om = locals.optionsMenu; %>
+        <% if (!_om || _om.components?.print !== false) { %>
+          <button class="summer-iconbtn print-button" type="button" aria-label="Print" title="Print (⌘P)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect width="12" height="8" x="6" y="14"></rect></svg>
+          </button>
+        <% } %>
+
         <% if (!_om || _om.components?.themeSwitch !== false) { %>
-          <button class="summer-iconbtn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="Toggle theme">
+          <button class="summer-iconbtn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="Toggle theme" title="Toggle theme">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+          </button>
+        <% } %>
+
+        <% if (!_om || _om.components?.focusMode !== false) { %>
+          <button class="summer-iconbtn focus-mode-toggle-button" type="button" aria-label="Focus mode" title="Focus mode (Alt+F)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         <% } %>
 
@@ -441,6 +465,8 @@
 
       <% if (headerConfig?.enabled === false) { %>
         <h1 class="summer-content__title"><%= pageTitle %></h1>
+      <% } else { %>
+        <h1 class="summer-content__title docmd-focus-title"><%= pageTitle %></h1>
       <% } %>
 
       <div id="docmd-raw-markdown" data-content="<%= encodeURIComponent(typeof rawMarkdown !== 'undefined' ? rawMarkdown : '') %>" style="display: none;"></div>
