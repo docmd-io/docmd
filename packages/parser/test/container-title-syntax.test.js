@@ -114,3 +114,20 @@ Please read carefully.
   const calloutHtml = md.render(calloutInput);
   assert.ok(calloutHtml.includes('Important Notice'), 'renders callout title');
 });
+
+test('collapsible and details alias: support title, icon, and open flag', () => {
+  const md = createParser();
+  const input1 = `::: collapsible open title:"Prerequisites" icon:check
+Content.
+::: /collapsible`;
+  const html1 = md.render(input1);
+  assert.ok(html1.includes('<details class="docmd-container collapsible" open>'), 'collapsible renders open attribute');
+  assert.ok(html1.includes('Prerequisites'), 'renders title');
+
+  const input2 = `::: details open title:"Detailed Specs" icon:file
+Specs content.
+::: /details`;
+  const html2 = md.render(input2);
+  assert.ok(html2.includes('<details class="docmd-container collapsible" open>'), 'details alias renders open attribute');
+  assert.ok(html2.includes('Detailed Specs'), 'details alias renders title');
+});

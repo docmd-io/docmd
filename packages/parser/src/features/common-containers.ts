@@ -253,12 +253,15 @@ export default {
     // VitePress details alias -> collapsible
     createDepthTrackingContainer(md, 'details', (tokens, idx) => {
       const info = tokens[idx].info.trim();
-      const { title, icon } = parseTitleAndIcon(info);
+      const isOpen = info.startsWith('open ') || info === 'open';
+      const rawInfo = isOpen ? info.replace('open', '').trim() : info;
+      const { title, icon } = parseTitleAndIcon(rawInfo);
       const displayTitle = title || 'Details';
       const renderedTitle = md.renderInline(displayTitle);
       const iconHtml = icon ? renderIcon(icon, { class: 'collapsible-icon-heading' }) : '';
+      const safeOpen = isOpen ? ' open' : '';
 
-      return `<details class="docmd-container collapsible">
+      return `<details class="docmd-container collapsible"${safeOpen}>
         <summary class="collapsible-summary">
             <span class="collapsible-title">${iconHtml}${renderedTitle}</span>
             <span class="collapsible-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
