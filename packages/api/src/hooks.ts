@@ -578,6 +578,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
             );
             continue;
           }
+          rawModule = reloaded;
         } else {
           // Fallback: if auto-install failed (e.g. pre-release version not yet published on npm),
           // check if the package is available in the local monorepo
