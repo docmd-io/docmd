@@ -18,14 +18,14 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0)
       '@types/node':
-        specifier: ^26.5.0
-        version: 26.5.0
+        specifier: ^24.13.4
+        version: 24.13.4
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
       docmd-search:
-        specifier: ^0.1.3
-        version: 0.1.3(@huggingface/transformers@4.2.0(@types/node@26.5.0))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@26.5.0))
+        specifier: ^0.1.5
+        version: 0.1.5(@docmd/engine-js@0.9.5)(@docmd/engine-rust@0.9.5)(@huggingface/transformers@4.2.0(@types/node@24.13.4))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.4))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -55,8 +55,8 @@ importers:
         version: link:../utils
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
     optionalDependencies:
       '@docmd/engine-js':
         specifier: workspace:*
@@ -132,8 +132,8 @@ importers:
         version: 8.21.3
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/deployer:
     dependencies:
@@ -142,20 +142,20 @@ importers:
         version: link:../api
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/engines/js:
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/engines/rust:
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/engines/rust-binaries: {}
 
@@ -208,8 +208,8 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/parser:
     dependencies:
@@ -232,17 +232,17 @@ importers:
         specifier: ^0.1.3
         version: 0.1.3
       lucide-static:
-        specifier: ^1.43.0
-        version: 1.43.0
+        specifier: ^1.46.0
+        version: 1.46.0
       markdown-it:
-        specifier: ^14.3.1
-        version: 14.3.1
+        specifier: ^14.3.2
+        version: 14.3.2
       markdown-it-abbr:
         specifier: ^1.0.4
         version: 1.0.4
       markdown-it-attrs:
         specifier: ^4.5.0
-        version: 4.5.0(markdown-it@14.3.1)
+        version: 4.5.0(markdown-it@14.3.2)
       markdown-it-deflist:
         specifier: ^2.1.0
         version: 2.1.0
@@ -259,8 +259,8 @@ importers:
   packages/plugins/ai:
     dependencies:
       docmd-assistant:
-        specifier: ^0.1.17
-        version: 0.1.17
+        specifier: ^0.1.18
+        version: 0.1.18
     devDependencies:
       '@docmd/api':
         specifier: workspace:*
@@ -269,8 +269,8 @@ importers:
         specifier: workspace:*
         version: link:../../utils
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -294,8 +294,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/installer:
     dependencies:
@@ -304,8 +304,8 @@ importers:
         version: link:../../api
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/llms:
     devDependencies:
@@ -313,8 +313,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/math:
     dependencies:
@@ -339,8 +339,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -357,8 +357,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -373,8 +373,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/pwa:
     dependencies:
@@ -386,17 +386,17 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/search:
     dependencies:
       docmd-search:
         specifier: '>=0.1.3'
-        version: 0.1.3(@huggingface/transformers@4.2.0(@types/node@24.13.3))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.3))
+        version: 0.1.3(@docmd/engine-js@0.9.5)(@docmd/engine-rust@0.9.5)(@huggingface/transformers@4.2.0(@types/node@24.13.4))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.4))
       markdown-it:
-        specifier: ^14.3.1
-        version: 14.3.1
+        specifier: ^14.3.2
+        version: 14.3.2
       minisearch:
         specifier: ^7.2.0
         version: 7.2.0
@@ -408,8 +408,8 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -424,8 +424,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/sitemap:
     devDependencies:
@@ -433,8 +433,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/plugins/threads:
     dependencies:
@@ -458,8 +458,8 @@ importers:
         specifier: ^1.63.0
         version: 1.63.0
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -470,8 +470,8 @@ importers:
         specifier: workspace:*
         version: link:../../api
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -482,8 +482,8 @@ importers:
   packages/themes:
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/tui:
     dependencies:
@@ -492,8 +492,8 @@ importers:
         version: 4.1.2
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -508,14 +508,14 @@ importers:
         version: link:../tui
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
   packages/utils:
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
-        version: 24.13.3
+        specifier: ^24.13.4
+        version: 24.13.4
 
 packages:
 
@@ -537,6 +537,14 @@ packages:
   '@ctrl/tinycolor@4.2.0':
     resolution: {integrity: sha512-kzyuwOAQnXJNLS9PSyrk0CWk35nWJW/zl/6KvnTBMFK65gm7U1/Z5BqjxeapjZCIhQcM/DsrEmcbRwDyXyXK4A==}
     engines: {node: '>=14'}
+
+  '@docmd/engine-js@0.9.5':
+    resolution: {integrity: sha512-LNxCzgWLS6xOfLS7+QM+Mtw98OpVKvTvBrQhM25rYSkdRk3dTzS+aLvo1DaRGiBYZCnFjvZwS0yEkEX4TxS7yQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@docmd/engine-rust@0.9.5':
+    resolution: {integrity: sha512-QDCHRNmdIh4y44HHLecsX9wJlzAZ7elqehamfheF38nNne3Ydar2IWbjGo8qS5hdQ+uKdH/7FYbKKVOYI6TXQQ==}
+    engines: {node: '>=20.0.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1122,11 +1130,8 @@ packages:
   '@types/mdurl@2.0.0':
     resolution: {integrity: sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg==}
 
-  '@types/node@24.13.3':
-    resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
-
-  '@types/node@26.5.0':
-    resolution: {integrity: sha512-dVSGpriSoCgz8WnDNTuSSuSv1PC/ALXihO4ulRZt7Md8k9mlbdin3lGOcDE8SnWOgf513ByWlXd7BK4azmyg/A==}
+  '@types/node@24.13.4':
+    resolution: {integrity: sha512-YJ7EqCstVTzIr0fMr7qul/977en+pQHrfmuKIo6Zr9i75Be21dr3MovcfvGtyvi2HAUrRerWps5sMO9I7WaxDw==}
 
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
@@ -1473,12 +1478,40 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  docmd-assistant@0.1.17:
-    resolution: {integrity: sha512-OiD5afvn0cB4Mcq6ZpWTs7Zb1jTiJPXCIqKDZnrxw30kkUIa+fpcIB+YObHrpIH+bEItlmt7uVY0wMwyQsxo6w==}
+  docmd-assistant@0.1.18:
+    resolution: {integrity: sha512-gkCuCeeB6DswUXjDafwKEteyOfNXTIfAMng+Hu+WxHP0l7KNqkanyU2ktTBpOutXCUSoVL/ojnaiBprFagdObw==}
     engines: {node: '>=20.0.0'}
 
   docmd-search@0.1.3:
     resolution: {integrity: sha512-cFUyJGWqlCCWnoFhnqhjxWF4n0DrWfmS4fxtCVUgFWnfN8hfdwC3GdOfHfaV6/WKLmXIkBTJdJHJQv9YEp40/g==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@docmd/engine-js': '>=0.8.10'
+      '@docmd/engine-rust': '>=0.8.10'
+      '@huggingface/transformers': ^4.2.0
+      adm-zip: '>=0.6.0'
+      onnxruntime-node: ^1.27.0
+      protobufjs: ^7.6.5
+      sharp: ^0.35.0
+    peerDependenciesMeta:
+      '@docmd/engine-js':
+        optional: true
+      '@docmd/engine-rust':
+        optional: true
+      '@huggingface/transformers':
+        optional: true
+      adm-zip:
+        optional: true
+      onnxruntime-node:
+        optional: true
+      protobufjs:
+        optional: true
+      sharp:
+        optional: true
+
+  docmd-search@0.1.5:
+    resolution: {integrity: sha512-/3z3d2pAr6vsxdEmI+X9mFg8/UhgtDtMAINw+qdJEJMW4T5lWfXHL1/MU83UtTXH2xrOZ3BiANXCcAQRd0wJcQ==}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
@@ -1763,8 +1796,8 @@ packages:
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
-  lucide-static@1.43.0:
-    resolution: {integrity: sha512-w7vdVFqh4vv7RxWHN4sSeylA0s3GHV5vpyGqZI0q22MINKJyhMNWSMd90RyTUYWBRNYqdZVZzrMmijVxU3Cl9A==}
+  lucide-static@1.46.0:
+    resolution: {integrity: sha512-kq1lP/78BxG28VG3Ut2FxMeQElereTrrRwTBeXH7+olxATGcDbsuKRB/v/VKLhPrEu8BvNi6Uh2GvbH3pQcYhg==}
 
   markdown-it-abbr@1.0.4:
     resolution: {integrity: sha512-ZeA4Z4SaBbYysZap5iZcxKmlPL6bYA8grqhzJIHB1ikn7njnzaP8uwbtuXc4YXD5LicI4/2Xmc0VwmSiFV04gg==}
@@ -1790,8 +1823,8 @@ packages:
   markdown-it-texmath@1.0.0:
     resolution: {integrity: sha512-4hhkiX8/gus+6e53PLCUmUrsa6ZWGgJW2XCW6O0ASvZUiezIK900ZicinTDtG3kAO2kon7oUA/ReWmpW2FByxg==}
 
-  markdown-it@14.3.1:
-    resolution: {integrity: sha512-4Ej49aYTDFIQ+uBkfX8GBvJGccoARxxPep+7aWTs55ozbjQJpW9M26Fe53vnGgvLeVzva/amzjQQaQu9w0vMhA==}
+  markdown-it@14.3.2:
+    resolution: {integrity: sha512-sHHjZ5fJKlgrG4qns2YwVcdNep35h5fERrfkD2YNsb9UFk0UIHarbiTaHKVMlPuWAoiilyK8Fv/jAm11slsY7Q==}
     hasBin: true
 
   marked@16.4.2:
@@ -2016,9 +2049,6 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici-types@8.9.0:
-    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
-
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
@@ -2052,6 +2082,11 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -2080,6 +2115,12 @@ snapshots:
   '@chevrotain/types@11.1.2': {}
 
   '@ctrl/tinycolor@4.2.0': {}
+
+  '@docmd/engine-js@0.9.5':
+    optional: true
+
+  '@docmd/engine-rust@0.9.5':
+    optional: true
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -2215,24 +2256,13 @@ snapshots:
   '@huggingface/tokenizers@0.1.3':
     optional: true
 
-  '@huggingface/transformers@4.2.0(@types/node@24.13.3)':
+  '@huggingface/transformers@4.2.0(@types/node@24.13.4)':
     dependencies:
       '@huggingface/jinja': 0.5.10
       '@huggingface/tokenizers': 0.1.3
       onnxruntime-node: 1.27.0
       onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
-      sharp: 0.35.3(@types/node@24.13.3)
-    transitivePeerDependencies:
-      - '@types/node'
-    optional: true
-
-  '@huggingface/transformers@4.2.0(@types/node@26.5.0)':
-    dependencies:
-      '@huggingface/jinja': 0.5.10
-      '@huggingface/tokenizers': 0.1.3
-      onnxruntime-node: 1.27.0
-      onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
-      sharp: 0.35.3(@types/node@26.5.0)
+      sharp: 0.35.3(@types/node@24.13.4)
     transitivePeerDependencies:
       - '@types/node'
     optional: true
@@ -2575,13 +2605,9 @@ snapshots:
 
   '@types/mdurl@2.0.0': {}
 
-  '@types/node@24.13.3':
+  '@types/node@24.13.4':
     dependencies:
       undici-types: 7.18.2
-
-  '@types/node@26.5.0':
-    dependencies:
-      undici-types: 8.9.0
 
   '@types/react@19.2.14':
     dependencies:
@@ -2696,7 +2722,7 @@ snapshots:
 
   aiplug@0.1.2:
     dependencies:
-      yaml: 2.9.0
+      yaml: 2.9.1
 
   ajv@6.15.0:
     dependencies:
@@ -2984,25 +3010,29 @@ snapshots:
   detect-libc@2.1.2:
     optional: true
 
-  docmd-assistant@0.1.17:
+  docmd-assistant@0.1.18:
     dependencies:
       aiplug: 0.1.2
 
-  docmd-search@0.1.3(@huggingface/transformers@4.2.0(@types/node@24.13.3))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.3)):
+  docmd-search@0.1.3(@docmd/engine-js@0.9.5)(@docmd/engine-rust@0.9.5)(@huggingface/transformers@4.2.0(@types/node@24.13.4))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.4)):
     optionalDependencies:
-      '@huggingface/transformers': 4.2.0(@types/node@24.13.3)
+      '@docmd/engine-js': 0.9.5
+      '@docmd/engine-rust': 0.9.5
+      '@huggingface/transformers': 4.2.0(@types/node@24.13.4)
       adm-zip: 0.6.0
       onnxruntime-node: 1.27.0
       protobufjs: 7.6.5
-      sharp: 0.35.3(@types/node@24.13.3)
+      sharp: 0.35.3(@types/node@24.13.4)
 
-  docmd-search@0.1.3(@huggingface/transformers@4.2.0(@types/node@26.5.0))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@26.5.0)):
+  docmd-search@0.1.5(@docmd/engine-js@0.9.5)(@docmd/engine-rust@0.9.5)(@huggingface/transformers@4.2.0(@types/node@24.13.4))(adm-zip@0.6.0)(onnxruntime-node@1.27.0)(protobufjs@7.6.5)(sharp@0.35.3(@types/node@24.13.4)):
     optionalDependencies:
-      '@huggingface/transformers': 4.2.0(@types/node@26.5.0)
+      '@docmd/engine-js': 0.9.5
+      '@docmd/engine-rust': 0.9.5
+      '@huggingface/transformers': 4.2.0(@types/node@24.13.4)
       adm-zip: 0.6.0
       onnxruntime-node: 1.27.0
       protobufjs: 7.6.5
-      sharp: 0.35.3(@types/node@26.5.0)
+      sharp: 0.35.3(@types/node@24.13.4)
 
   dompurify@3.4.15:
     optionalDependencies:
@@ -3285,13 +3315,13 @@ snapshots:
   long@5.3.2:
     optional: true
 
-  lucide-static@1.43.0: {}
+  lucide-static@1.46.0: {}
 
   markdown-it-abbr@1.0.4: {}
 
-  markdown-it-attrs@4.5.0(markdown-it@14.3.1):
+  markdown-it-attrs@4.5.0(markdown-it@14.3.2):
     dependencies:
-      markdown-it: 14.3.1
+      markdown-it: 14.3.2
 
   markdown-it-deflist@2.1.0: {}
 
@@ -3303,7 +3333,7 @@ snapshots:
 
   markdown-it-texmath@1.0.0: {}
 
-  markdown-it@14.3.1:
+  markdown-it@14.3.2:
     dependencies:
       argparse: 2.0.1
       entities: 4.5.0
@@ -3438,7 +3468,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 26.5.0
+      '@types/node': 24.13.4
       long: 5.3.2
     optional: true
 
@@ -3472,7 +3502,7 @@ snapshots:
       type-fest: 0.20.2
     optional: true
 
-  sharp@0.35.3(@types/node@24.13.3):
+  sharp@0.35.3(@types/node@24.13.4):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -3503,41 +3533,7 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.3
       '@img/sharp-win32-ia32': 0.35.3
       '@img/sharp-win32-x64': 0.35.3
-      '@types/node': 24.13.3
-    optional: true
-
-  sharp@0.35.3(@types/node@26.5.0):
-    dependencies:
-      '@img/colour': 1.1.0
-      detect-libc: 2.1.2
-      semver: 7.8.5
-    optionalDependencies:
-      '@img/sharp-darwin-arm64': 0.35.3
-      '@img/sharp-darwin-x64': 0.35.3
-      '@img/sharp-freebsd-wasm32': 0.35.3
-      '@img/sharp-libvips-darwin-arm64': 1.3.2
-      '@img/sharp-libvips-darwin-x64': 1.3.2
-      '@img/sharp-libvips-linux-arm': 1.3.2
-      '@img/sharp-libvips-linux-arm64': 1.3.2
-      '@img/sharp-libvips-linux-ppc64': 1.3.2
-      '@img/sharp-libvips-linux-riscv64': 1.3.2
-      '@img/sharp-libvips-linux-s390x': 1.3.2
-      '@img/sharp-libvips-linux-x64': 1.3.2
-      '@img/sharp-libvips-linuxmusl-arm64': 1.3.2
-      '@img/sharp-libvips-linuxmusl-x64': 1.3.2
-      '@img/sharp-linux-arm': 0.35.3
-      '@img/sharp-linux-arm64': 0.35.3
-      '@img/sharp-linux-ppc64': 0.35.3
-      '@img/sharp-linux-riscv64': 0.35.3
-      '@img/sharp-linux-s390x': 0.35.3
-      '@img/sharp-linux-x64': 0.35.3
-      '@img/sharp-linuxmusl-arm64': 0.35.3
-      '@img/sharp-linuxmusl-x64': 0.35.3
-      '@img/sharp-webcontainers-wasm32': 0.35.3
-      '@img/sharp-win32-arm64': 0.35.3
-      '@img/sharp-win32-ia32': 0.35.3
-      '@img/sharp-win32-x64': 0.35.3
-      '@types/node': 26.5.0
+      '@types/node': 24.13.4
     optional: true
 
   shebang-command@2.0.0:
@@ -3602,8 +3598,6 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici-types@8.9.0: {}
-
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
@@ -3619,5 +3613,7 @@ snapshots:
   ws@8.21.3: {}
 
   yaml@2.9.0: {}
+
+  yaml@2.9.1: {}
 
   yocto-queue@0.1.0: {}

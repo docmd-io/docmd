@@ -31,12 +31,12 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "docmd-assistant": "^0.1.17"
+    "docmd-assistant": "^0.1.18"
   },
   "devDependencies": {
     "@docmd/api": "workspace:*",
     "@docmd/utils": "workspace:*",
-    "@types/node": "^24.13.3",
+    "@types/node": "^24.13.4",
     "esbuild": "^0.28.2",
     "typescript": "^6.0.3"
   },
