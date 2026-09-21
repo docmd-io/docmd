@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-okf",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Generate an Open Knowledge Format (OKF) bundle from your docmd site for AI agent consumption.",
   "type": "module",
   "main": "dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@docmd/core",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Documentation compiler for humans and machines. One Markdown source, one command — generates website, search, AI context, and knowledge formats together.",
   "type": "module",
   "browser": false,
