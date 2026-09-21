@@ -1,6 +1,6 @@
 {
   "name": "@docmd/monorepo",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "private": true,
   "description": "Documentation compiler for humans and machines. Monorepo for @docmd/core and ecosystem.",
   "scripts": {
