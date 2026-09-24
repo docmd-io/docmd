@@ -45,7 +45,7 @@ import { GRAPH_CSS, GRAPH_JS, graphHtml } from './graph-assets.js';
 
 export const plugin: PluginDescriptor = {
   name: 'okf',
-  version: '0.9.6',
+  version: '0.9.7',
   capabilities: ['post-build']
 };
 
@@ -223,7 +223,7 @@ export async function onPostBuild({ config, pages, outputDir, log }: any) {
   for (const c of concepts) byType[c.type] = (byType[c.type] || 0) + 1;
 
   const manifest = {
-    okf_version: '0.9.6',
+    okf_version: '0.9.7',
     bundle: {
       name: bundleName, title: config.title || bundleName, description: config.description || '',
       url: config.url || '', generated_by: '@docmd/plugin-okf', generated_at: new Date().toISOString(),

@@ -21,7 +21,7 @@ import { scriptLiteral } from '@docmd/utils';
 
 export const plugin: PluginDescriptor = {
   name: 'analytics',
-  version: '0.9.6',
+  version: '0.9.7',
   capabilities: ['head', 'body']
 };
 
