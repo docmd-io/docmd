@@ -65,6 +65,43 @@ export const test = runTestFile({
       assert(code === 1, 'M-1: genuinely broken link still exits 1');
     }
 
+    // #251 — a link with empty text (`[](./missing.jpg)`) must still be
+    // validated. Pre-fix the link regex required at least one character
+    // between the brackets, so these links were silently skipped.
+    {
+      const dir = setup('validate-workspace-251-empty-text-broken');
+      writeFile(dir, 'docs/index.md', '# P1\n\n[](./missing.jpg)\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 1, '#251: broken link with empty text exits 1');
+    }
+
+    {
+      const dir = setup('validate-workspace-251-empty-text-ok');
+      writeFile(dir, 'docs/index.md', '# P1\n\n[](./page-2.md)\n');
+      writeFile(dir, 'docs/page-2.md', '# P2\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 0, '#251: valid link with empty text exits 0');
+    }
+
+    // #250 — the build copies the project-root `assets/` directory to
+    // `/assets/` in the site, so `/assets/...` links resolve there and
+    // must not be reported as broken just because `docs/assets/` is empty.
+    {
+      const dir = setup('validate-workspace-250-root-assets-ok');
+      writeFile(dir, 'docs/index.md', '# P1\n\n[Screenshot](/assets/images/screenshot.jpg)\n');
+      writeFile(dir, 'assets/images/screenshot.jpg', 'jpg');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 0, '#250: /assets/ link to project-root assets/ file exits 0');
+    }
+
+    {
+      const dir = setup('validate-workspace-250-root-assets-missing');
+      writeFile(dir, 'docs/index.md', '# P1\n\n[Screenshot](/assets/images/missing.jpg)\n');
+      writeFile(dir, 'assets/images/screenshot.jpg', 'jpg');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 1, '#250: /assets/ link to a missing file still exits 1');
+    }
+
     // F8 — workspace validation errors exit 1 with a clean TUI message,
     // not a raw stack trace.
     {
