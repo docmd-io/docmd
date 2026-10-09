@@ -43,7 +43,7 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^24.19.0"
+    "@types/node": "^24.19.1"
   },
   "allowScripts": {
     "esbuild": true,
