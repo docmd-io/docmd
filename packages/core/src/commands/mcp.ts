@@ -125,7 +125,9 @@ export function validateLinks(docsDir: string, excludePatterns: string[] = []): 
 
       lines.forEach((lineText, lineIdx) => {
         const lineNum = lineIdx + 1;
-        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        // Fix #251: the link text may be empty (`[](./image.jpg)`), so it is
+        // matched with `*`; requiring `+` silently skipped those links.
+        const linkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
         let match;
         while ((match = linkRegex.exec(lineText)) !== null) {
           const linkTarget = match[2].trim().split('#')[0]; // strip anchors
@@ -163,7 +165,15 @@ export function validateLinks(docsDir: string, excludePatterns: string[] = []): 
             ? resolvedPath.slice(0, -1)
             : resolvedPath;
 
+          // Fix #250: the build copies the project-root `assets/` directory
+          // to `/assets/` in the site (engine/assets.ts), so an absolute
+          // `/assets/...` link is also valid when the file exists there.
+          const existsInRootAssets =
+            /^\/assets\//.test(linkTarget) &&
+            fs.existsSync(path.join(process.cwd(), linkTarget));
+
           const exists =
+            existsInRootAssets ||
             fs.existsSync(stripped) ||
             fs.existsSync(stripped + '.md') ||
             fs.existsSync(stripped + '.markdown') ||
