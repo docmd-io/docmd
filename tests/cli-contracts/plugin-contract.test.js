@@ -386,6 +386,127 @@ export const test = runTestFile({
       fs.rmSync(tempSpecDir, { recursive: true, force: true });
     }
 
+    // OpenAPI requestBody schema $ref (array) renders item fields
+    {
+      const openApiPlugin = await import('../../packages/plugins/openapi/dist/index.js');
+      const md = { renderer: { rules: {} } };
+      openApiPlugin.markdownSetup(md, { download: false });
+
+      const tempSpecDir = path.resolve('temp-openapi-ref-request-test');
+      if (!fs.existsSync(tempSpecDir)) fs.mkdirSync(tempSpecDir, { recursive: true });
+      const specPath = path.join(tempSpecDir, 'api.yaml');
+      fs.writeFileSync(specPath, [
+        'openapi: 3.0.0',
+        'info:',
+        '  title: Example Ref API',
+        '  version: 1.0.0',
+        'paths:',
+        '  /v1/create:',
+        '    post:',
+        '      requestBody:',
+        '        content:',
+        '          create:',
+        '            schema:',
+        "              $ref: '#/components/schemas/ExamplePayload'",
+        '      responses:',
+        "        '200':",
+        '          description: ok',
+        'components:',
+        '  schemas:',
+        '    ExamplePayload:',
+        '      type: array',
+        '      items:',
+        '        type: object',
+        '        anyOf:',
+        '          - required: [contactEmail]',
+        '          - required: [recordId]',
+        '        properties:',
+        '          contactEmail:',
+        '            type: string',
+        '            format: email',
+        '          recordId:',
+        '            type: integer'
+      ].join('\n') + '\n');
+
+      const token = {
+        info: 'openapi',
+        content: './api.yaml'
+      };
+
+      const html = md.renderer.rules.fence(
+        [token],
+        0,
+        {},
+        { filePath: path.join(tempSpecDir, 'docs/endpoints.md') },
+        { renderToken: () => '' }
+      );
+
+      assert(html.includes('Request Body'), 'OpenAPI renders request body for $ref schema');
+      assert(html.includes('Array items:'), 'OpenAPI renders array item schema details for request body');
+      assert(html.includes('<code>contactEmail</code>'), 'OpenAPI renders referenced request body item fields');
+      assert(html.includes('<code>recordId</code>'), 'OpenAPI renders referenced request body item fields');
+      assert(!html.includes('array[any | any]'), 'OpenAPI avoids ambiguous any|any labels for required-only anyOf branches');
+      assert(html.includes('Required: contactEmail') && html.includes('Required: recordId'), 'OpenAPI renders anyOf required-only constraints');
+
+      fs.rmSync(tempSpecDir, { recursive: true, force: true });
+    }
+
+    // OpenAPI markdown descriptions render list items as HTML bullets
+    {
+      const openApiPlugin = await import('../../packages/plugins/openapi/dist/index.js');
+      const md = { renderer: { rules: {} } };
+      openApiPlugin.markdownSetup(md, { download: false });
+
+      const spec = [
+        'openapi: 3.0.0',
+        'info:',
+        '  title: Example List API',
+        '  version: 1.0.0',
+        'paths:',
+        '  /items:',
+        '    get:',
+        '      summary: Get items',
+        '      description: |-',
+        '        Optional list of example entries.',
+        '        ',
+        '        For create and update requests:',
+        '        - If exampleList is not provided, existing values are not changed.',
+        '        - If exampleList is an empty array ([]), all existing values are removed.',
+        '        - If exampleList is a non-empty array, existing values are replaced by the provided values.',
+        '      responses:',
+        "        '200':",
+        '          description: ok',
+        '          content:',
+        '            application/json:',
+        '              schema:',
+        '                type: object',
+        '                properties:',
+        '                  exampleList:',
+        '                    type: array',
+        '                    maxItems: 100',
+        '                    items:',
+        '                      type: string'
+      ].join('\n') + '\n';
+
+      const token = {
+        info: 'openapi',
+        content: spec
+      };
+
+      const html = md.renderer.rules.fence(
+        [token],
+        0,
+        {},
+        { filePath: path.resolve('temp-openapi-markdown-list-test/docs/example.md') },
+        { renderToken: () => '' }
+      );
+
+      assert(html.includes('<ul>'), 'OpenAPI markdown description renders an HTML list');
+      assert(html.includes('<li>'), 'OpenAPI markdown description renders list items');
+      assert(html.includes('maxItems: 100'), 'OpenAPI schema constraints render array maxItems values');
+      assert(!html.includes('For create and update requests:\n- If exampleList'), 'OpenAPI markdown description leaves list markers as markdown, not literal text');
+    }
+
     // Dynamic plugin installation and runtime module reload
     {
       const hooksSrc = fs.readFileSync(path.resolve('packages/api/src/hooks.ts'), 'utf8');

@@ -25,7 +25,7 @@ importers:
         version: 5.6.2
       docmd-search:
         specifier: ^0.1.6
-        version: 0.1.6(@docmd/engine-js@0.9.7)(@docmd/engine-python@0.9.7)(@docmd/engine-rust@0.9.7)(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1))
+        version: 0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -377,6 +377,12 @@ importers:
       '@docmd/utils':
         specifier: workspace:*
         version: link:../../utils
+      js-yaml:
+        specifier: ^5.4.3
+        version: 5.4.3
+      markdown-it:
+        specifier: ^15.0.2
+        version: 15.0.2
     devDependencies:
       '@docmd/api':
         specifier: workspace:*
@@ -402,7 +408,7 @@ importers:
     dependencies:
       docmd-search:
         specifier: '>=0.1.6'
-        version: 0.1.6(@docmd/engine-js@0.9.7)(@docmd/engine-python@0.9.7)(@docmd/engine-rust@0.9.7)(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1))
+        version: 0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1))
       markdown-it:
         specifier: ^14.3.2
         version: 14.3.2
@@ -546,18 +552,6 @@ packages:
   '@ctrl/tinycolor@4.2.1':
     resolution: {integrity: sha512-Vh5uy9Y1JBMId6J1f68TMXnZrTCvNdo9Fu2k0d1YnJngR+sM5kWTKl441c/3TFs+cG0NWOjRWgQ/iaWhbYx+7A==}
     engines: {node: '>=14'}
-
-  '@docmd/engine-js@0.9.7':
-    resolution: {integrity: sha512-n7+IsHSOeCEO2Bp5Owg9iQ7BlZd0Wu5BVkjEyIrV/8OW97FyoL1EJL2NWr/zEU8R9oO/eVgUknWLMHyYRiNYjQ==}
-    engines: {node: '>=20.0.0'}
-
-  '@docmd/engine-python@0.9.7':
-    resolution: {integrity: sha512-gXhasYfSS2wdMcCmPAahvEV4sEUVxnS3AT1ZzRJrV1KZ8anDCLoseZIsWbJSGODra0vcocqVfRNqK3/M2ySGsQ==}
-    engines: {node: '>=20.0.0'}
-
-  '@docmd/engine-rust@0.9.7':
-    resolution: {integrity: sha512-7oYVUmwCKkuEOH+8qI8C6OyVtmZapnkNWeQbsFCwYjDzjNL+z2prX68Vuo0+hJDxJ9jBYBvdipG0EUx3SgZQ9w==}
-    engines: {node: '>=20.0.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1216,6 +1210,9 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
+  argparse@3.0.2:
+    resolution: {integrity: sha512-mFdDM6WqWKraGLsVb+C9CahPnzTXOefAOLq3jYcca2YZ8bEWpr++Tzj+zSaKW9+X9L5uSxcm1AZ3Y6aZJ09OhQ==}
+
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
@@ -1509,6 +1506,10 @@ packages:
     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
     engines: {node: '>=0.12'}
 
+  entities@8.1.0:
+    resolution: {integrity: sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA==}
+    engines: {node: '>=20.19.0'}
+
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
     engines: {node: '>= 0.4'}
@@ -1696,6 +1697,10 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  js-yaml@5.4.3:
+    resolution: {integrity: sha512-yzzNtgczwgoVHNigCyKTXcQJU4Y8t/ikU4UxXW0BvrLfHTGWZhsNcOT2s/a7vn81/4KqVnNmHjaUEPlvWnNwVw==}
+    hasBin: true
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -1728,6 +1733,9 @@ packages:
 
   linkify-it@5.0.2:
     resolution: {integrity: sha512-ONTm2jCMAVZjgQa/Fy1kScXsuOoF5NPTsoFBdE1KVIZ2vAh/r9+Bqo+0jINCBYnavTPQZz38QzFTme79ENoN3Q==}
+
+  linkify-it@6.1.0:
+    resolution: {integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==}
 
   lit-element@4.2.2:
     resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
@@ -1786,6 +1794,10 @@ packages:
 
   markdown-it@14.3.2:
     resolution: {integrity: sha512-sHHjZ5fJKlgrG4qns2YwVcdNep35h5fERrfkD2YNsb9UFk0UIHarbiTaHKVMlPuWAoiilyK8Fv/jAm11slsY7Q==}
+    hasBin: true
+
+  markdown-it@15.0.2:
+    resolution: {integrity: sha512-q4IGxMv56jCqT4OCRCADBoDP3LO4MhmTXjFbphHPXs4g3j9Xg5RDnxqN8IF/3vIWEU+VCnUq+7JUg/cfy2E6Qw==}
     hasBin: true
 
   marked@16.4.2:
@@ -2007,6 +2019,9 @@ packages:
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
+  uc.micro@3.0.0:
+    resolution: {integrity: sha512-U3PppEkleoTnIfi8BozMx3yju3qc/L6SwqWo2Sw+54PX+PX0q9I+r1Um5HCmqD7n9VDX5/v3vQH/AjA6deDdtw==}
+
   undici-types@7.24.6:
     resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
@@ -2071,15 +2086,6 @@ snapshots:
   '@chevrotain/types@11.1.2': {}
 
   '@ctrl/tinycolor@4.2.1': {}
-
-  '@docmd/engine-js@0.9.7':
-    optional: true
-
-  '@docmd/engine-python@0.9.7':
-    optional: true
-
-  '@docmd/engine-rust@0.9.7':
-    optional: true
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -2667,6 +2673,8 @@ snapshots:
 
   argparse@2.0.1: {}
 
+  argparse@3.0.2: {}
+
   balanced-match@4.0.4: {}
 
   base64-js@1.5.1: {}
@@ -2944,11 +2952,8 @@ snapshots:
     dependencies:
       aiplug: 0.1.2
 
-  docmd-search@0.1.6(@docmd/engine-js@0.9.7)(@docmd/engine-python@0.9.7)(@docmd/engine-rust@0.9.7)(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1)):
+  docmd-search@0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.1))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.4(@types/node@24.19.1)):
     optionalDependencies:
-      '@docmd/engine-js': 0.9.7
-      '@docmd/engine-python': 0.9.7
-      '@docmd/engine-rust': 0.9.7
       '@huggingface/transformers': 4.2.0(@types/node@24.19.1)
       adm-zip: 0.6.1
       onnxruntime-node: 1.29.0
@@ -2962,6 +2967,8 @@ snapshots:
   embed-lite@0.1.6: {}
 
   entities@4.5.0: {}
+
+  entities@8.1.0: {}
 
   es-define-property@1.0.1:
     optional: true
@@ -3172,6 +3179,10 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  js-yaml@5.4.3:
+    dependencies:
+      argparse: 2.0.1
+
   json-schema-traverse@0.4.1: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
@@ -3202,6 +3213,10 @@ snapshots:
   linkify-it@5.0.2:
     dependencies:
       uc.micro: 2.1.0
+
+  linkify-it@6.1.0:
+    dependencies:
+      uc.micro: 3.0.0
 
   lit-element@4.2.2:
     dependencies:
@@ -3262,6 +3277,15 @@ snapshots:
       mdurl: 2.1.0
       punycode.js: 2.3.1
       uc.micro: 2.1.0
+
+  markdown-it@15.0.2:
+    dependencies:
+      argparse: 3.0.2
+      entities: 8.1.0
+      linkify-it: 6.1.0
+      mdurl: 2.1.0
+      punycode.js: 2.3.1
+      uc.micro: 3.0.0
 
   marked@16.4.2: {}
 
@@ -3506,6 +3530,8 @@ snapshots:
   typescript@6.0.3: {}
 
   uc.micro@2.1.0: {}
+
+  uc.micro@3.0.0: {}
 
   undici-types@7.24.6: {}
 

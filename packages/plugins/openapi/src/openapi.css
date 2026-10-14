@@ -75,7 +75,18 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   max-width: 100%;
   box-sizing: border-box;
-  overflow: hidden; /* Prevent horizontal container blowout */
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.oa-operation-toc-heading {
+  margin: 0;
+  padding: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  scroll-margin-top: 110px;
 }
 
 .oa-operation-header {
@@ -84,6 +95,41 @@
   gap: 0.75rem;
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
+}
+
+.oa-operation-collapsible {
+  padding: 0;
+}
+
+.oa-operation-collapsible .oa-operation-header {
+  cursor: pointer;
+  padding: 1.25rem;
+  margin: 0;
+}
+
+.oa-operation-collapsible .oa-operation-header::-webkit-details-marker {
+  display: none;
+}
+
+.oa-operation-collapsible .oa-operation-header::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid var(--text-muted, #6b7280);
+  transform: rotate(90deg);
+  transform-origin: center;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.oa-operation-collapsible:not([open]) .oa-operation-header::before {
+  transform: rotate(0deg);
+}
+
+.oa-operation-body {
+  padding: 0 1.25rem 1.25rem;
 }
 
 .oa-method {
@@ -171,6 +217,39 @@
   font-weight: 600;
   color: var(--text-muted, #4b5563);
   white-space: nowrap;
+}
+
+.oa-desc-example-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.oa-desc-example-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.oa-desc-example-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+}
+
+.oa-desc-example-description {
+  color: inherit;
+}
+
+.oa-desc-example-value {
+  color: var(--text-muted, #4b5563);
+  font-size: 0.85rem;
+}
+
+.oa-desc-example-value .oa-example-value {
+  margin: 0;
 }
 
 /* Add .oa-no-hover to a .oa-schema-table to disable the theme's global
