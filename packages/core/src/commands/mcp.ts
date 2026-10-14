@@ -123,14 +123,61 @@ export function validateLinks(docsDir: string, excludePatterns: string[] = []): 
       const lines = content.split('\n');
       const relativeFile = path.relative(process.cwd(), filePath);
 
+      let inFence = false;
+      let fenceChar = '';
+      let fenceLength = 0;
+
       lines.forEach((lineText, lineIdx) => {
         const lineNum = lineIdx + 1;
+        const trimmedLeading = lineText.trimStart();
+
+        // Fix #259: skip lines inside fenced code blocks (``` or ~~~).
+        // Fences allow up to 3 spaces of indentation.
+        const indentLength = lineText.length - trimmedLeading.length;
+        if (indentLength <= 3) {
+          if (inFence) {
+            const closeRegex = new RegExp(`^${fenceChar === '`' ? '`' : '~'}{${fenceLength},}\\s*$`);
+            if (closeRegex.test(trimmedLeading)) {
+              inFence = false;
+              fenceChar = '';
+              fenceLength = 0;
+            }
+            return;
+          }
+
+          const openMatch = trimmedLeading.match(/^(`{3,}|~{3,})/);
+          if (openMatch) {
+            inFence = true;
+            fenceChar = openMatch[1][0];
+            fenceLength = openMatch[1].length;
+            return;
+          }
+        } else if (inFence) {
+          return;
+        }
+
         // Fix #251: the link text may be empty (`[](./image.jpg)`), so it is
         // matched with `*`; requiring `+` silently skipped those links.
         const linkRegex = /\[([^\]]*)\]\(([^)]+)\)/g;
         let match;
         while ((match = linkRegex.exec(lineText)) !== null) {
-          const linkTarget = match[2].trim().split('#')[0]; // strip anchors
+          let rawTarget = match[2].trim();
+
+          // Fix #259: strip optional markdown link title and angle brackets
+          // e.g. `[text](guides/install.md "Install docmd")` or `[text](<guides/install.md> "Install")`
+          if (rawTarget.startsWith('<')) {
+            const closeIdx = rawTarget.indexOf('>');
+            if (closeIdx !== -1) {
+              rawTarget = rawTarget.slice(1, closeIdx);
+            }
+          } else {
+            const spaceIdx = rawTarget.search(/\s/);
+            if (spaceIdx !== -1) {
+              rawTarget = rawTarget.slice(0, spaceIdx);
+            }
+          }
+
+          const linkTarget = rawTarget.trim().split('#')[0]; // strip anchors
           if (!linkTarget) continue;
 
           // Skip external, anchors, mailto, etc.

@@ -37,7 +37,7 @@ export async function validateProject(options: { json?: boolean } = {}) {
     process.exit(1);
   }
 
-  const errors = validateLinks(docsDir);
+  const errors = validateLinks(docsDir, config.exclude || []);
 
   if (options.json) {
     // Phase 3 PR 3.A (M-12): even when JSON output is requested, the

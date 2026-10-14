@@ -102,6 +102,63 @@ export const test = runTestFile({
       assert(code === 1, '#250: /assets/ link to a missing file still exits 1');
     }
 
+    // #259 — links with titles (e.g. `[text](url "title")` or `[text](<url> "title")`)
+    // must strip the title instead of treating `"title"` as part of the filename.
+    {
+      const dir = setup('validate-workspace-259-link-title-ok');
+      writeFile(dir, 'docs/index.md', '# P1\n\nSee [install](guides/install.md "Install docmd") and [guide](<guides/install.md> \'Guide\').\n');
+      writeFile(dir, 'docs/guides/install.md', '# Install\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 0, '#259: links with titles to existing target exit 0');
+    }
+
+    {
+      const dir = setup('validate-workspace-259-link-title-broken');
+      writeFile(dir, 'docs/index.md', '# P1\n\n[bad](guides/missing.md "Missing guide")\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 1, '#259: links with titles to missing target still exit 1');
+    }
+
+    // #259 — links inside fenced code blocks (``` or ~~~) must be ignored.
+    {
+      const dir = setup('validate-workspace-259-code-fences-ok');
+      const content = [
+        '# Home',
+        '',
+        '```md',
+        'Example link in code sample: [sample](./not-a-real-page.md)',
+        '```',
+        '',
+        '~~~js',
+        '// [fake link](./fake.md)',
+        '~~~',
+        '',
+        '[real link](./page-2.md)',
+        ''
+      ].join('\n');
+      writeFile(dir, 'docs/index.md', content);
+      writeFile(dir, 'docs/page-2.md', '# Page 2\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 0, '#259: links inside fenced code blocks are skipped (exit 0)');
+    }
+
+    {
+      const dir = setup('validate-workspace-259-code-fences-broken-outside');
+      const content = [
+        '# Home',
+        '',
+        '```md',
+        'Sample: [sample](./not-a-real-page.md)',
+        '```',
+        '',
+        '[broken link outside fence](./broken.md)',
+        ''
+      ].join('\n');
+      writeFile(dir, 'docs/index.md', content);
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 1, '#259: broken link outside fence still caught (exit 1)');
+    }
+
     // F8 — workspace validation errors exit 1 with a clean TUI message,
     // not a raw stack trace.
     {
