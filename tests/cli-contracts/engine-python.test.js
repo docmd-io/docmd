@@ -12,6 +12,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { createRequire } from 'node:module';
 import { runTestFile } from '../shared.js';
 
 let passed = 0;
@@ -33,6 +34,11 @@ const monorepoRoot = path.resolve(import.meta.dirname, '..', '..');
 const API_DIST = path.resolve(monorepoRoot, 'packages', 'api', 'dist', 'index.js');
 const PYTHON_DIST = path.resolve(monorepoRoot, 'packages', 'engines', 'python', 'dist', 'index.js');
 
+// Read expected version dynamically from package.json so bump.js keeps it in sync
+// automatically — no manual edits needed after each version bump.
+const _require = createRequire(import.meta.url);
+const { version: EXPECTED_VERSION } = _require('../../packages/engines/python/package.json');
+
 export const test = runTestFile({
   name: 'Python engine (@docmd/engine-python + @docmd/api)',
   emoji: '🐍',
@@ -48,7 +54,7 @@ export const test = runTestFile({
 
       const engine = pyEngineMod.createPythonEngine();
       assert(engine.name === 'python', 'PY-4: Engine name is "python"');
-      assert(engine.version === '0.9.7', 'PY-5: Engine version matches monorepo');
+      assert(engine.version === EXPECTED_VERSION, `PY-5: Engine version matches monorepo (${EXPECTED_VERSION})`);
 
       assert(engine.supports('file:read') === true, 'PY-SUPP-1: supports file:read');
       assert(engine.supports('file:discover') === true, 'PY-SUPP-2: supports file:discover');
