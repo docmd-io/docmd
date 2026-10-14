@@ -174,7 +174,7 @@ function manualResolvePackageDir(packageName: string, startDirs: string[]): stri
  * Returns the importable path (file:// URL) or null if not found.
  */
 function resolveDocmdSearch(): string | null {
-  // #163 (deeper fix): previously this walked `__dirname` and two parent
+  // Previously this walked `__dirname` and two parent
   // directories, which let `docmd-search` resolve into the monorepo's
   // own node_modules when the user runs the binary through a pnpm/npm
   // symlink. The plugin then thought the user's project had it installed,
@@ -683,7 +683,7 @@ export async function onPostBuild({ config, pages, outputDir, tui, options, runW
     if (!ready) {
       // Graceful fallback: build keyword index instead. The `reason` field
       // tells the caller whether docmd-search itself or just its peers were
-      // missing so the message is accurate (#163 deeper fix: previously it
+      // missing so the message is accurate (previously it
       // always said "docmd-search not installed" even when only a peer
       // was missing).
       const why =

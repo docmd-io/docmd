@@ -230,7 +230,7 @@ export function buildContextualUrl(href: string, context: UrlContext): string {
       : cleanPath;
   }
 
-  // Offline: append /index.html for file:// browsing (#179)
+  // Offline: append /index.html for file:// browsing
   if (context.offline) {
     combinedPath = appendIndexHtml(combinedPath);
   }

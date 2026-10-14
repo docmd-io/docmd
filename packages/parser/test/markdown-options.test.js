@@ -6,9 +6,9 @@
  * HTTPS autolinking normalisation.
  *
  * Regression coverage for:
- *   - Issue #241: Expose markdown.linkify & markdown.typographer in config
- *   - Issue #242: Autolinked bare domains must default to https://
- *   - Issue #137: Configurable markdown.breaks
+ *   - Configurable markdown.linkify & markdown.typographer in config
+ *   - Autolinked bare domains defaulting to https://
+ *   - Configurable markdown.breaks
  *
  * Run: `pnpm --filter @docmd/parser test`
  * --------------------------------------------------------------------
@@ -18,7 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMarkdownProcessor } from '../dist/index.js';
 
-test('Issue #242: autolinked bare domains default to https://', () => {
+test('autolinked bare domains default to https://', () => {
   const md = createMarkdownProcessor();
   const rendered = md.render('Visit docmd.io or sub.example.org/path for details.');
 
@@ -27,7 +27,7 @@ test('Issue #242: autolinked bare domains default to https://', () => {
   assert.doesNotMatch(rendered, /href="http:\/\/docmd\.io"/);
 });
 
-test('Issue #242: autolinked www bare domains default to https://', () => {
+test('autolinked www bare domains default to https://', () => {
   const md = createMarkdownProcessor();
   const rendered = md.render('Visit www.docmd.io.');
 
@@ -35,7 +35,7 @@ test('Issue #242: autolinked www bare domains default to https://', () => {
   assert.doesNotMatch(rendered, /href="http:\/\/www\.docmd\.io"/);
 });
 
-test('Issue #242: explicit http:// URLs are preserved as http://', () => {
+test('explicit http:// URLs are preserved as http://', () => {
   const md = createMarkdownProcessor();
   const rendered = md.render('Insecure site: http://insecure.example.com');
 
@@ -43,21 +43,21 @@ test('Issue #242: explicit http:// URLs are preserved as http://', () => {
   assert.doesNotMatch(rendered, /href="https:\/\/insecure\.example\.com"/);
 });
 
-test('Issue #242: explicit markdown links with http:// are preserved', () => {
+test('explicit markdown links with http:// are preserved', () => {
   const md = createMarkdownProcessor();
   const rendered = md.render('[Insecure Link](http://insecure.example.com)');
 
   assert.match(rendered, /href="http:\/\/insecure\.example\.com"/);
 });
 
-test('Issue #242: email addresses are preserved as mailto:', () => {
+test('email addresses are preserved as mailto:', () => {
   const md = createMarkdownProcessor();
   const rendered = md.render('Contact us at hello@docmd.io.');
 
   assert.match(rendered, /href="mailto:hello@docmd\.io"/);
 });
 
-test('Issue #241: markdown.linkify: false disables bare domain and email autolinking', () => {
+test('markdown.linkify: false disables bare domain and email autolinking', () => {
   const md = createMarkdownProcessor({ markdown: { linkify: false } });
   const rendered = md.render('Visit docmd.io or email hello@docmd.io.');
 
@@ -65,7 +65,7 @@ test('Issue #241: markdown.linkify: false disables bare domain and email autolin
   assert.match(rendered, /Visit docmd\.io or email hello@docmd\.io\./);
 });
 
-test('Issue #241: markdown.typographer: false disables smart quotes and symbols', () => {
+test('markdown.typographer: false disables smart quotes and symbols', () => {
   const mdDisabled = createMarkdownProcessor({ markdown: { typographer: false } });
   const renderedDisabled = mdDisabled.render('(c) 2026 -- "quotes"');
 
@@ -78,7 +78,7 @@ test('Issue #241: markdown.typographer: false disables smart quotes and symbols'
   assert.match(renderedDefault, /©/);
 });
 
-test('Issue #137: markdown.breaks: false disables soft line breaks', () => {
+test('markdown.breaks: false disables soft line breaks', () => {
   const mdNoBreaks = createMarkdownProcessor({ markdown: { breaks: false } });
   const renderedNoBreaks = mdNoBreaks.render('first line\nsecond line');
 

@@ -5,7 +5,7 @@ description: "Demonstrating OpenAPI plugin improvements including examples, nest
 
 # OpenAPI 3.0 Specifications Preview
 
-This page previews the new **OpenAPI plugin enhancements** in docmd 0.9.3 ([PR #200](https://github.com/docmd-io/docmd/pull/200) / [Issue #199](https://github.com/docmd-io/docmd/issues/199)):
+This page previews the **OpenAPI plugin enhancements** in docmd:
 
 - **Rich Schema Expansion**: Recursive `$ref` resolution and `allOf` schema flattening with merged properties and required constraints.
 - **Nested Object Sub-tables**: Embedded `<details class="oa-nested-schema">` tables to inspect complex object trees without leaving the page.

@@ -814,7 +814,7 @@ test('F6: mismatched fence markers (``` open vs ~~~ close) do not close the fenc
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// 9. Slash and End closing container tags & Issue #187 HTML rendering
+// 9. Slash and End closing container tags & HTML block rendering
 // ─────────────────────────────────────────────────────────────────────
 
 test('slash and end closing tags match corresponding open container by name', () => {
@@ -840,7 +840,7 @@ test('slash and end closing tags match corresponding open container by name', ()
   ].join('\n'));
 });
 
-test('Issue #187: HTML blocks with blank lines render as HTML without breaking into code/plain text', async () => {
+test('HTML blocks with blank lines render as HTML without breaking into code/plain text', async () => {
   const md = freshProcessor();
   const htmlInput = [
     '<div class="hero">',

@@ -515,7 +515,7 @@ export async function loadConfig(configPath: string, options: any = {}) {
           // self-normalises via normalizeInternalHref, so this is the only
           // nav source that previously bypassed trailing-slash / external
           // detection — which leaked slash-less paths into the sidebar and
-          // prev/next while markdown content kept its slash (#181).
+          // prev/next while markdown content kept its slash.
           normalizeNavPaths(normalized.navigation);
         } catch (e: any) {
           TUI.error('Navigation Error', `Failed to parse ${localNavPath}: ${e.message}`);
