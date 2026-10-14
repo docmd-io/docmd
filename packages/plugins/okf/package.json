@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@docmd/api": "workspace:*",
-    "@types/node": "^24.19.1",
+    "@types/node": "^24.19.2",
     "tsx": "^4.23.15"
   },
   "keywords": [

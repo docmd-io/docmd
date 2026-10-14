@@ -32,14 +32,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.19.1",
+    "@types/node": "^24.19.2",
     "chalk": "^5.6.2",
     "docmd-search": "^0.1.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.1"
+    "typescript-eslint": "^8.71.2"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -55,8 +55,9 @@
     "overrides": {
       "adm-zip": ">=0.6.1",
       "onnxruntime-node": "^1.29.0",
-      "sharp": "^0.35.4",
-      "protobufjs": "^8.8.0"
+      "sharp": "^0.35.5",
+      "protobufjs": "^8.8.0",
+      "katex": "^0.19.0"
     },
     "peerDependencyRules": {
       "ignoreMissing": [

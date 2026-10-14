@@ -262,7 +262,7 @@ async function getLatestDocmdSearchVersion(): Promise<string> {
 const PEER_DEPS = [
   '@huggingface/transformers@^4.2.0',
   'onnxruntime-node@^1.27.0',
-  'sharp@^0.35.4'
+  'sharp@^0.35.5'
 ];
 
 /**

@@ -29,7 +29,7 @@
     "@docmd/utils": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.19.1"
+    "@types/node": "^24.19.2"
   },
   "optionalDependencies": {
     "@docmd/engine-js": "workspace:*",
