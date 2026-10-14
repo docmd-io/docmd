@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@docmd/api": "workspace:*",
-    "@types/node": "^24.19.0",
+    "@types/node": "^24.19.1",
     "esbuild": "^0.28.2",
     "mermaid": "^11.17.2",
     "tsx": "^4.23.15"
