@@ -142,6 +142,35 @@ export const test = runTestFile({
       }
       assert(!/v0\.[89]\.\d+/.test(output), 'N-16: DOCMD_NO_BANNER suppresses the banner');
     }
+
+    // `docmd mcp` speaks JSON-RPC over stdio, so stdout must carry only
+    // protocol messages. The banner must not be printed there, even
+    // with the default environment (no NO_COLOR / DOCMD_NO_BANNER).
+    {
+      const dir = setup('f-tui-mcp-stdout');
+      writeFile(dir, 'docs/index.md', '# Home\n');
+
+      const init = JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'initialize',
+        params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '1' } }
+      }) + '\n';
+      const env = { ...process.env, NO_COLOR: '' };
+      delete env.DOCMD_NO_BANNER;
+      let stdout = '';
+      try {
+        stdout = execSync(`node ${DOCMD} mcp`, { cwd: dir, input: init, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', env, timeout: 15000 });
+      } catch (e) {
+        stdout = typeof e.stdout === 'string' ? e.stdout : '';
+      }
+      const lines = stdout.split('\n').filter((l) => l.trim());
+      const allJson = lines.length > 0 && lines.every((l) => {
+        try { JSON.parse(l); return true; } catch { return false; }
+      });
+      assert(allJson, 'mcp: stdout carries only JSON-RPC messages (no banner)');
+      let first = null;
+      try { first = JSON.parse(lines[0]); } catch { /* not JSON */ }
+      assert(first?.id === 1 && !!first?.result, 'mcp: first stdout line is the initialize response');
+    }
   }
 });
 

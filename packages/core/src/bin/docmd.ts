@@ -143,7 +143,9 @@ if (opts.verbose) {
   process.env.DOCMD_VERBOSE = 'true';
 }
 
-if (command !== 'stop' && !values.json) {
+// `mcp` speaks JSON-RPC over stdio: stdout must carry only protocol
+// messages, so the banner is skipped there.
+if (command !== 'stop' && command !== 'mcp' && !values.json) {
   TUI.banner(undefined, version);
 }
 
