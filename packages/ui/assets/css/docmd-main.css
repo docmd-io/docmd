@@ -2305,17 +2305,43 @@ img.with-shadow {
     box-shadow: var(--image-shadow)
 }
 
-.docmd-container figure {
+.docmd-container figure,
+.main-content figure,
+.docmd-content figure,
+[data-docmd-content] figure,
+article figure,
+main figure {
     margin: 2rem 0
 }
 
-.docmd-container figcaption {
-    font-size: .9rem;
-    color: var(--image-caption-text);
+.docmd-container figure > img,
+.main-content figure > img,
+.docmd-content figure > img,
+[data-docmd-content] figure > img,
+article figure > img,
+main figure > img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: var(--image-shadow);
+}
+
+.docmd-container figcaption,
+.main-content figcaption,
+.docmd-content figcaption,
+[data-docmd-content] figcaption,
+article figcaption,
+main figcaption {
+    display: block;
+    width: fit-content;
+    margin: 1rem auto 0;
+    font-style: italic;
+    line-height: 1.35;
+    color: var(--image-caption-text, var(--text-muted));
     text-align: center;
-    padding: .5rem;
-    background-color: var(--image-caption-bg);
-    border-radius: 0 0 4px 4px
 }
 
 .docmd-container .image-gallery {
