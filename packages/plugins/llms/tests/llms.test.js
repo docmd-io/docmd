@@ -167,4 +167,67 @@ describe('onPostBuild — default behaviour (default locale only)', () => {
       /ENOENT/
     ).catch(() => { /* expected: no per-locale suffix for single-locale sites */ });
   });
+
+  it('supports custom AI system prompt in llms.txt, llms-full.txt, and llms.json', async () => {
+    const out = path.join(tmpDir, 'prompt-test');
+    await onPostBuild({
+      config: {
+        title: 'Prompt Test',
+        url: 'https://example.com',
+        plugins: {
+          llms: {
+            prompt: 'You are an AI assistant helping developers with this framework. Always give concise code examples.'
+          }
+        }
+      },
+      pages: [
+        { outputPath: 'index.html', frontmatter: { title: 'Home' }, sourcePath: '', rawMarkdown: '' }
+      ],
+      outputDir: out,
+      log: () => {}
+    });
+
+    const txt = await fs.readFile(path.join(out, 'llms.txt'), 'utf8');
+    assert.match(txt, /## System Prompt\n\nYou are an AI assistant helping developers/);
+
+    const fullTxt = await fs.readFile(path.join(out, 'llms-full.txt'), 'utf8');
+    assert.match(fullTxt, /## System Prompt\n\nYou are an AI assistant helping developers/);
+
+    const json = JSON.parse(await fs.readFile(path.join(out, 'llms.json'), 'utf8'));
+    assert.equal(json.prompt, 'You are an AI assistant helping developers with this framework. Always give concise code examples.');
+  });
+
+  it('supports section-aware page grouping from frontmatter and directory hierarchy', async () => {
+    const out = path.join(tmpDir, 'sections-test');
+    await onPostBuild({
+      config: {
+        title: 'Sections Test',
+        url: 'https://example.com'
+      },
+      pages: [
+        { outputPath: 'index.html', frontmatter: { title: 'Home' }, sourcePath: '', rawMarkdown: '' },
+        { outputPath: 'guides/installation.html', frontmatter: { title: 'Installation' }, sourcePath: '', rawMarkdown: '' },
+        { outputPath: 'custom/ref.html', frontmatter: { title: 'Reference', section: 'API Reference' }, sourcePath: '', rawMarkdown: '' }
+      ],
+      outputDir: out,
+      log: () => {}
+    });
+
+    const txt = await fs.readFile(path.join(out, 'llms.txt'), 'utf8');
+    assert.match(txt, /## Overview\n\n- \[Home\]\(https:\/\/example\.com\/\)/);
+    assert.match(txt, /## Guides\n\n- \[Installation\]\(https:\/\/example\.com\/guides\/installation\/\)/);
+    assert.match(txt, /## API Reference\n\n- \[Reference\]\(https:\/\/example\.com\/custom\/ref\/\)/);
+
+    const fullTxt = await fs.readFile(path.join(out, 'llms-full.txt'), 'utf8');
+    assert.match(fullTxt, /## \[Installation\]\(https:\/\/example\.com\/guides\/installation\/\) \(Guides\)/);
+    assert.match(fullTxt, /## \[Reference\]\(https:\/\/example\.com\/custom\/ref\/\) \(API Reference\)/);
+
+    const json = JSON.parse(await fs.readFile(path.join(out, 'llms.json'), 'utf8'));
+    const homePage = json.pages.find(p => p.title === 'Home');
+    const installPage = json.pages.find(p => p.title === 'Installation');
+    const refPage = json.pages.find(p => p.title === 'Reference');
+    assert.equal(homePage.section, null);
+    assert.equal(installPage.section, 'Guides');
+    assert.equal(refPage.section, 'API Reference');
+  });
 });

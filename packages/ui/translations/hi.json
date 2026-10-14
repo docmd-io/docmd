@@ -42,5 +42,8 @@
   "selectProject": "प्रोजेक्ट चुनें",
   "poweredBy": "द्वारा संचालित",
   "viewSource": "स्रोत देखें",
-  "goToTop": "शीर्ष पर जाएँ"
+  "goToTop": "शीर्ष पर जाएँ",
+  "print": "प्रिंट करें",
+  "focusMode": "फ़ोकस मोड",
+  "exitFocusMode": "फ़ोकस मोड से बाहर निकलें"
 }

@@ -42,5 +42,8 @@
   "selectProject": "プロジェクトを選択",
   "poweredBy": "提供",
   "viewSource": "ソースを表示",
-  "goToTop": "トップへ戻る"
+  "goToTop": "トップへ戻る",
+  "print": "印刷",
+  "focusMode": "フォーカスモード",
+  "exitFocusMode": "フォーカスモードを終了"
 }

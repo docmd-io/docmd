@@ -42,5 +42,8 @@
   "selectProject": "프로젝트 선택",
   "poweredBy": "제공",
   "viewSource": "소스 보기",
-  "goToTop": "맨 위로 이동"
+  "goToTop": "맨 위로 이동",
+  "print": "인쇄",
+  "focusMode": "포커스 모드",
+  "exitFocusMode": "포커스 모드 종료"
 }

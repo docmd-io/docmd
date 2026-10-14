@@ -92,7 +92,9 @@ function detectHeuristics(cwd: string, srcDir: string) {
     ru: 'Русский',
     it: 'Italiano',
     pt: 'Português',
-    tr: 'Türkçe'
+    tr: 'Türkçe',
+    hi: 'हिन्दी',
+    ko: '한국어'
   };
 
   const isVersion = (name: string) => /^v\d/i.test(name);
