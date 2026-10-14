@@ -29,7 +29,7 @@ import {
   build,
   runTestFile
 } from '../shared.js';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -158,7 +158,7 @@ export const test = runTestFile({
       delete env.DOCMD_NO_BANNER;
       let stdout = '';
       try {
-        stdout = execSync(`node ${DOCMD} mcp`, { cwd: dir, input: init, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', env, timeout: 15000 });
+        stdout = execFileSync(process.execPath, [DOCMD, 'mcp'], { cwd: dir, input: init, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', env, timeout: 15000 });
       } catch (e) {
         stdout = typeof e.stdout === 'string' ? e.stdout : '';
       }
