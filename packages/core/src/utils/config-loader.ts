@@ -90,8 +90,6 @@ function detectHeuristics(cwd: string, srcDir: string) {
     ja: '日本語',
     es: 'Español',
     ru: 'Русский',
-    it: 'Italiano',
-    pt: 'Português',
     tr: 'Türkçe',
     hi: 'हिन्दी',
     ko: '한국어'

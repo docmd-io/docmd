@@ -224,10 +224,16 @@
         });
 
         // Preview pane: light/dark toggle. Mutates the iframe's
-        // document data-theme and persists via the same localStorage
-        // key the theme-init script reads on next render.
+        // document data-theme and persists via 'docmd-live-theme'
+        // so it defaults to light unless the user manually chose dark.
         const previewThemeToggle = document.getElementById('previewThemeToggle');
         if (previewThemeToggle) {
+          try {
+            if (localStorage.getItem('docmd-live-theme') === 'dark') {
+              document.documentElement.setAttribute('data-theme', 'dark');
+            }
+          } catch (e) {}
+
           previewThemeToggle.addEventListener('click', () => {
             const doc = preview.contentWindow && preview.contentWindow.document;
             if (!doc) return;
@@ -235,7 +241,8 @@
             const current = html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
             const next = current === 'dark' ? 'light' : 'dark';
             html.setAttribute('data-theme', next);
-            try { doc.defaultView.localStorage.setItem('docmd-theme', next); } catch (e) {}
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('docmd-live-theme', next); } catch (e) {}
           });
         }
 

@@ -43,8 +43,22 @@ async function compile(markdown: string, config: any = {}) {
     const assetsRoot = './assets';
     const appearance = defaults.theme.appearance || 'light';
 
-    // Theme init script — handles DOCMD_APPEARANCE + safe localStorage
-    const themeInitScript = templates['partials/theme-init.js'] || '';
+    // Theme init script for live preview — defaults to light, honors explicit 'docmd-live-theme' toggle
+    const themeInitScript = `
+    (function () {
+      try {
+        var localValue = localStorage.getItem('docmd-live-theme');
+        var theme = (localValue === 'dark') ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        var lightLink = document.getElementById('hljs-light');
+        var darkLink = document.getElementById('hljs-dark');
+        if (lightLink && darkLink) {
+          lightLink.disabled = theme === 'dark';
+          darkLink.disabled = theme === 'light';
+        }
+      } catch (e) {}
+    })();
+    `;
 
     // KaTeX stylesheet (theme tokens come from docmd-main.css)
     const katexCss = `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">`;

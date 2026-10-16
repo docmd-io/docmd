@@ -26,7 +26,7 @@
   <%= (locals.activeLocale && locals.activeLocale.dir && locals.activeLocale.dir !== 'ltr') ? ' dir="' + locals.activeLocale.dir + '"' : '' %>>
 <head>
   <meta charset="UTF-8">
-  <meta name="generator" content="docmd template-summer v0.8.7">
+  <meta name="generator" content="docmd template-summer v<%= typeof coreVersion !== 'undefined' ? coreVersion : '0.9.8' %>">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#fbfaf6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#13110d" media="(prefers-color-scheme: dark)">
@@ -135,14 +135,14 @@
   <% if (_isFocusEnabled) { %>
   <div class="docmd-focus-toolbar" id="docmd-focus-toolbar" aria-label="Focus mode controls">
     <% if (_isPrintEnabled) { %>
-    <button class="docmd-focus-btn print-button" type="button" aria-label="Print" title="Print (⌘P)">
+    <button class="docmd-focus-btn print-button" type="button" aria-label="<%= typeof t === 'function' ? t('print') : 'Print' %>" title="<%= typeof t === 'function' ? t('print') : 'Print' %> (⌘P)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect width="12" height="8" x="6" y="14"></rect></svg>
     </button>
     <% } %>
-    <button class="docmd-focus-btn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="Toggle theme" title="Toggle theme">
+    <button class="docmd-focus-btn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>" title="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
     </button>
-    <button class="docmd-focus-btn focus-mode-toggle-button focus-exit-btn" type="button" aria-label="Exit Focus Mode (Esc or Alt+F)" title="Exit Focus Mode (Esc or Alt+F)">
+    <button class="docmd-focus-btn focus-mode-toggle-button focus-exit-btn" type="button" aria-label="<%= typeof t === 'function' ? t('exitFocusMode') : 'Exit Focus mode' %> (Esc or Alt+F)" title="<%= typeof t === 'function' ? t('exitFocusMode') : 'Exit Focus mode' %> (Esc or Alt+F)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
     </button>
   </div>
@@ -263,7 +263,7 @@
        *   docmd-main.js (closes on outside click + Escape) just works.
        ───────────────────────────────────────────────────────────── %>
       <div class="summer-topbar__left">
-        <button class="summer-iconbtn summer-topbar__mobile sidebar-menu-button" type="button" data-summer-sidebar-toggle aria-label="Toggle navigation menu">
+        <button class="summer-iconbtn summer-topbar__mobile sidebar-menu-button" type="button" data-summer-sidebar-toggle aria-label="<%= typeof t === 'function' ? t('toggleSidebar') : 'Toggle Sidebar' %>">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
         <% if (logo && (logo.light || logo.dark)) { %>
@@ -300,13 +300,13 @@
         </button>
         <% const _om = locals.optionsMenu; %>
         <% if (!_om || _om.components?.themeSwitch !== false) { %>
-          <button class="summer-iconbtn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="Toggle theme" title="Toggle theme">
+          <button class="summer-iconbtn theme-toggle-button" type="button" data-summer-theme-toggle aria-label="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>" title="<%= typeof t === 'function' ? t('toggleTheme') : 'Toggle theme' %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
           </button>
         <% } %>
 
         <% if (_isFocusEnabled) { %>
-          <button class="summer-iconbtn focus-mode-toggle-button" type="button" aria-label="Focus mode" title="Focus mode (Alt+F)">
+          <button class="summer-iconbtn focus-mode-toggle-button" type="button" aria-label="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %>" title="<%= typeof t === 'function' ? t('focusMode') : 'Focus mode' %> (Alt+F)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
           </button>
         <% } %>
@@ -325,7 +325,7 @@
             ? _om.components.sponsorPosition
             : (_om && _om.position === 'footer' ? 'footer' : 'top'); %>
         <% if (_sponsorUrl && (_sponsorPos === 'top' || _sponsorPos === 'both')) { %>
-          <a href="<%= _sponsorUrl %>" target="_blank" rel="noopener" class="summer-iconbtn" aria-label="Sponsor">
+          <a href="<%= _sponsorUrl %>" target="_blank" rel="noopener" class="summer-iconbtn" aria-label="<%= typeof t === 'function' ? t('sponsor') : 'Sponsor' %>">
             <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
           </a>
         <% } %>
@@ -448,7 +448,7 @@
     <%# ── Sidebar (left) ── %>
     <% if (!_noSidebar) { %>
       <aside class="summer-sidebar" aria-label="Documentation navigation">
-        <button class="summer-sidebar-close summer-iconbtn" type="button" data-summer-sidebar-close aria-label="Close navigation">
+        <button class="summer-sidebar-close summer-iconbtn" type="button" data-summer-sidebar-close aria-label="<%= typeof t === 'function' ? t('close') : 'Close' %>">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
 
@@ -595,9 +595,9 @@
       <% if (locals.frontmatter?._git?.lastUpdatedTimestamp || locals.editUrl) { %>
         <div class="summer-pagefooter">
           <% if (locals.editUrl) { %>
-            <a href="<%= editUrl %>" target="_blank" rel="noopener noreferrer" title="<%= typeof editLinkText !== 'undefined' ? editLinkText : 'Edit this page' %>">
+            <a href="<%= editUrl %>" target="_blank" rel="noopener noreferrer" title="<%= typeof editLinkText !== 'undefined' ? editLinkText : (typeof t === 'function' ? t('editThisPage') : 'Edit this page') %>">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-              <span><%= typeof editLinkText !== 'undefined' ? editLinkText : 'Edit this page' %></span>
+              <span><%= typeof editLinkText !== 'undefined' ? editLinkText : (typeof t === 'function' ? t('editThisPage') : 'Edit this page') %></span>
             </a>
           <% } else { %>
             <span></span>
@@ -662,7 +662,7 @@
       const _hasTocBottomBanner = Boolean(locals.config && config.layout && (config.layout.banners?.['toc-bottom'] || (config.layout.banner && config.layout.banner.position === 'toc-bottom')));
     %>
     <% if (!_tocDisabled || _hasTocTopBanner || _hasTocBottomBanner) { %>
-      <div class="summer-toc" aria-label="On this page">
+      <div class="summer-toc" aria-label="<%= typeof t === 'function' ? t('onThisPage') : 'On this page' %>">
         <% if (_hasTocTopBanner) { %>
           <div class="summer-toc-banner-wrapper">
             <%- _renderSummerBanner('toc-top') %>
@@ -700,7 +700,7 @@
     <% } %>
   </div>
 
-  <button class="summer-totop" type="button" aria-label="Scroll to top">
+  <button class="summer-totop" type="button" aria-label="<%= typeof t === 'function' ? t('goToTop') : 'Scroll to top' %>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
   </button>
 
