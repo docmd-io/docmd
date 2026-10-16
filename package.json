@@ -36,7 +36,7 @@
     "chalk": "^5.6.2",
     "docmd-search": "^0.1.6",
     "esbuild": "^0.28.2",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "globals": "^17.13.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2"
