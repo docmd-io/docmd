@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@docmd/api": "workspace:*",
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
     "esbuild": "^0.28.2"
   },

@@ -30,7 +30,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "markdown-it": "^14.3.2",
+    "markdown-it": "^14.3.3",
     "minisearch": "^7.2.0"
   },
   "peerDependencies": {
