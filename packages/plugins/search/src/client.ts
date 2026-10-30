@@ -72,6 +72,18 @@ declare const MiniSearch: any;
         let searchIndexUrl = '';
 
         function updateSearchPaths() {
+            // Prefer the build-time absolute site root when one is available (layout.ejs injects
+            // config.base as window.DOCMD_SITE_ROOT). It is authoritative: a base that itself ends
+            // in a version-looking segment (e.g. /docs/v1.2.3/) must NOT have that segment stripped,
+            // which the relative-root deduction below would do. Only an absolute value is trusted:
+            // the search page template (docmd-search.ejs) assigns a *relative* root to the same
+            // variable, and older builds don't set it at all — both fall back to the deduction.
+            const injectedRoot = (window.DOCMD_SITE_ROOT || '').trim();
+            if (injectedRoot.startsWith('/') && injectedRoot !== '/') {
+                siteBase = injectedRoot.endsWith('/') ? injectedRoot : injectedRoot + '/';
+                baseUrl = new URL(siteBase, window.location.href).href;
+                ROOT_PATH = baseUrl;
+            } else {
             // Always resolve the relative window.DOCMD_ROOT to deduce the absolute URL pathname dynamically.
             // This ensures that when the site is running on a different domain or server, search indexes resolve correctly.
             const projectRootUrl = new URL(window.DOCMD_ROOT || './', window.location.href);
@@ -84,7 +96,7 @@ declare const MiniSearch: any;
                 const seg = segments[checkIdx];
                 const isLocale = knownLocales.has(seg);
                 const isVersion = /^v\d+/.test(seg) || seg === 'latest' || seg === 'stable';
-                
+
                 if (isLocale || isVersion) {
                     checkIdx--;
                 } else {
@@ -99,6 +111,7 @@ declare const MiniSearch: any;
 
             baseUrl = new URL(siteBase, window.location.href).href;
             ROOT_PATH = baseUrl;
+            }
 
             // Determine the locale-specific search index path.
             // Extract the locale prefix of the current URL based on our computed siteBase
