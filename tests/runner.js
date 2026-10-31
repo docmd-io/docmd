@@ -190,6 +190,11 @@ addInProcess(
   'Variables and Personalisation Engine (build-time & client-side runtime)',
   await import('./cli-contracts/variables-engine.test.js')
 );
+addInProcess(
+  'plugin-playground',
+  'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
+  await import('./cli-contracts/plugin-playground.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(

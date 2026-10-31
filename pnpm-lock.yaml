@@ -26,7 +26,7 @@ importers:
         version: 5.6.2
       docmd-search:
         specifier: ^0.1.6
-        version: 0.1.6(@docmd/engine-js@0.9.8)(@docmd/engine-python@0.9.8)(@docmd/engine-rust@0.9.8)(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
+        version: 0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -107,6 +107,9 @@ importers:
       '@docmd/plugin-openapi':
         specifier: workspace:*
         version: link:../plugins/openapi
+      '@docmd/plugin-playground':
+        specifier: workspace:*
+        version: link:../plugins/playground
       '@docmd/plugin-search':
         specifier: workspace:*
         version: link:../plugins/search
@@ -392,6 +395,28 @@ importers:
         specifier: ^24.19.2
         version: 24.19.2
 
+  packages/plugins/playground:
+    dependencies:
+      '@docmd/parser':
+        specifier: workspace:*
+        version: link:../../parser
+    devDependencies:
+      '@docmd/api':
+        specifier: workspace:*
+        version: link:../../api
+      '@docmd/utils':
+        specifier: workspace:*
+        version: link:../../utils
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/plugins/pwa:
     dependencies:
       '@docmd/utils':
@@ -409,7 +434,7 @@ importers:
     dependencies:
       docmd-search:
         specifier: '>=0.1.6'
-        version: 0.1.6(@docmd/engine-js@0.9.8)(@docmd/engine-python@0.9.8)(@docmd/engine-rust@0.9.8)(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
+        version: 0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
       markdown-it:
         specifier: ^14.3.3
         version: 14.3.3
@@ -553,18 +578,6 @@ packages:
   '@ctrl/tinycolor@4.2.2':
     resolution: {integrity: sha512-9rQHijqB2Rq6qOEC/xHaA6aPlsKGi5kmCQW50O1asn9g63XFeD5NmBwysriistW5Xx0JPafyD/TA7yk2S3pXGQ==}
     engines: {node: '>=14'}
-
-  '@docmd/engine-js@0.9.8':
-    resolution: {integrity: sha512-6WDN9IKb5Wkw7dtwPpRaj+qgsi5eKLqajC4SqiRNxCJl68yvCRVdtYBWb8rQPeGJ3GCauZVO4UrNuMFFF/Ui5w==}
-    engines: {node: '>=20.0.0'}
-
-  '@docmd/engine-python@0.9.8':
-    resolution: {integrity: sha512-p+ggiacIQ3DkpSlUbTZhrH7ssqwVmXg1PmSdxjRu3NZyt3cQvXDLy1wZ0DqM7D4f71DH/e2DePMocwckSvA5Zw==}
-    engines: {node: '>=20.0.0'}
-
-  '@docmd/engine-rust@0.9.8':
-    resolution: {integrity: sha512-wph3cuTZMYADBDAAAXfuM6Sz2itkC+lx4RwRcVYzdG9yDOFAYidzU552VO3plbuDzUaJUxUWnsj55x//0gLOFA==}
-    engines: {node: '>=20.0.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -2092,15 +2105,6 @@ snapshots:
 
   '@ctrl/tinycolor@4.2.2': {}
 
-  '@docmd/engine-js@0.9.8':
-    optional: true
-
-  '@docmd/engine-python@0.9.8':
-    optional: true
-
-  '@docmd/engine-rust@0.9.8':
-    optional: true
-
   '@emnapi/runtime@1.11.3':
     dependencies:
       tslib: 2.8.1
@@ -2964,11 +2968,8 @@ snapshots:
     dependencies:
       aiplug: 0.2.0
 
-  docmd-search@0.1.6(@docmd/engine-js@0.9.8)(@docmd/engine-python@0.9.8)(@docmd/engine-rust@0.9.8)(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2)):
+  docmd-search@0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2)):
     optionalDependencies:
-      '@docmd/engine-js': 0.9.8
-      '@docmd/engine-python': 0.9.8
-      '@docmd/engine-rust': 0.9.8
       '@huggingface/transformers': 4.2.0(@types/node@24.19.2)
       adm-zip: 0.6.1
       onnxruntime-node: 1.29.0

@@ -259,6 +259,16 @@
         }
       };
 
+      // Playground runtime bridge
+      const existingPg = window.docmd?.playground || {};
+      this.playground = {
+        ...existingPg,
+        init: () => window.docmd?.playground?.init?.(),
+        run: (id) => window.docmd?.playground?.run?.(id),
+        reset: (id) => window.docmd?.playground?.reset?.(id),
+        getInstance: (id) => window.docmd?.playground?.getInstance?.(id)
+      };
+
       this._initWindowListeners();
     }
 

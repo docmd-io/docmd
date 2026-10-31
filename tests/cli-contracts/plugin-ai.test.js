@@ -158,6 +158,21 @@ export const test = runTestFile({
       // closed-source repo and is not part of the docmd monorepo CI.
     }
 
+    // Case 6: External URL Data Fetching & Cloud Relay Proxy support
+    {
+      const aiClientJsPath = path.resolve('packages/plugins/ai/dist/client/index.js');
+      const clientJs = fs.readFileSync(aiClientJsPath, 'utf8');
+      assert(clientJs.includes('fetchExternalUrls'), 'AI client bundle implements fetchExternalUrls');
+      assert(clientJs.includes('api.docmd.io/v1/ai/fetch') || clientJs.includes('/v1/ai/fetch'), 'AI client bundle includes Cloud Relay fetch proxy fallback');
+
+      const assistantDistPath = path.resolve('../docmd-assistant/dist/index.js');
+      if (fs.existsSync(assistantDistPath)) {
+        const { DocmdAssistantEngine } = await import(assistantDistPath);
+        const engine = new DocmdAssistantEngine({ fetchExternalUrls: true });
+        assert(engine.isFetchExternalUrlsEnabled() === true, 'DocmdAssistantEngine recognizes fetchExternalUrls option');
+      }
+    }
+
     return { passed, failed, failures };
   }
 });

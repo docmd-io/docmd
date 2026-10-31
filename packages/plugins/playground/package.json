@@ -1,0 +1,65 @@
+{
+  "name": "@docmd/plugin-playground",
+  "version": "0.9.9",
+  "description": "Interactive live code runner and component playground plugin for docmd.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "docmd": {
+    "key": "playground",
+    "kind": "plugin",
+    "displayName": "Playground",
+    "tagline": "Lightweight interactive live code runner and component playground for docmd.",
+    "capabilities": [
+      "markdown",
+      "assets"
+    ]
+  },
+  "scripts": {
+    "build": "tsc && node build.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@docmd/parser": "workspace:*"
+  },
+  "devDependencies": {
+    "@docmd/api": "workspace:*",
+    "@docmd/utils": "workspace:*",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  },
+  "keywords": [
+    "docmd",
+    "plugin",
+    "playground",
+    "code-runner",
+    "live-code",
+    "repl",
+    "sandbox",
+    "interactive",
+    "javascript",
+    "html",
+    "docs"
+  ],
+  "author": {
+    "name": "Ghazi",
+    "url": "https://mgks.dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/docmd-io/docmd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  },
+  "homepage": "https://docmd.io",
+  "license": "MIT"
+}

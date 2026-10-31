@@ -13,6 +13,8 @@ export class DocmdAIAssistantUI {
   private isPending = false;
   private projectId = '';
   private isUnconfigured = false;
+  private fetchExternalUrls = false;
+  private endpoint = '';
 
   constructor() {
     const rawCfg = (window as any).__docmd_ai_config || (window as any).__DOCMD_AI_CONFIG__;
@@ -22,12 +24,15 @@ export class DocmdAIAssistantUI {
     const cfg = rawCfg;
     this.projectId = cfg.projectId || cfg.siteId || cfg.cloud?.projectId || cfg.cloud?.siteId || 'default';
     this.isUnconfigured = (!cfg.projectId || cfg.projectId === 'default') && !cfg.apiKey && !cfg.baseURL;
+    this.fetchExternalUrls = cfg.fetchExternalUrls === true;
+    this.endpoint = cfg.endpoint || (this.projectId ? 'https://api.docmd.io/v1/ai/chat' : '');
 
     const initialSystemPrompt = this.buildSystemPrompt();
 
     this.engine = new DocmdAssistantEngine({
       projectId: this.projectId,
-      endpoint: cfg.endpoint || (this.projectId ? 'https://api.docmd.io/v1/ai/chat' : undefined),
+      endpoint: this.endpoint || undefined,
+      fetchExternalUrls: this.fetchExternalUrls,
       provider: cfg.provider,
       model: cfg.model,
       systemPrompt: initialSystemPrompt,
@@ -116,11 +121,86 @@ export class DocmdAIAssistantUI {
         try {
           let targetUrl = pagePath;
           const isHttp = /^https?:\/\//i.test(pagePath);
-          if (!isHttp) {
-            targetUrl = pagePath.startsWith('/')
-              ? (typeof location !== 'undefined' ? new URL(pagePath, location.origin).href : pagePath)
-              : (typeof location !== 'undefined' ? new URL(pagePath, location.href).href : pagePath);
+          if (isHttp) {
+            // Check if external URL fetching is enabled (from docmd.config.json or Cloud Relay override)
+            if (!this.fetchExternalUrls) {
+              return {
+                title: pagePath,
+                content: `External URL data fetching is disabled for this documentation site. To enable reading external URLs, set "fetchExternalUrls: true" in docmd.config.json or enable it in the docmd Cloud portal project settings.`
+              };
+            }
+
+            // 1. First attempt direct browser fetch (for CORS-enabled endpoints, public APIs, or raw files)
+            try {
+              const directRes = await fetch(targetUrl);
+              if (directRes.ok) {
+                const html = await directRes.text();
+                if (typeof DOMParser !== 'undefined') {
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(html, 'text/html');
+                  const mainContent = doc.querySelector('main, article, [role="main"], body');
+                  const title = doc.querySelector('h1, title')?.textContent?.trim() || pagePath;
+                  const text = mainContent ? (mainContent.textContent || '').replace(/\s+/g, ' ').trim() : '';
+                  return {
+                    title,
+                    content: text.slice(0, 12000) || `Document loaded from "${pagePath}", but contained no readable text.`
+                  };
+                }
+                return { title: pagePath, content: html.slice(0, 10000) };
+              }
+            } catch {
+              // Direct browser fetch failed (often CORS or network restrictions); fall back to Cloud Relay proxy
+            }
+
+            // 2. Fallback: Use Cloud Relay server-side URL fetch proxy
+            if (this.endpoint || this.projectId) {
+              try {
+                let relayFetchUrl = 'https://api.docmd.io/v1/ai/fetch';
+                if (this.endpoint) {
+                  relayFetchUrl = this.endpoint.replace(/\/chat\/?$/, '/fetch');
+                }
+                const proxyRes = await fetch(relayFetchUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Docmd-Plugin': 'docmd/plugins/ai'
+                  },
+                  body: JSON.stringify({
+                    url: pagePath,
+                    projectId: this.projectId
+                  })
+                });
+                const proxyData = await proxyRes.json();
+                if (proxyRes.ok && proxyData.ok) {
+                  return {
+                    title: proxyData.title || pagePath,
+                    content: proxyData.content || ''
+                  };
+                } else if (proxyData.error) {
+                  return {
+                    title: pagePath,
+                    content: `Error fetching "${pagePath}": ${proxyData.error}`
+                  };
+                }
+              } catch (proxyErr: any) {
+                return {
+                  title: pagePath,
+                  content: `Error: Unable to fetch external URL "${pagePath}": ${proxyErr?.message || proxyErr}`
+                };
+              }
+            }
+
+            return {
+              title: pagePath,
+              content: `Error: Unable to fetch external URL "${pagePath}". Direct browser request was restricted by CORS and no relay proxy is available.`
+            };
           }
+
+          // Same-origin documentation page fetch:
+          targetUrl = pagePath.startsWith('/')
+            ? (typeof location !== 'undefined' ? new URL(pagePath, location.origin).href : pagePath)
+            : (typeof location !== 'undefined' ? new URL(pagePath, location.href).href : pagePath);
+
           const res = await fetch(targetUrl);
           if (!res.ok) {
             return {
@@ -628,7 +708,9 @@ CRITICAL SCOPE & NAVIGATION RULES:
    - When a user asks about a capability or concept that does not have a single dedicated configuration option, explicitly explain that no dedicated setting exists, describe the closest supported architectural mechanism or pattern (such as explicit navigation configuration via navigation.json or docmd.config.json, frontmatter, or project settings), and guide the user to relevant pages.
    - Never return an empty response or silence. Always provide an informative, grounded answer to the user.
 7. VERSION FILTERING:
-   - The \`search_documentation\` tool supports an optional \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version\` to filter results strictly to that version branch.`;
+   - The \`search_documentation\` tool supports an optional \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version\` to filter results strictly to that version branch.
+8. EXTERNAL URL DATA FETCHING:
+   - When external URL data fetching is enabled (or the user asks to inspect a specific remote link, specification, or HTTP/HTTPS documentation URL), use \`read_documentation_page\` with the full URL. If external fetching is disabled, politely inform the user that external URL data fetching is turned off in settings.`;
 
     const defaultBasePrompt = `You are docmd assistant, the AI documentation guide for "${siteTitle}" — a professional, precise, and concise technical assistant.
 
@@ -1132,6 +1214,13 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
         });
       } else {
         res = await this.engine.sendMessage(queryWithContext);
+      }
+
+      if (res?.projectSettings?.fetchExternalUrls !== undefined) {
+        this.fetchExternalUrls = !!res.projectSettings.fetchExternalUrls;
+      }
+      if (typeof (this.engine as any)?.isFetchExternalUrlsEnabled === 'function') {
+        this.fetchExternalUrls = (this.engine as any).isFetchExternalUrlsEnabled();
       }
 
       if (res && res.unconfigured) {

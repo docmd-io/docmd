@@ -270,7 +270,7 @@ export function getPluginLoadErrors() {
  */
 export const CORE_PLUGINS: ReadonlyArray<string> = [
   'search', 'seo', 'sitemap', 'analytics', 'llms',
-  'mermaid', 'git', 'openapi', 'okf', 'ai'
+  'mermaid', 'git', 'openapi', 'okf', 'ai', 'playground'
 ] as const;
 
 /** True if `name` is one of the plugins that ship with @docmd/core. */

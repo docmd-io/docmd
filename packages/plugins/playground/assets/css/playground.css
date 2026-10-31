@@ -1,0 +1,294 @@
+/**
+ * docmd Playground Plugin Styles
+ * Clean, modern, responsive code runner with dark/light mode support.
+ */
+
+.docmd-playground {
+  --pg-bg: var(--docmd-bg-secondary, #f8fafc);
+  --pg-header-bg: var(--docmd-bg-tertiary, #f1f5f9);
+  --pg-border: var(--docmd-border-color, #e2e8f0);
+  --pg-text: var(--docmd-text-primary, #0f172a);
+  --pg-text-muted: var(--docmd-text-muted, #64748b);
+  --pg-editor-bg: #ffffff;
+  --pg-console-bg: #0f172a;
+  --pg-console-text: #f8fafc;
+  --pg-accent: var(--docmd-accent-color, #3b82f6);
+  --pg-accent-hover: var(--docmd-accent-hover, #2563eb);
+  --pg-radius: 10px;
+
+  border: 1px solid var(--pg-border);
+  border-radius: var(--pg-radius);
+  background: var(--pg-bg);
+  margin: 1.5rem 0;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html[data-theme="dark"] .docmd-playground {
+  --pg-bg: var(--docmd-bg-secondary, #0f172a);
+  --pg-header-bg: var(--docmd-bg-tertiary, #1e293b);
+  --pg-border: var(--docmd-border-color, #334155);
+  --pg-text: var(--docmd-text-primary, #f8fafc);
+  --pg-text-muted: var(--docmd-text-muted, #94a3b8);
+  --pg-editor-bg: #0b1120;
+  --pg-console-bg: #030712;
+  --pg-console-text: #f3f4f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Header Toolbar */
+.docmd-playground-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.85rem;
+  background: var(--pg-header-bg);
+  border-bottom: 1px solid var(--pg-border);
+  gap: 0.75rem;
+}
+
+.docmd-playground-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--pg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docmd-playground-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  color: var(--pg-accent, #6366f1);
+  flex-shrink: 0;
+}
+
+.docmd-playground-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  background: var(--pg-accent);
+  color: #ffffff;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.docmd-playground-title {
+  color: var(--pg-text);
+}
+
+.docmd-playground-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.docmd-playground-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--pg-border);
+  background: var(--pg-editor-bg);
+  color: var(--pg-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.docmd-playground-btn:hover {
+  background: var(--pg-header-bg);
+  border-color: var(--pg-text-muted);
+}
+
+.docmd-playground-run-btn {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+.docmd-playground-run-btn:hover {
+  background: #059669;
+  color: #ffffff;
+  border-color: #047857;
+}
+
+.docmd-playground-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Body (Split / Stacked Layout) */
+.docmd-playground-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 180px;
+  background: var(--pg-editor-bg);
+}
+
+@media (max-width: 768px) {
+  .docmd-playground-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Editor Pane */
+.docmd-playground-editor-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--pg-border);
+  background: var(--pg-editor-bg);
+}
+
+@media (max-width: 768px) {
+  .docmd-playground-editor-wrap {
+    border-right: none;
+    border-bottom: 1px solid var(--pg-border);
+  }
+}
+
+.docmd-playground-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  padding: 0.85rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  color: var(--pg-text);
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Output Pane */
+.docmd-playground-output-wrap {
+  display: flex;
+  flex-direction: column;
+  background: var(--pg-console-bg);
+  color: var(--pg-console-text);
+  overflow: hidden;
+}
+
+.docmd-playground-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.docmd-playground-tab {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.docmd-playground-tab:hover {
+  color: #f1f5f9;
+}
+
+.docmd-playground-tab.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #38bdf8;
+}
+
+.docmd-playground-tab-panel {
+  display: none;
+  flex: 1;
+  overflow: auto;
+  min-height: 140px;
+}
+
+.docmd-playground-tab-panel.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Console Output */
+.docmd-playground-console {
+  flex: 1;
+  padding: 0.75rem 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.docmd-pg-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  word-break: break-word;
+}
+
+.docmd-pg-log-time {
+  font-size: 0.72rem;
+  color: #64748b;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.docmd-pg-log-content {
+  flex: 1;
+  white-space: pre-wrap;
+}
+
+.docmd-pg-log-info { color: #38bdf8; }
+.docmd-pg-log-warn { color: #facc15; }
+.docmd-pg-log-error { color: #f87171; }
+.docmd-pg-log-return { color: #34d399; font-weight: 600; }
+.docmd-pg-log-empty {
+  color: #64748b;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+/* Live Preview Frame */
+.docmd-playground-preview {
+  flex: 1;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 1rem;
+  overflow: auto;
+  min-height: 160px;
+}
+
+.docmd-playground-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  min-height: 160px;
+}

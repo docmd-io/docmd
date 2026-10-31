@@ -60,6 +60,8 @@ export interface AIPluginOptions {
   };
   messageActions?: boolean;
   allowEdit?: boolean;
+  fetchExternalUrls?: boolean;
+  allowExternalUrls?: boolean;
 }
 
 /** Default system prompt for documentation assistant */
@@ -121,7 +123,8 @@ export async function onConfigResolved(config: any): Promise<void> {
     rateLimit: {
       maxRequests: pluginOptions.rateLimit?.maxRequests || 10,
       windowMs: pluginOptions.rateLimit?.windowMs || 60000
-    }
+    },
+    fetchExternalUrls: pluginOptions.fetchExternalUrls ?? pluginOptions.allowExternalUrls ?? false
   };
 
   config._aiConfig = _resolvedOptions;
@@ -408,7 +411,8 @@ export function generateScripts(config: any, _options?: any): { headScriptsHtml:
     },
     isWorkspace: workspaceProjects.length > 0,
     workspaceProjects,
-    messageActions: pluginOptions.messageActions === true
+    messageActions: pluginOptions.messageActions === true,
+    fetchExternalUrls: pluginOptions.fetchExternalUrls ?? pluginOptions.allowExternalUrls ?? false
   };
   if (pluginOptions.provider) clientConfig.provider = pluginOptions.provider;
   if (pluginOptions.model) clientConfig.model = pluginOptions.model;

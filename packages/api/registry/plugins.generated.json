@@ -1,8 +1,8 @@
 {
   "$meta": {
-    "generatedAt": "2026-10-31T13:17:45.094Z",
+    "generatedAt": "2026-10-31T14:00:39.368Z",
     "generator": "scripts/build-plugin-registry.mjs",
-    "packageCount": 17
+    "packageCount": 18
   },
   "ai": {
     "package": "@docmd/plugin-ai",
@@ -109,6 +109,19 @@
     "kind": "plugin",
     "displayName": "OpenAPI",
     "tagline": "OpenAPI / Swagger spec rendering for docmd.",
+    "capabilities": [
+      "markdown",
+      "assets"
+    ]
+  },
+  "playground": {
+    "package": "@docmd/plugin-playground",
+    "description": "Interactive live code runner and component playground plugin for docmd.",
+    "configKey": "playground",
+    "defaultConfig": "{}",
+    "kind": "plugin",
+    "displayName": "Playground",
+    "tagline": "Lightweight interactive live code runner and component playground for docmd.",
     "capabilities": [
       "markdown",
       "assets"

@@ -59,6 +59,12 @@
     "configKey": "pwa",
     "defaultConfig": "{}"
   },
+  "playground": {
+    "package": "@docmd/plugin-playground",
+    "description": "Interactive live code runner and component playground for docmd",
+    "configKey": "playground",
+    "defaultConfig": "{}"
+  },
   "threads": {
     "package": "@docmd/plugin-threads",
     "description": "Inline discussion threads for docmd",
