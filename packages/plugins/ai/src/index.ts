@@ -309,10 +309,11 @@ export const actions = {
     const engine = new DocmdAssistantEngine({
       endpoint: opts.endpoint || 'https://api.docmd.io/v1/ai/chat',
       projectId: opts.projectId || opts.siteId,
+      fetchExternalUrls: opts.fetchExternalUrls ?? opts.allowExternalUrls ?? false,
       provider: opts.provider,
       model: opts.model,
       systemPrompt: opts.systemPrompt
-    });
+    } as any);
 
     const isSemanticUsable = ctx.config._searchConfig?.semanticUsable === true;
 

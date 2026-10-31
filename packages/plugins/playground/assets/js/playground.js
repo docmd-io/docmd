@@ -27,6 +27,15 @@
     return d.toTimeString().split(' ')[0] + '.' + String(d.getMilliseconds()).padStart(3, '0');
   }
 
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   class PlaygroundInstance {
     constructor(container) {
       this.container = container;
@@ -41,6 +50,8 @@
       this.clearBtn = container.querySelector('.docmd-playground-clear-btn');
       this.tabButtons = container.querySelectorAll('.docmd-playground-tab');
       this.panels = container.querySelectorAll('.docmd-playground-tab-panel');
+      this.viewTabs = container.querySelectorAll('.docmd-playground-view-tab');
+      this.hasRun = false;
 
       this.init();
     }
@@ -53,6 +64,7 @@
       this.bindEditorEvents();
       this.bindActions();
       this.bindTabs();
+      this.bindViewTabs();
 
       // Show empty console hint initially
       this.renderEmptyConsole();
@@ -109,6 +121,27 @@
       });
     }
 
+    bindViewTabs() {
+      this.viewTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const view = tab.getAttribute('data-view');
+          this.switchView(view);
+        });
+      });
+    }
+
+    switchView(viewName) {
+      this.container.setAttribute('data-active-view', viewName);
+      this.viewTabs.forEach((t) => {
+        t.classList.toggle('active', t.getAttribute('data-view') === viewName);
+      });
+      if (viewName === 'live') {
+        if (!this.hasRun) {
+          this.run();
+        }
+      }
+    }
+
     switchTab(tabName) {
       this.tabButtons.forEach((b) => {
         b.classList.toggle('active', b.getAttribute('data-tab') === tabName);
@@ -126,6 +159,23 @@
     clearConsole() {
       if (!this.consoleEl) return;
       this.renderEmptyConsole();
+    }
+
+    renderErrorNotice(errMsg) {
+      if (!this.consoleEl) return;
+      const existing = this.consoleEl.querySelector('.docmd-pg-error-notice');
+      if (existing) existing.remove();
+
+      const notice = document.createElement('div');
+      notice.className = 'docmd-pg-error-notice';
+      notice.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div class="docmd-pg-error-body">
+          <div class="docmd-pg-error-title">Playground Execution Warning</div>
+          <div class="docmd-pg-error-msg">${escapeHtml(errMsg)}</div>
+        </div>
+      `;
+      this.consoleEl.prepend(notice);
     }
 
     appendLog(type, content) {
@@ -151,6 +201,7 @@
     }
 
     async run() {
+      this.hasRun = true;
       const code = this.editor ? this.editor.value : '';
 
       // If language is HTML or markup, render preview
@@ -191,7 +242,9 @@
           this.appendLog('return', `=> ${formatValue(result)}`);
         }
       } catch (err) {
-        this.appendLog('error', `RuntimeError: ${err?.message || err}`);
+        const errMsg = err?.message || String(err);
+        this.renderErrorNotice(errMsg);
+        this.appendLog('error', `RuntimeError: ${errMsg}`);
         if (err?.stack) {
           const relevantStack = String(err.stack).split('\n').slice(0, 3).join('\n');
           this.appendLog('error', relevantStack);
@@ -243,70 +296,59 @@
         this.editor.value = this.initialCode.trim();
       }
       this.clearConsole();
-      if (this.lang === 'html') {
-        this.renderHtmlPreview(this.editor.value);
+      if (this.previewEl) {
+        this.previewEl.innerHTML = '';
+      }
+      if (this.container.getAttribute('data-live') === 'true') {
+        this.run();
       }
     }
 
     async copy() {
       if (!this.editor) return;
+      const code = this.editor.value;
       try {
-        await navigator.clipboard.writeText(this.editor.value);
+        await navigator.clipboard.writeText(code);
         if (this.copyBtn) {
-          const originalHtml = this.copyBtn.innerHTML;
-          this.copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+          const origHtml = this.copyBtn.innerHTML;
+          this.copyBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          `;
           setTimeout(() => {
-            this.copyBtn.innerHTML = originalHtml;
+            if (this.copyBtn) this.copyBtn.innerHTML = origHtml;
           }, 1500);
         }
-      } catch (err) {
-        console.warn('Copy failed:', err);
+      } catch {
+        // Fallback copy using textarea selection
+        this.editor.select();
+        document.execCommand('copy');
       }
     }
   }
 
-  // Registry for all active instances
-  const instances = new Map();
-
-  function initAll() {
-    const elements = document.querySelectorAll('.docmd-playground');
-    elements.forEach((el, idx) => {
-      if (!instances.has(el)) {
-        const id = el.id || `docmd-pg-${idx}`;
-        el.id = id;
-        instances.set(el, new PlaygroundInstance(el));
+  function initPlaygrounds() {
+    const containers = document.querySelectorAll('.docmd-playground');
+    containers.forEach((container) => {
+      if (!container.__docmd_playground) {
+        container.__docmd_playground = new PlaygroundInstance(container);
       }
     });
   }
 
-  // Auto-init on page load
+  // Auto-init on initial DOM load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAll);
+    document.addEventListener('DOMContentLoaded', initPlaygrounds);
   } else {
-    initAll();
+    initPlaygrounds();
   }
 
-  // Auto-reinit on SPA page transitions
-  document.addEventListener('docmd:page-mounted', initAll);
+  // Re-hydrate on docmd SPA page navigation events
+  document.addEventListener('docmd:page-mounted', initPlaygrounds);
+  window.addEventListener('popstate', () => setTimeout(initPlaygrounds, 50));
 
-  // Expose on window.docmd.playground
+  // Expose global API
   window.docmd = window.docmd || {};
   window.docmd.playground = {
-    init: initAll,
-    getInstance: (idOrElem) => {
-      if (typeof idOrElem === 'string') {
-        const elem = document.getElementById(idOrElem);
-        return elem ? instances.get(elem) : undefined;
-      }
-      return instances.get(idOrElem);
-    },
-    run: (id) => {
-      const inst = window.docmd.playground.getInstance(id);
-      if (inst) inst.run();
-    },
-    reset: (id) => {
-      const inst = window.docmd.playground.getInstance(id);
-      if (inst) inst.reset();
-    }
+    init: initPlaygrounds
   };
 })();

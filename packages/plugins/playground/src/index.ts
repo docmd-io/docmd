@@ -74,13 +74,18 @@ function renderPlaygroundHtml(
   isLive?: boolean,
   icon?: string,
   layout?: string,
-  isReadonly?: boolean
+  isReadonly?: boolean,
+  hasTabs?: boolean,
+  warning?: string,
+  initialView?: 'live' | 'code'
 ): string {
   const safeLang = (lang || 'js').toLowerCase();
   const displayTitle = title || (safeLang === 'html' ? 'Live HTML Preview' : `${safeLang.toUpperCase()} Playground`);
   const escapedCode = md.utils.escapeHtml(code);
   const liveAttr = isLive ? ' data-live="true"' : '';
   const readonlyAttr = isReadonly ? ' data-readonly="true"' : '';
+  const activeView = initialView === 'code' ? 'code' : 'live';
+  const modeAttr = hasTabs ? ` data-mode="tabs" data-active-view="${activeView}"` : '';
   const layoutClass = layout ? ` docmd-playground-layout-${layout}` : '';
 
   const iconName = (icon || 'play').trim();
@@ -92,14 +97,33 @@ function renderPlaygroundHtml(
     iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="docmd-playground-icon"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
   }
 
+  const warningHtml = warning ? `
+  <div class="docmd-playground-alert">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span>${md.utils.escapeHtml(warning)}</span>
+  </div>` : '';
+
+  const viewTabsHtml = hasTabs ? `
+    <div class="docmd-playground-view-tabs">
+      <button type="button" class="docmd-playground-view-tab ${activeView === 'live' ? 'active' : ''}" data-view="live" title="View Live Output">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        <span>Live</span>
+      </button>
+      <button type="button" class="docmd-playground-view-tab ${activeView === 'code' ? 'active' : ''}" data-view="code" title="View Source Code">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Code</span>
+      </button>
+    </div>` : '';
+
   return `
-<div class="docmd-playground${layoutClass}" data-lang="${safeLang}" data-title="${md.utils.escapeHtml(displayTitle)}"${liveAttr}${readonlyAttr}>
+<div class="docmd-playground${layoutClass}" data-lang="${safeLang}" data-title="${md.utils.escapeHtml(displayTitle)}"${liveAttr}${readonlyAttr}${modeAttr}>
   <div class="docmd-playground-header">
     <div class="docmd-playground-info">
       ${iconHtml}
       <span class="docmd-playground-badge">${md.utils.escapeHtml(safeLang)}</span>
       <span class="docmd-playground-title">${md.utils.escapeHtml(displayTitle)}</span>
     </div>
+    ${viewTabsHtml}
     <div class="docmd-playground-actions">
       <button type="button" class="docmd-playground-btn docmd-playground-run-btn" title="Run Code (Cmd+Enter / Ctrl+Enter)">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
@@ -116,6 +140,7 @@ function renderPlaygroundHtml(
       </button>
     </div>
   </div>
+  ${warningHtml}
   <div class="docmd-playground-body">
     <div class="docmd-playground-editor-wrap">
       <textarea class="docmd-playground-editor" spellcheck="false" autocomplete="off" autocapitalize="off"${isReadonly ? ' readonly' : ''}>${escapedCode.trim()}</textarea>
@@ -149,13 +174,15 @@ export function markdownSetup(md: any) {
     if (isPlayground) {
       // Extract language
       const rawLang = info
-        .replace(/(?:playground|live|readonly)/gi, '')
+        .replace(/(?:playground|live|readonly|tabs(?::\w+)?)/gi, '')
         .replace(/title=(?:"[^"]*"|'[^']*')/gi, '')
         .replace(/title:(?:"[^"]*"|'[^']*')/gi, '')
         .replace(/icon=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
         .replace(/icon:(?:"[^"]*"|'[^']*'|\w+)/gi, '')
         .replace(/layout=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
         .replace(/layout:(?:"[^"]*"|'[^']*'|\w+)/gi, '')
+        .replace(/mode=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
+        .replace(/view=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
         .trim()
         .split(/\s+/)[0] || 'js';
 
@@ -164,6 +191,8 @@ export function markdownSetup(md: any) {
       const title = titleMatch ? (titleMatch[1] || titleMatch[2]) : undefined;
       const isLive = /(?:^|\s)live(?:\s|$)/i.test(info);
       const isReadonly = /(?:^|\s)readonly(?:\s|$)/i.test(info);
+      const hasTabs = /(?:^|\s)(?:tabs(?::\w+)?|mode(?:=|:)\s*(?:"tabs"|'tabs'|tabs)|view(?:=|:)\s*(?:"tabs"|'tabs'|tabs))(?:\s|$)/i.test(info);
+      const initialView = /(?:^|\s)(?:tabs:code|view(?:=|:)\s*(?:"code"|'code'|code)|show-code|show:code)(?:\s|$)/i.test(info) ? 'code' : 'live';
 
       const iconMatch = info.match(/icon(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
       const icon = iconMatch ? (iconMatch[1] || iconMatch[2] || iconMatch[3]) : 'play';
@@ -171,7 +200,7 @@ export function markdownSetup(md: any) {
       const layoutMatch = info.match(/layout(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
       const layout = layoutMatch ? (layoutMatch[1] || layoutMatch[2] || layoutMatch[3]) : undefined;
 
-      return renderPlaygroundHtml(md, token.content, rawLang, title, isLive, icon, layout, isReadonly);
+      return renderPlaygroundHtml(md, token.content, rawLang, title, isLive, icon, layout, isReadonly, hasTabs, undefined, initialView);
     }
 
     return defaultFence(tokens, idx, options, env, self);
@@ -217,9 +246,13 @@ export function markdownSetup(md: any) {
     let lang = langMatch ? (langMatch[1] || langMatch[2] || langMatch[3] || langMatch[4] || '') : '';
     const isLive = /(?:^|\s)live(?:\s|$)/i.test(headerInfo);
     const isReadonly = /(?:^|\s)readonly(?:\s|$)/i.test(headerInfo);
+    const hasTabs = /(?:^|\s)(?:tabs(?::\w+)?|mode(?:=|:)\s*(?:"tabs"|'tabs'|tabs)|view(?:=|:)\s*(?:"tabs"|'tabs'|tabs))(?:\s|$)/i.test(headerInfo);
+    const initialView = /(?:^|\s)(?:tabs:code|view(?:=|:)\s*(?:"code"|'code'|code)|show-code|show:code)(?:\s|$)/i.test(headerInfo) ? 'code' : 'live';
 
     // Resolve code from src file if specified
     let fileInfo: SourceFileInfo | null = null;
+    let warning: string | undefined = undefined;
+
     if (srcPath) {
       fileInfo = resolveSourceFile(srcPath, state.env && state.env.filePath);
       if (fileInfo) {
@@ -231,14 +264,16 @@ export function markdownSetup(md: any) {
         if (!title) {
           title = fileInfo.filename;
         }
+      } else {
+        warning = `Playground Notice: Source script "${srcPath}" not found. Displaying fallback code.`;
       }
     }
 
     if (isSelfClosing) {
-      const code = fileInfo ? fileInfo.code : `// Source file not found: ${srcPath || 'empty'}`;
+      const code = fileInfo ? fileInfo.code : (warning ? `// File not found: ${srcPath}\n// Check path relative to documentation root.` : '');
       const finalLang = lang || 'js';
       const htmlToken = state.push('html_block', '', 0);
-      htmlToken.content = renderPlaygroundHtml(md, code, finalLang, title, isLive, icon, layout, isReadonly);
+      htmlToken.content = renderPlaygroundHtml(md, code, finalLang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView);
       state.line = startLine + 1;
       return true;
     }
@@ -303,7 +338,7 @@ export function markdownSetup(md: any) {
     }
 
     const htmlToken = state.push('html_block', '', 0);
-    htmlToken.content = renderPlaygroundHtml(md, finalCode, lang, title, isLive, icon, layout, isReadonly);
+    htmlToken.content = renderPlaygroundHtml(md, finalCode, lang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView);
 
     state.line = nextLine + 1;
     return true;

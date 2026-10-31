@@ -108,7 +108,7 @@ export class DocmdAIAssistantUI {
         }
         return context;
       }
-    });
+    } as any);
 
     const isSemanticUsable = cfg.searchCapabilities?.semantic === true;
 

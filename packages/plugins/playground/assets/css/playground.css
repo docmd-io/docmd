@@ -292,3 +292,139 @@ html[data-theme="dark"] .docmd-playground {
   border: none;
   min-height: 160px;
 }
+
+/* Warning / Notice Alert Banner */
+.docmd-playground-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem;
+  background: #fefce8;
+  border-bottom: 1px solid #fef08a;
+  color: #a16207;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+html[data-theme="dark"] .docmd-playground-alert {
+  background: rgba(234, 179, 8, 0.12);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.3);
+  color: #fde047;
+}
+
+.docmd-playground-alert svg {
+  flex-shrink: 0;
+  color: #eab308;
+}
+
+.docmd-playground-alert code {
+  background: rgba(234, 179, 8, 0.15);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Header View Switcher (Live vs Code) */
+.docmd-playground-view-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: var(--pg-editor-bg);
+  border: 1px solid var(--pg-border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 0.5rem;
+}
+
+.docmd-playground-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--pg-text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.docmd-playground-view-tab:hover {
+  color: var(--pg-text);
+}
+
+.docmd-playground-view-tab.active {
+  background: var(--pg-accent, #6366f1);
+  color: #ffffff;
+}
+
+/* Tabbed Presentation Mode (data-mode="tabs") */
+.docmd-playground[data-mode="tabs"] .docmd-playground-body {
+  display: block;
+}
+
+.docmd-playground[data-mode="tabs"] .docmd-playground-editor-wrap,
+.docmd-playground[data-mode="tabs"] .docmd-playground-output-wrap {
+  width: 100%;
+}
+
+.docmd-playground[data-mode="tabs"][data-active-view="live"] .docmd-playground-editor-wrap {
+  display: none !important;
+}
+
+.docmd-playground[data-mode="tabs"][data-active-view="live"] .docmd-playground-output-wrap {
+  display: block !important;
+  border-left: none;
+}
+
+.docmd-playground[data-mode="tabs"][data-active-view="code"] .docmd-playground-editor-wrap {
+  display: block !important;
+}
+
+.docmd-playground[data-mode="tabs"][data-active-view="code"] .docmd-playground-output-wrap {
+  display: none !important;
+}
+
+/* Execution Error / Warning Notice */
+.docmd-pg-error-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+
+html[data-theme="dark"] .docmd-pg-error-notice {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.docmd-pg-error-notice svg {
+  flex-shrink: 0;
+  color: #ef4444;
+  margin-top: 2px;
+}
+
+.docmd-pg-error-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+}
+
+.docmd-pg-error-msg {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  word-break: break-word;
+}
+
