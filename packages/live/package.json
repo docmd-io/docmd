@@ -1,6 +1,6 @@
 {
   "name": "@docmd/live",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Browser-based editor engine for docmd.",
   "type": "module",
   "main": "dist/index.js",

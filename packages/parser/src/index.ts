@@ -66,3 +66,17 @@ export {
   normaliseBaseTag,
 } from './utils/url-utils.js';
 export type { UrlContext, PageUrls } from './utils/url-utils.js';
+
+// Variables Engine
+export {
+  VariableRegistry,
+  interpolateVariables,
+  interpolateConfigVariables,
+  parseVariableExpression,
+  getNestedValue
+} from './variables/index.js';
+export type {
+  VariableContext,
+  VariableRegistryOptions,
+  InterpolationOptions
+} from './variables/index.js';

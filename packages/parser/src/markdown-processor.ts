@@ -21,6 +21,7 @@ import {
   type NormaliserWarning
 } from './utils/container-normaliser.js';
 import { rewriteHtmlLinks, createUrlContext } from './utils/url-utils.js';
+import { VariableRegistry, interpolateVariables, type VariableContext } from './variables/index.js';
 
 // URL schemes that can execute code or exfiltrate data when clicked.
 // Phase 1.B (T-S4 fix, defense in depth): markdown-it 14 already rejects these
@@ -514,6 +515,28 @@ function processContent(rawString: any, mdInstance: any, config: any, env: any =
     if (h1Match) frontmatter.title = h1Match[1].trim();
   }
 
+  // Interpolate variables (builtins, env, config, frontmatter)
+  const registry: VariableRegistry = env?.variableRegistry || config?._variableRegistry || new VariableRegistry({
+    configVariables: config?.variables,
+    siteTitle: config?.title || config?.siteTitle,
+    siteBase: config?.base
+  });
+
+  const varContext: VariableContext = {
+    pageTitle: frontmatter.title,
+    pagePath: env?.path,
+    frontmatter
+  };
+
+  if (frontmatter.title && typeof frontmatter.title === 'string' && frontmatter.title.includes('{{')) {
+    frontmatter.title = interpolateVariables(frontmatter.title, registry, varContext, { wrapDynamic: false });
+  }
+  if (frontmatter.description && typeof frontmatter.description === 'string' && frontmatter.description.includes('{{')) {
+    frontmatter.description = interpolateVariables(frontmatter.description, registry, varContext, { wrapDynamic: false });
+  }
+
+  markdownContent = interpolateVariables(markdownContent, registry, varContext);
+
   // Phase 2 (F1–F5): rewrite unbalanced `:::` containers so the existing
   // depth-tracking block rule in features/common-containers.ts always sees
   // a matching close.
@@ -545,6 +568,33 @@ async function processContentAsync(rawString: string, mdInstance: any, config: a
     console.error('Error parsing frontmatter:', e.message);
     return null;
   }
+
+  if (!frontmatter.title && config.autoTitleFromH1 !== false) {
+    const h1Match = markdownContent.match(/^#\s+(.*)/m);
+    if (h1Match) frontmatter.title = h1Match[1].trim();
+  }
+
+  // Interpolate variables (builtins, env, config, frontmatter)
+  const registryAsync: VariableRegistry = env?.variableRegistry || config?._variableRegistry || new VariableRegistry({
+    configVariables: config?.variables,
+    siteTitle: config?.title || config?.siteTitle,
+    siteBase: config?.base
+  });
+
+  const varContextAsync: VariableContext = {
+    pageTitle: frontmatter.title,
+    pagePath: env?.path,
+    frontmatter
+  };
+
+  if (frontmatter.title && typeof frontmatter.title === 'string' && frontmatter.title.includes('{{')) {
+    frontmatter.title = interpolateVariables(frontmatter.title, registryAsync, varContextAsync, { wrapDynamic: false });
+  }
+  if (frontmatter.description && typeof frontmatter.description === 'string' && frontmatter.description.includes('{{')) {
+    frontmatter.description = interpolateVariables(frontmatter.description, registryAsync, varContextAsync, { wrapDynamic: false });
+  }
+
+  markdownContent = interpolateVariables(markdownContent, registryAsync, varContextAsync);
 
   // Phase 2 (F1–F5): rewrite unbalanced `:::` containers BEFORE user plugins
   // so they always see balanced input, and BEFORE markdown-it so the

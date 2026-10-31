@@ -357,7 +357,7 @@ export function createPythonEngine(): Engine {
 
   return {
     name: 'python',
-    version: '0.9.8',
+    version: '0.9.9',
 
     supports(taskType: string): boolean {
       return SUPPORTED_TASKS.has(taskType);

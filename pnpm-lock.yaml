@@ -242,8 +242,8 @@ importers:
         specifier: ^0.1.3
         version: 0.1.3
       lucide-static:
-        specifier: ^1.61.0
-        version: 1.61.0
+        specifier: ^1.65.0
+        version: 1.65.0
       markdown-it:
         specifier: ^14.3.3
         version: 14.3.3
@@ -269,8 +269,8 @@ importers:
   packages/plugins/ai:
     dependencies:
       docmd-assistant:
-        specifier: ^0.1.18
-        version: 0.1.18
+        specifier: ^0.1.20
+        version: 0.1.20
     devDependencies:
       '@docmd/api':
         specifier: workspace:*
@@ -550,8 +550,8 @@ packages:
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
 
-  '@ctrl/tinycolor@4.2.1':
-    resolution: {integrity: sha512-Vh5uy9Y1JBMId6J1f68TMXnZrTCvNdo9Fu2k0d1YnJngR+sM5kWTKl441c/3TFs+cG0NWOjRWgQ/iaWhbYx+7A==}
+  '@ctrl/tinycolor@4.2.2':
+    resolution: {integrity: sha512-9rQHijqB2Rq6qOEC/xHaA6aPlsKGi5kmCQW50O1asn9g63XFeD5NmBwysriistW5Xx0JPafyD/TA7yk2S3pXGQ==}
     engines: {node: '>=14'}
 
   '@docmd/engine-js@0.9.8':
@@ -773,8 +773,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@huggingface/jinja@0.5.10':
-    resolution: {integrity: sha512-SgS1D1bglQ94ceD4ZCL6eayUDy9uV1xuyk61OjgSxU5GJh7upqZCKII0JoTYMc6wWsg3JUgaPRX0ElQzXPk3Cw==}
+  '@huggingface/jinja@0.5.11':
+    resolution: {integrity: sha512-YzEzwM5oQf4r0vs7ifWQ+yuVR1YkAHrjERQ+a8WRsStHHp4NRBg+NesjiFc+X2AFUpRvvrIeHDS1xFy9jY/IjQ==}
     engines: {node: '>=18'}
 
   '@huggingface/tokenizers@0.1.3':
@@ -1105,8 +1105,8 @@ packages:
   '@types/esrecurse@4.3.1':
     resolution: {integrity: sha512-xJBAbDifo5hpffDBuHl0Y8ywswbiAp/Wi7Y/GtAgSlZyIABppyurxVueOPE8LUQOxdlgi6Zqce7uoEpqNTeiUw==}
 
-  '@types/estree@1.0.9':
-    resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+  '@types/estree@1.0.10':
+    resolution: {integrity: sha512-lTyOMnOcmRBzdCv6/4zUZCrEhV0xrqQiUZBZtVcbmLHBXKLnN8q89v/wKRF/Q0HbwVsqbIG3o5HDoFl9sduM+g==}
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
@@ -1208,8 +1208,8 @@ packages:
     resolution: {integrity: sha512-Xwrja8nx9e5o2N1my4DsKCeKpdrnACyr1wtbPxBDgGzKzKyE9kRtBFA8mWldI+RVlD7CBZNWY/wQ2+ydwOR6kQ==}
     engines: {node: '>=14.0'}
 
-  aiplug@0.1.2:
-    resolution: {integrity: sha512-NYYRuCewtIACs2Vbxw8l0EOBZMsyV/uWGq5zh+3f9rj1DBMheycCj031eudZmRJIwPUgsx/LzXY4/JkyP7owhQ==}
+  aiplug@0.2.0:
+    resolution: {integrity: sha512-L1hhuHYUxzoEwvHzTyknGSExFKo/BTYTg1R+QwhQEaONwqArjRRgG6GI6/wPh9t9Pmof2LZ0huKzXof+ue89zQ==}
     engines: {node: '>=18.17.0'}
     hasBin: true
 
@@ -1223,8 +1223,8 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
-  argparse@3.0.3:
-    resolution: {integrity: sha512-Sn98ftV3KfsO8xfLPHG6oT8y+b0yvbrLgZjgPDXsharNY15tTAjqIsIju4S32nl6/iEUNNE4v+yL2Zhm8ooP3w==}
+  argparse@3.0.4:
+    resolution: {integrity: sha512-fwWK3Zq22l4XJJjx5mcBHGikIk+hJqO+32dPm0Jur7+rtG5x1scOjSfdT9ZKeWHPpsya/l0HHK4tDImBkTrtvA==}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -1470,8 +1470,8 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  docmd-assistant@0.1.18:
-    resolution: {integrity: sha512-gkCuCeeB6DswUXjDafwKEteyOfNXTIfAMng+Hu+WxHP0l7KNqkanyU2ktTBpOutXCUSoVL/ojnaiBprFagdObw==}
+  docmd-assistant@0.1.20:
+    resolution: {integrity: sha512-ELWpPbqQ+vyZs4CnNvGDNQyOmpTUWpTpRCFS9C4RO9AB301/JYUhob8ww1dISzW0eSzk20yDIi5QJauJyruqIQ==}
     engines: {node: '>=20.0.0'}
 
   docmd-search@0.1.6:
@@ -1527,8 +1527,8 @@ packages:
     resolution: {integrity: sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==}
     engines: {node: '>= 0.4'}
 
-  es-toolkit@1.52.0:
-    resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
+  es-toolkit@1.53.0:
+    resolution: {integrity: sha512-3+AYXp9fmJ/UhHBMYj2/U+RaUouMD90SzoItyDOB2Za7W6dB7fQApFGnZPl2MF6K8/Tv1koh1JyirSx/kju6Pw==}
 
   esbuild@0.28.2:
     resolution: {integrity: sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==}
@@ -1770,8 +1770,8 @@ packages:
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
-  lucide-static@1.61.0:
-    resolution: {integrity: sha512-yLAiQB3MWUJEstsEDAwenSA3m7vr1tdLvgnC16Q/XMxRRma0DWwMs8M2bWlvgShrIs1m2mWMJ+0AiahqQO4GrA==}
+  lucide-static@1.65.0:
+    resolution: {integrity: sha512-Mbahsp1MHXzBK2qQ+j+OpdwvPwOFYFBOe2pD1O5eI+XLRpbqPY2euz6vemAddXGevRvJ5n8D83ilUCrtxP07RQ==}
 
   markdown-it-abbr@1.0.4:
     resolution: {integrity: sha512-ZeA4Z4SaBbYysZap5iZcxKmlPL6bYA8grqhzJIHB1ikn7njnzaP8uwbtuXc4YXD5LicI4/2Xmc0VwmSiFV04gg==}
@@ -2090,7 +2090,7 @@ snapshots:
 
   '@chevrotain/types@11.1.2': {}
 
-  '@ctrl/tinycolor@4.2.1': {}
+  '@ctrl/tinycolor@4.2.2': {}
 
   '@docmd/engine-js@0.9.8':
     optional: true
@@ -2229,7 +2229,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@huggingface/jinja@0.5.10':
+  '@huggingface/jinja@0.5.11':
     optional: true
 
   '@huggingface/tokenizers@0.1.3':
@@ -2237,7 +2237,7 @@ snapshots:
 
   '@huggingface/transformers@4.2.0(@types/node@24.19.2)':
     dependencies:
-      '@huggingface/jinja': 0.5.10
+      '@huggingface/jinja': 0.5.11
       '@huggingface/tokenizers': 0.1.3
       onnxruntime-node: 1.29.0
       onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
@@ -2409,7 +2409,7 @@ snapshots:
 
   '@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.12)(@types/react@19.2.14)':
     dependencies:
-      '@ctrl/tinycolor': 4.2.1
+      '@ctrl/tinycolor': 4.2.2
       '@floating-ui/dom': 1.8.0
       '@lit/react': 1.0.8(@types/react@19.2.14)
       '@shoelace-style/animations': 1.2.0
@@ -2540,7 +2540,7 @@ snapshots:
 
   '@types/esrecurse@4.3.1': {}
 
-  '@types/estree@1.0.9': {}
+  '@types/estree@1.0.10': {}
 
   '@types/geojson@7946.0.16': {}
 
@@ -2670,7 +2670,7 @@ snapshots:
   adm-zip@0.6.1:
     optional: true
 
-  aiplug@0.1.2:
+  aiplug@0.2.0:
     dependencies:
       yaml: 2.9.1
 
@@ -2687,7 +2687,7 @@ snapshots:
 
   argparse@2.0.1: {}
 
-  argparse@3.0.3: {}
+  argparse@3.0.4: {}
 
   balanced-match@4.0.4: {}
 
@@ -2960,9 +2960,9 @@ snapshots:
   detect-libc@2.1.2:
     optional: true
 
-  docmd-assistant@0.1.18:
+  docmd-assistant@0.1.20:
     dependencies:
-      aiplug: 0.1.2
+      aiplug: 0.2.0
 
   docmd-search@0.1.6(@docmd/engine-js@0.9.8)(@docmd/engine-python@0.9.8)(@docmd/engine-rust@0.9.8)(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2)):
     optionalDependencies:
@@ -2991,7 +2991,7 @@ snapshots:
   es-errors@1.3.0:
     optional: true
 
-  es-toolkit@1.52.0: {}
+  es-toolkit@1.53.0: {}
 
   esbuild@0.28.2:
     optionalDependencies:
@@ -3027,7 +3027,7 @@ snapshots:
   eslint-scope@9.1.2:
     dependencies:
       '@types/esrecurse': 4.3.1
-      '@types/estree': 1.0.9
+      '@types/estree': 1.0.10
       esrecurse: 4.3.0
       estraverse: 5.3.0
 
@@ -3046,7 +3046,7 @@ snapshots:
       '@humanfs/node': 0.16.8
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.3
-      '@types/estree': 1.0.9
+      '@types/estree': 1.0.10
       ajv: 6.15.0
       cross-spawn: 7.0.6
       debug: 4.4.3
@@ -3196,7 +3196,7 @@ snapshots:
 
   js-yaml@5.5.0:
     dependencies:
-      argparse: 3.0.3
+      argparse: 3.0.4
 
   json-schema-traverse@0.4.1: {}
 
@@ -3262,7 +3262,7 @@ snapshots:
   long@5.3.2:
     optional: true
 
-  lucide-static@1.61.0: {}
+  lucide-static@1.65.0: {}
 
   markdown-it-abbr@1.0.4: {}
 
@@ -3291,7 +3291,7 @@ snapshots:
 
   markdown-it@15.0.3:
     dependencies:
-      argparse: 3.0.3
+      argparse: 3.0.4
       entities: 8.1.0
       linkify-it: 6.1.0
       mdurl: 2.1.0
@@ -3322,7 +3322,7 @@ snapshots:
       dagre-d3-es: 7.0.14
       dayjs: 1.11.23
       dompurify: 3.4.17
-      es-toolkit: 1.52.0
+      es-toolkit: 1.53.0
       fastdom: 1.0.12
       katex: 0.19.1
       khroma: 2.1.0

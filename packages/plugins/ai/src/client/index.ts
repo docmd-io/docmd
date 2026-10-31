@@ -32,15 +32,124 @@ export class DocmdAIAssistantUI {
       model: cfg.model,
       systemPrompt: initialSystemPrompt,
       reasoning: cfg.reasoning ?? false,
-      contextWindow: cfg.contextWindow
+      contextWindow: cfg.contextWindow,
+      formatToolResult: (toolName: string, _args: any, result: any) => {
+        if (toolName === 'get_site_structure' && result && typeof result === 'object') {
+          const navSummary = Array.isArray(result.navigation)
+            ? result.navigation.slice(0, 40).map((n: any) => `- [${n.title || 'Page'}](${n.path || '/'})`).join('\n')
+            : '';
+          return {
+            siteTitle: result.siteTitle,
+            siteBaseUrl: result.siteBaseUrl,
+            versions: result.versions,
+            locales: result.locales,
+            workspaceProjects: result.workspaceProjects,
+            navigationSummary: navSummary
+          };
+        }
+        if (toolName === 'read_documentation_page' && typeof result === 'object' && result?.content) {
+          const content = String(result.content);
+          if (content.length > 12000) {
+            return {
+              path: result.path,
+              title: result.title,
+              content: content.slice(0, 10000) + '\n...[content condensed for optimal context delivery]'
+            };
+          }
+        }
+        return result;
+      },
+      compactHistory: (history: any[]) => {
+        const compacted = history.map(m => {
+          if (typeof m.content === 'string' && m.content.includes('[Tool Result for')) {
+            return {
+              ...m,
+              content: m.content.length > 400 ? m.content.slice(0, 400) + '...[prior tool result summary]' : m.content
+            };
+          }
+          return m;
+        });
+
+        // When conversation turns exceed 6 messages, background-summarize older turns
+        // to maintain token efficiency and fast response times
+        if (compacted.length > 6) {
+          const recent = compacted.slice(-3);
+          const older = compacted.slice(0, -3);
+          const summaries: string[] = [];
+          for (const msg of older) {
+            const sender = msg.sender || msg.role || 'user';
+            const text = (msg.content || msg.text || '').replace(/\s+/g, ' ').trim();
+            if (text.startsWith('[Tool Call') || text.startsWith('[Tool Result')) continue;
+            if (sender === 'user') {
+              summaries.push(`User asked: "${text.slice(0, 100)}"`);
+            } else if (sender === 'assistant') {
+              summaries.push(`Assistant covered: "${text.slice(0, 120)}"`);
+            }
+          }
+          if (summaries.length > 0) {
+            const summaryMessage = {
+              sender: 'user',
+              role: 'user',
+              content: `[Previous conversation recap: ${summaries.join('; ')}]`
+            };
+            return [summaryMessage, ...recent];
+          }
+        }
+        return compacted;
+      },
+      transformContext: (context: string) => {
+        if (context.length > 38000) {
+          return context.slice(0, 38000) + '\n...[Context boundary preserved]';
+        }
+        return context;
+      }
     });
 
     const isSemanticUsable = cfg.searchCapabilities?.semantic === true;
 
-    // Register standard tools from docmd-assistant (navigate_to_page, copy_code_snippet, read_documentation_page)
+    // Register standard tools with custom search and robust single-page/URL reader
     const standardTools = createStandardTools(
       async (query: string) => {
         return await this.searchAllWorkspaceIndexes(query);
+      },
+      async (pagePath: string) => {
+        try {
+          let targetUrl = pagePath;
+          const isHttp = /^https?:\/\//i.test(pagePath);
+          if (!isHttp) {
+            targetUrl = pagePath.startsWith('/')
+              ? (typeof location !== 'undefined' ? new URL(pagePath, location.origin).href : pagePath)
+              : (typeof location !== 'undefined' ? new URL(pagePath, location.href).href : pagePath);
+          }
+          const res = await fetch(targetUrl);
+          if (!res.ok) {
+            return {
+              title: pagePath,
+              content: `Error: Document not found or inaccessible at "${pagePath}" (HTTP ${res.status}). The page does not exist.`
+            };
+          }
+          const html = await res.text();
+          if (typeof DOMParser !== 'undefined') {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const mainContent = doc.querySelector('main, article, [role="main"], body');
+            const title = doc.querySelector('h1, title')?.textContent?.trim() || pagePath;
+            const text = mainContent ? (mainContent.textContent || '').replace(/\s+/g, ' ').trim() : '';
+            return {
+              title,
+              content: text.slice(0, 10000) || `Document loaded from "${pagePath}", but contained no readable text.`
+            };
+          }
+          return {
+            title: pagePath,
+            content: html.slice(0, 8000)
+          };
+        } catch (err: any) {
+          return {
+            title: pagePath,
+            content: `Error: Failed to load page "${pagePath}": ${err?.message || err}`
+          };
+        }
       }
     );
     for (const tool of standardTools) {
@@ -503,19 +612,20 @@ ${projectsList}`;
 CRITICAL SCOPE & NAVIGATION RULES:
 1. SCOPE PRIORITIZATION: Prioritize answers using content from the Current Active Project ("${currentProjectName}")${hasVersions && activeVersion ? `, active version branch (${activeVersion.label})` : ''}${hasLocales && activeLocale ? `, and active language (${activeLocale.label})` : ''}.
 2. STRICT ACTIVE / LATEST VERSION ONLY: ONLY cite, explain, recommend, and link to pages from the active version (${activeVersion?.label || defaultVer?.label}) or latest branch (${defaultVer?.label}). Never suggest, cite, or list deprecated historical versions unless the user explicitly asks for an older version.
-3. AUTONOMOUS & PROACTIVE TOOL EXECUTION:
-   - Always use your tools proactively. NEVER ask the user "Would you like me to search?" or "Should I check?". Directly invoke \`search_documentation\`, \`get_site_structure\`, or \`read_documentation_page\` to retrieve facts before answering.
-   - For questions about releases, versions, updates, or changelogs, search with \`search_documentation\` to retrieve the relevant release notes.
+3. DETERMINISTIC TWO-STEP RETRIEVAL PIPELINE:
+   - Always prioritize verified documentation over superficial guessing. Follow this deterministic 2-step pipeline:
+     1. STEP 1 (Targeted Search): Emit exactly ONE targeted \`search_documentation\` call with clean, focused keywords. Do NOT emit multiple synonymous searches in parallel.
+     2. STEP 2 (Single Best Doc Read): Immediately invoke \`read_documentation_page\` on the single best-matching search result (the top hit).
+     3. STEP 3 (Immediate Grounded Synthesis): Synthesize and stream the answer immediately from that verified document. Provide direct explanations, concrete code examples/commands, and clickable Markdown links.
+     4. STEP 4 (Targeted Fallback): ONLY if the top document clearly does not answer the user's specific query (or returned { exists: false }), inspect the second search hit. Never read 3+ pages at once.
 4. ACCURATE HYPERLINKS: ALWAYS ground page hyperlinks strictly in real search results or valid project URLs (${siteBaseUrl}). Never invent or hallucinate invalid subpaths.
-5. TOKEN EFFICIENCY & TARGETED RETRIEVAL:
-   - Do not read entire documentation sets or fetch excessive pages unless necessary.
-   - Use \`search_documentation\` first to identify the exact single page or section needed.
-   - Only call \`read_documentation_page\` on that specific page when required to fetch precise code snippets or steps.
-   - Keep answers clean, structured, and focused directly on what the user asked.
+5. FAST & CONCISE SYNTHESIS:
+   - Provide pinpointed, direct responses with concrete examples instead of generic walls of text.
+   - Lead directly with the answer and code snippets, avoiding conversational filler or boilerplate apologies.
 6. STRICT FACTUALITY & ARCHITECTURAL SYNTHESIS:
    - Ground all answers, configuration snippets, code examples, and commands strictly in verified facts retrieved from this documentation site.
    - NEVER guess or fabricate non-existent keys, options, or parameters.
-   - When a user asks about a capability or concept that does not have a single dedicated configuration option (e.g. pinning an item, database authentication, etc.), explicitly explain that no dedicated setting exists for that exact query, explain the closest supported architectural mechanism or pattern (such as explicit navigation configuration via navigation.json or docmd.config.json, frontmatter, or project settings), and guide the user to the relevant documentation pages.
+   - When a user asks about a capability or concept that does not have a single dedicated configuration option, explicitly explain that no dedicated setting exists, describe the closest supported architectural mechanism or pattern (such as explicit navigation configuration via navigation.json or docmd.config.json, frontmatter, or project settings), and guide the user to relevant pages.
    - Never return an empty response or silence. Always provide an informative, grounded answer to the user.
 7. VERSION FILTERING:
    - The \`search_documentation\` tool supports an optional \`version\` parameter. When the user asks about a specific version (e.g. v0.8.0), specify \`version\` to filter results strictly to that version branch.`;
@@ -526,23 +636,19 @@ CRITICAL CONSTRAINTS & BEHAVIORAL RULES:
 1. IDENTITY: Your name is "docmd assistant". You are an expert AI documentation assistant dedicated to "${siteTitle}". If asked who you are, state that you are docmd assistant, serving the documentation for "${siteTitle}".
 2. STRICT SCOPE & BOUNDARIES: Answer ONLY questions related to the software, tools, APIs, guides, and documentation provided on this site. Politely decline off-topic queries.
 3. PROFESSIONAL & CONCISE: Provide direct, succinct, and professional answers. Do NOT use excessive emojis (keep emojis to a minimum or none). Avoid conversational fluff, boilerplate apologies, or asking for permission. Get straight to the answer.
-4. STRICT FACTUALITY & ARCHITECTURAL SYNTHESIS:
+4. DETERMINISTIC RETRIEVAL & SYNTHESIS:
+   - Step 1: Use \`search_documentation\` with targeted keywords (1 call).
+   - Step 2: Use \`read_documentation_page\` on the single best matching page.
+   - Step 3: Deliver a verified, pinpointed answer immediately with concrete code examples.
+   - If the first page is not relevant or returned an error, check the second result before concluding.
+5. STRICT FACTUALITY:
    - Ground all answers, configuration snippets, code examples, and commands strictly in verified facts retrieved from this documentation site.
    - NEVER guess or fabricate non-existent keys, options, or parameters.
-   - If the documentation does not have an explicit dedicated setting matching the exact query, clearly state this, synthesize the closest supported mechanism or architectural pattern (such as explicit navigation in navigation.json or docmd.config.json, frontmatter, or project settings), and guide the user to relevant pages.
-   - Never return an empty response or silence. Always provide an informative, grounded answer.
-5. TARGETED RETRIEVAL & MINIMAL TOKEN USAGE:
-   - Only retrieve what is strictly necessary. Never attempt to read the entire documentation or fetch excessive pages.
-   - Use \`search_documentation\` first with targeted keywords to locate the exact page.
-   - Only invoke \`read_documentation_page\` when you need specific code blocks or configuration details from that single page.
-6. TOOL SELECTION & EXECUTION:
-   - Use \`get_site_structure\` whenever you need structural inspection of available documentation versions, supported locales, or navigation trees.
-   - Use \`search_documentation\` to search documentation content for specific technical terms, API parameters, error messages, or release notes. Keyword search is always active; pass clean, focused search terms for highest accuracy.
-   - Use \`read_documentation_page\` when you need full section context or deep code examples.
-7. CLEAN WRITING & LIST FORMATTING:
+   - If no dedicated setting exists for the query, clearly state so, explain the closest supported architectural pattern, and guide the user to relevant pages.
+6. CLEAN WRITING & LIST FORMATTING:
    - Write cleanly and directly without artificial gaps, repeated quotes, or messy text breaks.
    - For lists, use standard numbered lists (1., 2., 3.) or bullet points (-). Do not leave blank lines between list items unless separating distinct multi-paragraph steps.
-8. HYPERLINKS & CITATIONS: Always include clickable Markdown hyperlinks \`[Page Title](path)\` in your response for referenced pages.`;
+7. HYPERLINKS & CITATIONS: Always include clickable Markdown hyperlinks \`[Page Title](path)\` in your response for referenced pages.`;
 
     const basePrompt = cfg.systemPrompt || defaultBasePrompt;
     return `${basePrompt}\n\n${workspaceContext}`;

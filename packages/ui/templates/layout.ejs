@@ -393,6 +393,7 @@
       <% if (locals.allLocales && allLocales && allLocales.length > 1) { %>
       <script src="<%= assetBaseUrl %>assets/js/docmd-i18n-manifest.js?v=<%= buildHash %>"></script>
       <% } %>
+      <script src="<%= assetBaseUrl %>assets/js/docmd-runtime.js?v=<%= buildHash %>"></script>
       <script src="<%= assetBaseUrl %>assets/js/docmd-main.js?v=<%= buildHash %>"></script>
       <%# Git Plugin core JS (injected directly since git is a core plugin) %>
       <script src="<%= assetBaseUrl %>assets/js/docmd-git.js?v=<%= buildHash %>"></script>

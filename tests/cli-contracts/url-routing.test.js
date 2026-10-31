@@ -407,6 +407,26 @@ export const test = runTestFile({
       // Sidebar card with dismissable: true MUST have is-dismissible
       assert(html.includes('docmd-banner--pos-sidebar-bottom is-dismissible'), 'Banner Dismissable: sidebar-bottom with dismissable: true is dismissible');
     }
+
+    // 11. Header logo link re-resolution in docmd-main.js during SPA navigation
+    {
+      const docmdMainJsPath = path.join(rootDir, 'packages/ui/assets/js/docmd-main.js');
+      const docmdMainJs = fs.readFileSync(docmdMainJsPath, 'utf8');
+      assert(docmdMainJs.includes('.sidebar-header a, a.logo-link, a.summer-logo'), 'SPA Navigation: docmd-main.js queries sidebar header and logo links');
+      assert(docmdMainJs.includes('oldHeaderLinks.forEach'), 'SPA Navigation: docmd-main.js syncs oldHeaderLinks to absolute URLs');
+    }
+
+    // 12. Search client respects versioned base URLs
+    {
+      const searchClientPath = path.join(rootDir, 'packages/plugins/search/src/client.ts');
+      const searchClient = fs.readFileSync(searchClientPath, 'utf8');
+      assert(searchClient.includes('configuredBaseSegments'), 'Search Client: respects configuredBaseSegments');
+      assert(searchClient.includes('while (checkIdx >= minBaseLength)'), 'Search Client: stops stripping when reaching base length');
+
+      // Verify bundled output matches
+      const searchDistPath = path.join(rootDir, 'packages/plugins/search/dist/docmd-search.js');
+      assert(fs.existsSync(searchDistPath), 'Search Client: dist/docmd-search.js exists');
+    }
   }
 });
 

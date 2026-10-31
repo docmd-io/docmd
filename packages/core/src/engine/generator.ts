@@ -47,7 +47,7 @@ import nativeFs from 'fs';
 const _require = createRequire(import.meta.url);
 import * as parser from '@docmd/parser';
 import { TUI } from '@docmd/tui';
-import { findPageNeighbors, findBreadcrumbs, normalizeNavPaths, createUrlContext, buildContextualUrl, buildAbsoluteContextualUrl, computePageUrls, sanitizeUrl, normaliseBaseTag } from '@docmd/parser';
+import { findPageNeighbors, findBreadcrumbs, normalizeNavPaths, createUrlContext, buildContextualUrl, buildAbsoluteContextualUrl, computePageUrls, sanitizeUrl, normaliseBaseTag, VariableRegistry, interpolateConfigVariables } from '@docmd/parser';
 import * as ui from '@docmd/ui';
 import type { ResolvedAsset } from '@docmd/api';
 
@@ -117,6 +117,19 @@ interface RenderPagesOptions {
 export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, hooks, buildHash, options, outputPrefix = '', coreVersion, onProgress, targetFiles, resolvedAssets }: RenderPagesOptions) {
   // Reset git root cache (cwd may have changed between workspace builds)
   _cachedGitRoot = null;
+
+  // Initialize VariableRegistry for this build phase
+  const variableRegistry = new VariableRegistry({
+    configVariables: config.variables,
+    siteTitle: config.title || config.siteTitle,
+    siteBase: config.base,
+    cwd: process.cwd(),
+    version: coreVersion || CORE_VERSION
+  });
+  config._variableRegistry = variableRegistry;
+
+  // Interpolate dynamic variables in config strings (footer copyright, banners, titles)
+  config = interpolateConfigVariables(config, variableRegistry);
 
   // Load Translations for the active locale
   const localeId = config._activeLocale?.id || null;

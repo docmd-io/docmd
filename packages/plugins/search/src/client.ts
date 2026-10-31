@@ -90,9 +90,15 @@ declare const MiniSearch: any;
             let projectRootPath = projectRootUrl.pathname;
             if (!projectRootPath.endsWith('/')) projectRootPath += '/';
 
+            // Respect explicitly configured base path so path segments that belong to base are preserved
+            const configuredBase = (window as any).DOCMD_BASE || '/';
+            const configuredBaseUrl = new URL(configuredBase, window.location.href);
+            const configuredBaseSegments = configuredBaseUrl.pathname.split('/').filter(Boolean);
+            const minBaseLength = configuredBaseSegments.length;
+
             const segments = projectRootPath.split('/').filter(Boolean);
             let checkIdx = segments.length - 1;
-            while (checkIdx >= 0) {
+            while (checkIdx >= minBaseLength) {
                 const seg = segments[checkIdx];
                 const isLocale = knownLocales.has(seg);
                 const isVersion = /^v\d+/.test(seg) || seg === 'latest' || seg === 'stable';

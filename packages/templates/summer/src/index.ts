@@ -42,7 +42,7 @@ const pathOf = (relPath: string): string => fileURLToPath(urlOf(relPath));
 
 export const plugin: PluginDescriptor = {
   name: 'template-summer',
-  version: '0.9.8',
+  version: '0.9.9',
   capabilities: ['template'],
 };
 

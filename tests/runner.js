@@ -185,6 +185,11 @@ addInProcess(
   'Python engine contracts (@docmd/engine-python + @docmd/api)',
   await import('./cli-contracts/engine-python.test.js')
 );
+addInProcess(
+  'variables-engine',
+  'Variables and Personalisation Engine (build-time & client-side runtime)',
+  await import('./cli-contracts/variables-engine.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(

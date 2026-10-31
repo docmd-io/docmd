@@ -782,6 +782,7 @@
   <% if (locals.allLocales && allLocales && allLocales.length > 1) { %>
     <script src="<%= relativePathToRoot %>assets/js/docmd-i18n-manifest.js?v=<%= buildHash %>"></script>
   <% } %>
+  <script src="<%= relativePathToRoot %>assets/js/docmd-runtime.js?v=<%= buildHash %>"></script>
   <script src="<%= relativePathToRoot %>assets/js/docmd-main.js?v=<%= buildHash %>"></script>
 
   <%- pluginBodyScriptsHtml || '' %>
