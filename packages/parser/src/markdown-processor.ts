@@ -215,11 +215,38 @@ function createMarkdownProcessor(config: any = {}, pluginsCallback: any) {
   };
 
   // Syntax Highlighting (title extraction is handled separately in the fence renderer)
+  const highlightWithPlaceholders = (str: string, fn: (clean: string) => string) => {
+    const varPattern = /<span data-docmd-var="([^"]+)" class="docmd-var">([\s\S]*?)<\/span>/g;
+    const placeholders: Array<{ token: string; html: string }> = [];
+    let cleanStr = str;
+
+    if (typeof str === 'string' && str.includes('data-docmd-var=')) {
+      let counter = 0;
+      cleanStr = str.replace(varPattern, (match) => {
+        const token = `__DOCMD_VAR_TOK_${counter++}__`;
+        placeholders.push({ token, html: match });
+        return token;
+      });
+    }
+
+    let rendered = fn(cleanStr);
+
+    if (placeholders.length > 0) {
+      for (const p of placeholders) {
+        rendered = rendered.replaceAll(p.token, p.html);
+      }
+    }
+
+    return rendered;
+  };
+
   const highlightFn = (str: any, lang: any) => {
     if (lang === 'mermaid') {
       return `<pre class="mermaid">${new MarkdownIt().utils.escapeHtml(str)}</pre>`;
     }
-    const highlighted = highlight(str, { language: lang, mimicHljs: true }).value;
+    const highlighted = highlightWithPlaceholders(str, (clean) => {
+      return highlight(clean, { language: lang, mimicHljs: true }).value;
+    });
     // Tag the code with language-xxx so consumers (e.g. the summer
     // template's codeblock title bar) can pick up the language.
     const langAttr = lang ? ` class="language-${lang}"` : '';
@@ -229,10 +256,25 @@ function createMarkdownProcessor(config: any = {}, pluginsCallback: any) {
   mdOptions.highlight = config.theme?.codeHighlight !== false ? highlightFn : (str: any, lang: any) => {
     if (lang === 'mermaid') return `<pre class="mermaid">${new MarkdownIt().utils.escapeHtml(str)}</pre>`;
     const langAttr = lang ? ` class="language-${lang}"` : '';
-    return `<pre><code${langAttr}>${new MarkdownIt().utils.escapeHtml(str)}</code></pre>`;
+    const escaped = highlightWithPlaceholders(str, (clean) => new MarkdownIt().utils.escapeHtml(clean));
+    return `<pre><code${langAttr}>${escaped}</code></pre>`;
   };
 
   const md = new MarkdownIt(mdOptions);
+
+  const defaultCodeInline = md.renderer.rules.code_inline || function (tokens: any, idx: any, options: any, env: any, self: any) {
+    return self.renderToken(tokens, idx, options);
+  };
+  md.renderer.rules.code_inline = function (tokens: any, idx: any, options: any, env: any, self: any) {
+    let rendered = defaultCodeInline(tokens, idx, options, env, self);
+    if (rendered.includes('&lt;span data-docmd-var=')) {
+      rendered = rendered.replace(
+        /&lt;span data-docmd-var=&quot;([^&]+)&quot; class=&quot;docmd-var&quot;&gt;([\s\S]*?)&lt;\/span&gt;/g,
+        '<span data-docmd-var="$1" class="docmd-var">$2</span>'
+      );
+    }
+    return rendered;
+  };
 
   // Linkify-it's default normalizer prepends http:// when match.schema is empty.
   // Explicit protocols (http://, mailto:, etc.) have a non-empty schema and are left intact.

@@ -116,6 +116,17 @@
     hydrate(container = document) {
       if (!container || typeof container.querySelectorAll !== 'function') return;
 
+      // Recover any code block spans that were HTML-escaped during highlighting or markdown compilation
+      const codeBlocks = container.querySelectorAll('pre, code');
+      codeBlocks.forEach((block) => {
+        if (block.innerHTML && block.innerHTML.includes('&lt;span data-docmd-var=')) {
+          block.innerHTML = block.innerHTML.replace(
+            /&lt;span data-docmd-var=&quot;([^&]+)&quot; class=&quot;docmd-var&quot;&gt;([\s\S]*?)&lt;\/span&gt;/g,
+            '<span data-docmd-var="$1" class="docmd-var">$2</span>'
+          );
+        }
+      });
+
       const elements = container.querySelectorAll('[data-docmd-var]');
       elements.forEach((el) => {
         const key = el.getAttribute('data-docmd-var');
@@ -269,6 +280,11 @@
       } else {
         this.var.hydrate();
       }
+
+      // 3. SPA router page-mounted re-hydration
+      document.addEventListener('docmd:page-mounted', () => {
+        this.var.hydrate();
+      });
     }
   }
 

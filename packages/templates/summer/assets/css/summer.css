@@ -1440,8 +1440,8 @@ html[data-theme="dark"] .summer-logo__light {
   --summer-gutter: 2rem;
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-height: 0;
+  align-self: start;
 }
 
 .summer-content {
@@ -1449,10 +1449,7 @@ html[data-theme="dark"] .summer-logo__light {
   font-size: var(--summer-text-base);
   line-height: 1.7;
   color: var(--summer-fg-soft);
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  display: block;
   padding: 1em 0;
 }
 
@@ -3968,24 +3965,14 @@ html[data-theme="dark"] .docmd-tabs-nav-item:hover {
 }
 
 .docmd-search-modal {
+  display: none !important;
   position: fixed !important;
   top: -9999px !important;
   left: -9999px !important;
   pointer-events: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
-}
-
-/* When legitimately open (fallback), restore */
-.docmd-search-modal[style*="flex"] {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  pointer-events: auto !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  background: rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(4px) !important;
+  z-index: -9999 !important;
 }
 
 .summer-search-container {

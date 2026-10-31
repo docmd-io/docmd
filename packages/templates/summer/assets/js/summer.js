@@ -360,6 +360,12 @@
         dummy.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         // Don't remove — the plugin's listener may capture bubbles asynchronously
       }
+
+      var modal = $('#docmd-search-modal');
+      if (modal) {
+        modal.style.setProperty('display', 'none', 'important');
+      }
+
       // Restore scroll & refocus our header input (NOT the plugin's input)
       requestAnimationFrame(function () {
         window.scrollTo(0, scrollY);
@@ -381,8 +387,7 @@
         resultsWrapper.appendChild(pluginResults);
       }
 
-      // Force the modal off-screen (CSS already does this, but also set inline
-      // as a belt-and-braces measure so it can never auto-scroll into view).
+      // Force the modal off-screen and hidden permanently.
       searchModal.style.setProperty('position', 'fixed', 'important');
       searchModal.style.setProperty('top', '-9999px', 'important');
       searchModal.style.setProperty('left', '-9999px', 'important');
@@ -390,6 +395,17 @@
       searchModal.style.setProperty('opacity', '0', 'important');
       searchModal.style.setProperty('visibility', 'hidden', 'important');
       searchModal.style.setProperty('pointer-events', 'none', 'important');
+
+      // Intercept any style mutation by search plugin trying to show the modal
+      if (window.MutationObserver && !searchModal.__summerObserved) {
+        searchModal.__summerObserved = true;
+        var modalObserver = new MutationObserver(function () {
+          if (searchModal.style.display !== 'none') {
+            searchModal.style.setProperty('display', 'none', 'important');
+          }
+        });
+        modalObserver.observe(searchModal, { attributes: true, attributeFilter: ['style', 'class'] });
+      }
 
       // Make the plugin input also off-screen so it cannot grab focus
       pluginInput.tabIndex = -1;

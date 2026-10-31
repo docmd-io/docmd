@@ -17,7 +17,9 @@ import {
   VariableRegistry,
   interpolateVariables,
   interpolateConfigVariables,
-  parseVariableExpression
+  parseVariableExpression,
+  createMarkdownProcessor,
+  processContent
 } from '../../packages/parser/dist/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -188,6 +190,40 @@ export const test = runTestFile({
       const summerLayoutPath = path.join(rootDir, 'packages/templates/summer/templates/layout.ejs');
       const summerLayout = fs.readFileSync(summerLayoutPath, 'utf8');
       assert(summerLayout.includes('assets/js/docmd-runtime.js'), 'summer layout.ejs includes docmd-runtime.js');
+
+      const runtimeContent = fs.readFileSync(runtimeJsPath, 'utf8');
+      assert(runtimeContent.includes("docmd:page-mounted"), 'docmd-runtime.js listens to docmd:page-mounted for SPA hydration');
+    }
+
+    // 8. Fenced code block and inline code variable preservation through parser
+    {
+      const mdWithCode = '```bash\ncurl -H "Authorization: Bearer {{ user.apiKey || \'DEFAULT_KEY\' }}"\n```\n\nInline: `token: {{ user.apiKey }}`';
+      const config = { title: 'Test', theme: { codeHighlight: true } };
+      const mdInstance = createMarkdownProcessor(config);
+      const result = processContent(mdWithCode, mdInstance, config);
+
+      assert(
+        result.htmlContent.includes('<span data-docmd-var="user.apiKey" class="docmd-var">DEFAULT_KEY</span>'),
+        'Fenced code block preserves <span data-docmd-var="user.apiKey"> intact without syntax escaping'
+      );
+      assert(
+        result.htmlContent.includes('<code>token: <span data-docmd-var="user.apiKey" class="docmd-var">'),
+        'Inline code preserves <span data-docmd-var="user.apiKey"> intact'
+      );
+    }
+
+    // 9. Summer template layout & search modal suppression contract
+    {
+      const summerCssPath = path.join(rootDir, 'packages/templates/summer/assets/css/summer.css');
+      const summerCss = fs.readFileSync(summerCssPath, 'utf8');
+      assert(
+        summerCss.includes('.docmd-search-modal {') && summerCss.includes('display: none !important;'),
+        'summer.css permanently hides .docmd-search-modal with display: none !important'
+      );
+      assert(
+        !summerCss.includes('.docmd-search-modal[style*="flex"]'),
+        'summer.css removes broken .docmd-search-modal[style*="flex"] rule'
+      );
     }
   }
 });
