@@ -385,7 +385,13 @@ function findMissingPeerDep(resolvePaths: string[]): string | null {
  *       actual reason (e.g. 'docmd-search' or 'peers') in the message.
  */
 async function ensureDocmdSearch(tui: any, quiet: boolean): Promise<{ ready: boolean; freshInstall: boolean; reason: string }> {
-  const resolvePaths = [process.cwd(), path.join(process.cwd(), 'node_modules')];
+  const parentDir = path.resolve(process.cwd(), '..');
+  const resolvePaths = [
+    process.cwd(),
+    path.join(process.cwd(), 'node_modules'),
+    parentDir,
+    path.join(parentDir, 'node_modules')
+  ];
 
   // Already installed — verify peers too.
   if (resolveDocmdSearch()) {

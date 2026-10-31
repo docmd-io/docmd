@@ -117,6 +117,32 @@ export const test = runTestFile({
       assert(result.includes('<span data-docmd-var="customDynamicVar" class="docmd-var">active</span>'), 'Custom dynamic variable wrapped in marker');
     }
 
+    // 5b. Page context, git metadata, and escaped expressions
+    {
+      const registry = new VariableRegistry({
+        gitCommit: 'a1b2c3d',
+        gitBranch: 'feat/test'
+      });
+
+      assert(registry.get('docmd.gitCommit') === 'a1b2c3d', 'docmd.gitCommit resolves injected commit');
+      assert(registry.get('docmd.gitBranch') === 'feat/test', 'docmd.gitBranch resolves injected branch');
+      assert(registry.get('git.commit') === 'a1b2c3d', 'git.commit alias resolves');
+
+      const varContext = {
+        pageTitle: 'My Guide',
+        pageSlug: 'guide/intro',
+        pagePath: '/guide/intro'
+      };
+
+      assert(registry.get('page.slug', varContext) === 'guide/intro', 'page.slug resolves from context');
+      assert(registry.get('page.path', varContext) === '/guide/intro', 'page.path resolves from context');
+      assert(registry.get('PAGE_SLUG', varContext) === 'guide/intro', 'PAGE_SLUG uppercase alias resolves');
+
+      const escapedMarkdown = 'Literal: \\{{ docmd.version }} and Live: {{ docmd.version }}';
+      const interpolated = interpolateVariables(escapedMarkdown, registry);
+      assert(interpolated === 'Literal: {{ docmd.version }} and Live: 0.9.9', 'Escaped \\{{ ... }} preserves literal syntax');
+    }
+
     // 6. Config string interpolation
     {
       const registry = new VariableRegistry({

@@ -524,7 +524,8 @@ function processContent(rawString: any, mdInstance: any, config: any, env: any =
 
   const varContext: VariableContext = {
     pageTitle: frontmatter.title,
-    pagePath: env?.path,
+    pageSlug: env?.pageSlug || env?.slug || env?.withoutExt,
+    pagePath: env?.pagePath || env?.path || env?.pathname || env?.filePath,
     frontmatter
   };
 
@@ -583,7 +584,8 @@ async function processContentAsync(rawString: string, mdInstance: any, config: a
 
   const varContextAsync: VariableContext = {
     pageTitle: frontmatter.title,
-    pagePath: env?.path,
+    pageSlug: env?.pageSlug || env?.slug || env?.withoutExt,
+    pagePath: env?.pagePath || env?.path || env?.pathname || env?.filePath,
     frontmatter
   };
 

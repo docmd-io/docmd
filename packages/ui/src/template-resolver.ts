@@ -168,6 +168,13 @@ export function resolveTemplate(ctx: TemplateResolutionContext): ResolvedTemplat
           resolvedPath = altRoot;
         }
       }
+      if (!fs.existsSync(resolvedPath)) {
+        const slug = String(ref.name || '').replace(/^@docmd\//, '').replace(/^template-/, '');
+        const monorepoCandidate = path.resolve(__dirname, '../../templates', slug, 'templates', `${type}.ejs`);
+        if (fs.existsSync(monorepoCandidate)) {
+          resolvedPath = monorepoCandidate;
+        }
+      }
       if (fs.existsSync(resolvedPath)) {
         return { ...pluginMatch, templatePath: resolvedPath, source, type };
       }

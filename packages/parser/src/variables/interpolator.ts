@@ -62,10 +62,14 @@ export function interpolateVariables(
     return content;
   }
 
-  // Regex to match {{ expression }}, avoiding triple braces or escaped expressions
-  const pattern = /\{\{\s*([^{}\n\r]+?)\s*\}\}/g;
+  // Regex to match escaped \{{ expression }} or unescaped {{ expression }}
+  const pattern = /(\\)?\{\{\s*([^{}\n\r]+?)\s*\}\}/g;
 
-  return content.replace(pattern, (match, expression) => {
+  return content.replace(pattern, (match, escaped, expression) => {
+    if (escaped) {
+      return `{{ ${expression.trim()} }}`;
+    }
+
     const { key, fallback } = parseVariableExpression(expression);
 
     // If key contains invalid identifier characters, ignore it

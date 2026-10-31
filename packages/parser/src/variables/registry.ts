@@ -43,26 +43,29 @@ function getGitMetadata(cwd: string, optionsCommit?: string, optionsBranch?: str
   if (optionsCommit !== undefined || optionsBranch !== undefined) {
     return { commit: optionsCommit || '', branch: optionsBranch || '' };
   }
-  if (_gitAttempted) {
-    return { commit: _cachedGitCommit || '', branch: _cachedGitBranch || '' };
+  if (_gitAttempted && _cachedGitCommit) {
+    return { commit: _cachedGitCommit, branch: _cachedGitBranch || '' };
   }
-  _gitAttempted = true;
   if (typeof process !== 'undefined' && process.versions?.node) {
     try {
-      // Dynamic require avoids static bundler resolution in client/live builds
-      const req = Function('return require')();
-      const cp = req('child_process');
-      _cachedGitCommit = cp.execSync('git rev-parse --short HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'] })
-        .toString()
-        .trim();
-      _cachedGitBranch = cp.execSync('git rev-parse --abbrev-ref HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'] })
-        .toString()
-        .trim();
+      let cp: any = null;
+      try {
+        const { createRequire } = Function('return import("node:module")')();
+        // createRequire is async when imported dynamically
+      } catch { /* ignore */ }
+      if (typeof require !== 'undefined') {
+        cp = require('child_process');
+      }
+      if (cp && cp.execSync) {
+        _cachedGitCommit = cp.execSync('git rev-parse --short HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
+        _cachedGitBranch = cp.execSync('git rev-parse --abbrev-ref HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
+      }
     } catch {
       _cachedGitCommit = '';
       _cachedGitBranch = '';
     }
   }
+  _gitAttempted = true;
   return { commit: _cachedGitCommit || '', branch: _cachedGitBranch || '' };
 }
 
@@ -123,6 +126,10 @@ export class VariableRegistry {
     this.baseVariables['BUILD_YEAR'] = buildYear;
     this.baseVariables['GIT_COMMIT'] = git.commit;
     this.baseVariables['GIT_BRANCH'] = git.branch;
+    this.baseVariables['git'] = {
+      commit: git.commit,
+      branch: git.branch
+    };
 
     if (options.siteTitle) {
       this.baseVariables['site'] = {
@@ -217,9 +224,9 @@ export class VariableRegistry {
 
     // 1. Page context variables
     if (context) {
-      if (cleanKey === 'page.title') return context.pageTitle;
-      if (cleanKey === 'page.slug') return context.pageSlug;
-      if (cleanKey === 'page.path') return context.pagePath;
+      if (cleanKey === 'page.title' || cleanKey === 'PAGE_TITLE') return context.pageTitle;
+      if (cleanKey === 'page.slug' || cleanKey === 'PAGE_SLUG') return context.pageSlug;
+      if (cleanKey === 'page.path' || cleanKey === 'PAGE_PATH') return context.pagePath;
       if (cleanKey.startsWith('frontmatter.') && context.frontmatter) {
         return getNestedValue(context.frontmatter, cleanKey.substring('frontmatter.'.length));
       }
@@ -247,7 +254,7 @@ export class VariableRegistry {
       ...this.baseVariables,
       ...this.configVariables,
       ...(context?.frontmatter || {}),
-      ...(context?.pageTitle ? { page: { title: context.pageTitle, slug: context.pageSlug, path: context.pagePath } } : {})
+      ...(context ? { page: { title: context.pageTitle, slug: context.pageSlug, path: context.pagePath } } : {})
     };
   }
 }

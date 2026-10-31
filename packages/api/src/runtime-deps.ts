@@ -725,20 +725,29 @@ export async function preflightEnsureRuntimeDeps(
   const missingOther: string[] = [];
   const registry = loadRuntimeRegistry();
 
+  const isMonorepoContext =
+    process.env.DOCMD_TEST === 'true' ||
+    process.env.DOCMD_DEV === 'true' ||
+    process.env.DOCMD_LOCAL === 'true' ||
+    process.cwd().startsWith(__monorepoRoot + path.sep) ||
+    process.cwd() === __monorepoRoot;
+
   const isResolvable = (pkgName: string): boolean => {
     // 1. Check monorepo source during monorepo dev
-    if (pkgName.startsWith('@docmd/plugin-')) {
-      const id = pkgName.replace('@docmd/plugin-', '');
-      const local = path.resolve(__monorepoRoot, 'packages/plugins', id, 'dist/index.js');
-      if (nativeFs.existsSync(local)) return true;
-    } else if (pkgName.startsWith('@docmd/template-')) {
-      const id = pkgName.replace('@docmd/template-', '');
-      const local = path.resolve(__monorepoRoot, 'packages/templates', id, 'dist/index.js');
-      if (nativeFs.existsSync(local)) return true;
-    } else if (pkgName.startsWith('@docmd/engine-')) {
-      const id = pkgName.replace('@docmd/engine-', '');
-      const local = path.resolve(__monorepoRoot, 'packages/engines', id, 'dist/index.js');
-      if (nativeFs.existsSync(local)) return true;
+    if (isMonorepoContext) {
+      if (pkgName.startsWith('@docmd/plugin-')) {
+        const id = pkgName.replace('@docmd/plugin-', '');
+        const local = path.resolve(__monorepoRoot, 'packages/plugins', id, 'dist/index.js');
+        if (nativeFs.existsSync(local)) return true;
+      } else if (pkgName.startsWith('@docmd/template-')) {
+        const id = pkgName.replace('@docmd/template-', '');
+        const local = path.resolve(__monorepoRoot, 'packages/templates', id, 'dist/index.js');
+        if (nativeFs.existsSync(local)) return true;
+      } else if (pkgName.startsWith('@docmd/engine-')) {
+        const id = pkgName.replace('@docmd/engine-', '');
+        const local = path.resolve(__monorepoRoot, 'packages/engines', id, 'dist/index.js');
+        if (nativeFs.existsSync(local)) return true;
+      }
     }
     // 2. Check filesystem walk-up
     return findPackageDir(pkgName, [cwd, process.cwd()]) !== null;

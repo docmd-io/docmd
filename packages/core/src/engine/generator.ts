@@ -118,13 +118,26 @@ export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, h
   // Reset git root cache (cwd may have changed between workspace builds)
   _cachedGitRoot = null;
 
+  let gitCommit = '';
+  let gitBranch = '';
+  try {
+    const gitRoot = getGitRoot() || process.cwd();
+    gitCommit = execSync('git rev-parse --short HEAD', { cwd: gitRoot, stdio: ['pipe', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
+    gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: gitRoot, stdio: ['pipe', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
+  } catch {
+    gitCommit = '';
+    gitBranch = '';
+  }
+
   // Initialize VariableRegistry for this build phase
   const variableRegistry = new VariableRegistry({
     configVariables: config.variables,
     siteTitle: config.title || config.siteTitle,
     siteBase: config.base,
     cwd: process.cwd(),
-    version: coreVersion || CORE_VERSION
+    version: coreVersion || CORE_VERSION,
+    gitCommit,
+    gitBranch
   });
   config._variableRegistry = variableRegistry;
 
@@ -478,6 +491,11 @@ export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, h
           outputPrefix: outputPrefix,
           config: { base: config.base || '/' },
           pathname: pageUrlsForMarkdown.pathname,
+          variableRegistry,
+          slug: withoutExt,
+          pageSlug: withoutExt,
+          pagePath: pageUrlsForMarkdown.pathname || ('/' + htmlOutputPath.replace(/\/index\.html$/, '').replace(/^index\.html$/, '')),
+          path: pageUrlsForMarkdown.pathname || ('/' + htmlOutputPath.replace(/\/index\.html$/, '').replace(/^index\.html$/, ''))
         },
         hooks
       );
