@@ -89,7 +89,8 @@ export function createDepthTrackingContainer(md: any, name: string, renderOpen: 
       }
 
       if (!fenceMarker) {
-        if (nextContent.match(/^:::\s*[a-zA-Z]/) && !nextContent.match(/^:::\s*(button|embed|tag)\b/)) {
+        const isSelfClosing = /(?:\s|^)(?:\/:::|:::|\/[a-zA-Z0-9_-]+)\s*$/i.test(nextContent);
+        if (nextContent.match(/^:::\s*[a-zA-Z]/) && !nextContent.match(/^:::\s*(button|embed|tag)\b/) && !isSelfClosing) {
           depth++;
         } else if (nextContent.match(/^:::\s*(?:\/.*|end.*)?$/)) {
           depth--;

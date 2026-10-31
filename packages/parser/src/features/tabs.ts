@@ -79,7 +79,8 @@ function tabsRule(state: any, startLine: number, endLine: number, silent: boolea
       // because they have no matching closing `:::` - treating them as openers
       // would make the tabs parser wait for an extra closing `:::` that never comes.
       const INLINE_CONTAINERS = /^:::\s*(tag|button|embed)\b/;
-      if (nextContent.match(/^:::\s*[a-zA-Z]/) && !INLINE_CONTAINERS.test(nextContent)) {
+      const isSelfClosing = /(?:\s|^)(?:\/:::|:::|\/[a-zA-Z0-9_-]+)\s*$/i.test(nextContent);
+      if (nextContent.match(/^:::\s*[a-zA-Z]/) && !INLINE_CONTAINERS.test(nextContent) && !isSelfClosing) {
         depth++;
       } else if (nextContent.match(/^:::\s*(?:\/.*|end.*)?$/)) {
         depth--;

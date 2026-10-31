@@ -61,6 +61,8 @@
         this.editor.value = this.initialCode.trim();
       }
 
+      this.defaultTab = (this.container.getAttribute('data-default-tab') || (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg' ? 'preview' : 'console')).toLowerCase();
+
       this.bindEditorEvents();
       this.bindActions();
       this.bindTabs();
@@ -68,6 +70,12 @@
 
       // Show empty console hint initially
       this.renderEmptyConsole();
+
+      // Automatically render preview on init if HTML/SVG or default tab is preview so preview tab is never blank
+      if (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg' || this.defaultTab === 'preview') {
+        this.renderHtmlPreview(this.editor ? this.editor.value : this.initialCode);
+        this.switchTab(this.defaultTab);
+      }
 
       // Auto-run if data-live="true" or data-autorun="true"
       if (this.container.getAttribute('data-live') === 'true' || this.container.getAttribute('data-autorun') === 'true') {
@@ -136,7 +144,12 @@
         t.classList.toggle('active', t.getAttribute('data-view') === viewName);
       });
       if (viewName === 'live') {
-        if (!this.hasRun) {
+        if (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg' || this.defaultTab === 'preview') {
+          const hasIframe = Boolean(this.previewEl && this.previewEl.querySelector('iframe'));
+          if (!hasIframe) {
+            this.renderHtmlPreview(this.editor ? this.editor.value : this.initialCode);
+          }
+        } else if (!this.hasRun) {
           this.run();
         }
       }
@@ -149,6 +162,15 @@
       this.panels.forEach((p) => {
         p.classList.toggle('active', p.getAttribute('data-panel') === tabName);
       });
+
+      // Auto-render preview if switched to preview and preview is currently empty
+      if (tabName === 'preview') {
+        const hasIframe = Boolean(this.previewEl && this.previewEl.querySelector('iframe'));
+        if (!hasIframe) {
+          const code = this.editor ? this.editor.value : this.initialCode;
+          this.renderHtmlPreview(code);
+        }
+      }
     }
 
     renderEmptyConsole() {

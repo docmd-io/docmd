@@ -183,7 +183,16 @@ export function classifyLine(line: string): ClassifiedLine {
   // Open tag candidate: ::: <name> [args] or :::name [args]
   const openMatch = rest.match(/^([a-zA-Z][\w-]*)(?:\s+(.*))?$/);
   if (openMatch) {
-    return { kind: 'open', name: openMatch[1] };
+    const name = openMatch[1];
+    const args = (openMatch[2] || '').trim();
+
+    // Check if line self-closes on the same line:
+    // e.g. ::: playground src="..." /::: or ::: playground src="..." ::: or ::: button "..." url:... :::
+    if (args && /(?:\s|^)(?:\/:::|:::|\/[a-zA-Z0-9_-]+)\s*$/i.test(args)) {
+      return { kind: 'other' };
+    }
+
+    return { kind: 'open', name };
   }
 
   return { kind: 'other' };

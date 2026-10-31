@@ -77,16 +77,23 @@ function renderPlaygroundHtml(
   isReadonly?: boolean,
   hasTabs?: boolean,
   warning?: string,
-  initialView?: 'live' | 'code'
+  initialView?: 'live' | 'code',
+  defaultTab?: string,
+  hideCode?: boolean
 ): string {
   const safeLang = (lang || 'js').toLowerCase();
   const displayTitle = title || (safeLang === 'html' ? 'Live HTML Preview' : `${safeLang.toUpperCase()} Playground`);
   const escapedCode = md.utils.escapeHtml(code);
   const liveAttr = isLive ? ' data-live="true"' : '';
   const readonlyAttr = isReadonly ? ' data-readonly="true"' : '';
-  const activeView = initialView === 'code' ? 'code' : 'live';
+  const nocodeAttr = hideCode ? ' data-nocode="true"' : '';
+  const activeView = (hideCode || initialView !== 'code') ? 'live' : 'code';
   const modeAttr = hasTabs ? ` data-mode="tabs" data-active-view="${activeView}"` : '';
   const layoutClass = layout ? ` docmd-playground-layout-${layout}` : '';
+
+  const isMarkup = safeLang === 'html' || safeLang === 'svg' || safeLang === 'xml';
+  const activeTab = (defaultTab || (isMarkup ? 'preview' : 'console')).toLowerCase();
+  const defaultTabAttr = ` data-default-tab="${activeTab}"`;
 
   const iconName = (icon || 'play').trim();
   let iconHtml = '';
@@ -103,28 +110,36 @@ function renderPlaygroundHtml(
     <span>${md.utils.escapeHtml(warning)}</span>
   </div>` : '';
 
-  const viewTabsHtml = hasTabs ? `
-    <div class="docmd-playground-view-tabs">
-      <button type="button" class="docmd-playground-view-tab ${activeView === 'live' ? 'active' : ''}" data-view="live" title="View Live Output">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-        <span>Live</span>
-      </button>
-      <button type="button" class="docmd-playground-view-tab ${activeView === 'code' ? 'active' : ''}" data-view="code" title="View Source Code">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        <span>Code</span>
-      </button>
-    </div>` : '';
+  let viewTabsHtml = '';
+  if (hasTabs) {
+    if (hideCode) {
+      // User disabled code view, show only Live badge
+      viewTabsHtml = `
+      <div class="docmd-playground-view-tabs docmd-playground-view-single">
+        <button type="button" class="docmd-playground-view-tab active" data-view="live" title="Live Preview">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          <span>Live</span>
+        </button>
+      </div>`;
+    } else {
+      viewTabsHtml = `
+      <div class="docmd-playground-view-tabs">
+        <button type="button" class="docmd-playground-view-tab ${activeView === 'live' ? 'active' : ''}" data-view="live" title="View Live Output">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          <span>Live</span>
+        </button>
+        <button type="button" class="docmd-playground-view-tab ${activeView === 'code' ? 'active' : ''}" data-view="code" title="View Source Code">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>Code</span>
+        </button>
+      </div>`;
+    }
+  }
 
-  return `
-<div class="docmd-playground${layoutClass}" data-lang="${safeLang}" data-title="${md.utils.escapeHtml(displayTitle)}"${liveAttr}${readonlyAttr}${modeAttr}>
-  <div class="docmd-playground-header">
-    <div class="docmd-playground-info">
-      ${iconHtml}
-      <span class="docmd-playground-badge">${md.utils.escapeHtml(safeLang)}</span>
-      <span class="docmd-playground-title">${md.utils.escapeHtml(displayTitle)}</span>
-    </div>
-    ${viewTabsHtml}
-    <div class="docmd-playground-actions">
+  // Header action buttons
+  let actionButtonsHtml = '';
+  if (!hideCode) {
+    actionButtonsHtml += `
       <button type="button" class="docmd-playground-btn docmd-playground-run-btn" title="Run Code (Cmd+Enter / Ctrl+Enter)">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
         <span>Run</span>
@@ -135,9 +150,25 @@ function renderPlaygroundHtml(
       <button type="button" class="docmd-playground-btn docmd-playground-copy-btn" title="Copy Code">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
       </button>
-      <button type="button" class="docmd-playground-btn docmd-playground-clear-btn" title="Clear Console">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-      </button>
+    `;
+  }
+  actionButtonsHtml += `
+    <button type="button" class="docmd-playground-btn docmd-playground-clear-btn" title="Clear Console">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+    </button>
+  `;
+
+  return `
+<div class="docmd-playground${layoutClass}" data-lang="${safeLang}" data-title="${md.utils.escapeHtml(displayTitle)}"${liveAttr}${readonlyAttr}${nocodeAttr}${modeAttr}${defaultTabAttr}>
+  <div class="docmd-playground-header">
+    <div class="docmd-playground-info">
+      ${iconHtml}
+      <span class="docmd-playground-badge">${md.utils.escapeHtml(safeLang)}</span>
+      <span class="docmd-playground-title">${md.utils.escapeHtml(displayTitle)}</span>
+    </div>
+    ${viewTabsHtml}
+    <div class="docmd-playground-actions">
+      ${actionButtonsHtml}
     </div>
   </div>
   ${warningHtml}
@@ -147,13 +178,13 @@ function renderPlaygroundHtml(
     </div>
     <div class="docmd-playground-output-wrap">
       <div class="docmd-playground-tabs">
-        <button type="button" class="docmd-playground-tab ${safeLang !== 'html' ? 'active' : ''}" data-tab="console">Console</button>
-        <button type="button" class="docmd-playground-tab ${safeLang === 'html' ? 'active' : ''}" data-tab="preview">Preview</button>
+        <button type="button" class="docmd-playground-tab ${activeTab === 'console' ? 'active' : ''}" data-tab="console">Console</button>
+        <button type="button" class="docmd-playground-tab ${activeTab === 'preview' ? 'active' : ''}" data-tab="preview">Preview</button>
       </div>
-      <div class="docmd-playground-tab-panel ${safeLang !== 'html' ? 'active' : ''}" data-panel="console">
+      <div class="docmd-playground-tab-panel ${activeTab === 'console' ? 'active' : ''}" data-panel="console">
         <div class="docmd-playground-console"></div>
       </div>
-      <div class="docmd-playground-tab-panel ${safeLang === 'html' ? 'active' : ''}" data-panel="preview">
+      <div class="docmd-playground-tab-panel ${activeTab === 'preview' ? 'active' : ''}" data-panel="preview">
         <div class="docmd-playground-preview"></div>
       </div>
     </div>
@@ -174,15 +205,8 @@ export function markdownSetup(md: any) {
     if (isPlayground) {
       // Extract language
       const rawLang = info
-        .replace(/(?:playground|live|readonly|tabs(?::\w+)?)/gi, '')
-        .replace(/title=(?:"[^"]*"|'[^']*')/gi, '')
-        .replace(/title:(?:"[^"]*"|'[^']*')/gi, '')
-        .replace(/icon=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
-        .replace(/icon:(?:"[^"]*"|'[^']*'|\w+)/gi, '')
-        .replace(/layout=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
-        .replace(/layout:(?:"[^"]*"|'[^']*'|\w+)/gi, '')
-        .replace(/mode=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
-        .replace(/view=(?:"[^"]*"|'[^']*'|\w+)/gi, '')
+        .replace(/(?:playground|live|readonly|tabs(?::\w+)?|preview|nocode|no-code|hidecode|hide-code)/gi, '')
+        .replace(/(?:title|icon|layout|mode|view|tab|default-tab|defaultTab|code)(?:=|:)(?:"[^"]*"|'[^']*'|\S+)/gi, '')
         .trim()
         .split(/\s+/)[0] || 'js';
 
@@ -194,13 +218,21 @@ export function markdownSetup(md: any) {
       const hasTabs = /(?:^|\s)(?:tabs(?::\w+)?|mode(?:=|:)\s*(?:"tabs"|'tabs'|tabs)|view(?:=|:)\s*(?:"tabs"|'tabs'|tabs))(?:\s|$)/i.test(info);
       const initialView = /(?:^|\s)(?:tabs:code|view(?:=|:)\s*(?:"code"|'code'|code)|show-code|show:code)(?:\s|$)/i.test(info) ? 'code' : 'live';
 
+      const defaultTabMatch = info.match(/(?:tab|default-tab|defaultTab)(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
+      const isPreviewFlag = /(?:^|\s)preview(?:\s|$)/i.test(info);
+      const defaultTab = defaultTabMatch 
+        ? (defaultTabMatch[1] || defaultTabMatch[2] || defaultTabMatch[3]).toLowerCase() 
+        : (isPreviewFlag ? 'preview' : undefined);
+
+      const hideCode = /(?:^|\s)(?:nocode|no-code|hidecode|hide-code|code(?:=|:)\s*(?:false|"false"|'false'))(?:\s|$)/i.test(info);
+
       const iconMatch = info.match(/icon(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
       const icon = iconMatch ? (iconMatch[1] || iconMatch[2] || iconMatch[3]) : 'play';
 
       const layoutMatch = info.match(/layout(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
       const layout = layoutMatch ? (layoutMatch[1] || layoutMatch[2] || layoutMatch[3]) : undefined;
 
-      return renderPlaygroundHtml(md, token.content, rawLang, title, isLive, icon, layout, isReadonly, hasTabs, undefined, initialView);
+      return renderPlaygroundHtml(md, token.content, rawLang, title, isLive, icon, layout, isReadonly, hasTabs, undefined, initialView, defaultTab, hideCode);
     }
 
     return defaultFence(tokens, idx, options, env, self);
@@ -226,7 +258,7 @@ export function markdownSetup(md: any) {
     const isSelfClosing = /(?:\/:::|(?:\s|^):::|\/playground|\/)\s*$/i.test(rawHeaderInfo);
     const headerInfo = rawHeaderInfo.replace(/(?:\/:::|(?:\s|^):::|\/playground|\/)\s*$/i, '').trim();
 
-    // Extract attributes
+    // Extract attributes (supporting both = and :)
     const srcMatch = headerInfo.match(/(?:src|file)(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\S+))/i);
     const srcPath = srcMatch ? (srcMatch[1] || srcMatch[2] || srcMatch[3]) : '';
 
@@ -248,6 +280,14 @@ export function markdownSetup(md: any) {
     const isReadonly = /(?:^|\s)readonly(?:\s|$)/i.test(headerInfo);
     const hasTabs = /(?:^|\s)(?:tabs(?::\w+)?|mode(?:=|:)\s*(?:"tabs"|'tabs'|tabs)|view(?:=|:)\s*(?:"tabs"|'tabs'|tabs))(?:\s|$)/i.test(headerInfo);
     const initialView = /(?:^|\s)(?:tabs:code|view(?:=|:)\s*(?:"code"|'code'|code)|show-code|show:code)(?:\s|$)/i.test(headerInfo) ? 'code' : 'live';
+
+    const defaultTabMatch = headerInfo.match(/(?:tab|default-tab|defaultTab)(?:=|:)\s*(?:"([^"]*)"|'([^']*)'|(\w+))/i);
+    const isPreviewFlag = /(?:^|\s)preview(?:\s|$)/i.test(headerInfo);
+    const defaultTab = defaultTabMatch 
+      ? (defaultTabMatch[1] || defaultTabMatch[2] || defaultTabMatch[3]).toLowerCase() 
+      : (isPreviewFlag ? 'preview' : undefined);
+
+    const hideCode = /(?:^|\s)(?:nocode|no-code|hidecode|hide-code|code(?:=|:)\s*(?:false|"false"|'false'))(?:\s|$)/i.test(headerInfo);
 
     // Resolve code from src file if specified
     let fileInfo: SourceFileInfo | null = null;
@@ -273,7 +313,7 @@ export function markdownSetup(md: any) {
       const code = fileInfo ? fileInfo.code : (warning ? `// File not found: ${srcPath}\n// Check path relative to documentation root.` : '');
       const finalLang = lang || 'js';
       const htmlToken = state.push('html_block', '', 0);
-      htmlToken.content = renderPlaygroundHtml(md, code, finalLang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView);
+      htmlToken.content = renderPlaygroundHtml(md, code, finalLang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView, defaultTab, hideCode);
       state.line = startLine + 1;
       return true;
     }
@@ -300,7 +340,8 @@ export function markdownSetup(md: any) {
       }
 
       if (!fenceMarker) {
-        if (nextContent.match(/^:::\s*playground\b/i)) {
+        const isNextSelfClosing = /(?:\s|^)(?:\/:::|:::|\/[a-zA-Z0-9_-]+)\s*$/i.test(nextContent);
+        if (nextContent.match(/^:::\s*playground\b/i) && !isNextSelfClosing) {
           depth++;
         } else if (nextContent.match(/^:::\s*\/playground\b/i) || nextContent.match(/^:::\s*$/)) {
           depth--;
@@ -338,7 +379,7 @@ export function markdownSetup(md: any) {
     }
 
     const htmlToken = state.push('html_block', '', 0);
-    htmlToken.content = renderPlaygroundHtml(md, finalCode, lang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView);
+    htmlToken.content = renderPlaygroundHtml(md, finalCode, lang, title, isLive, icon, layout, isReadonly, hasTabs, warning, initialView, defaultTab, hideCode);
 
     state.line = nextLine + 1;
     return true;

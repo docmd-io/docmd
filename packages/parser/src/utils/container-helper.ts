@@ -49,9 +49,9 @@ export function parseContainerHeader(info: string, positionalKeys: string[] = ['
 
   const result: Record<string, string> = {};
 
-  // 1. Extract named key-values (key:"val", key:'val', key:“val”, key:val)
+  // 1. Extract named key-values (key:"val", key="val", key:'val', key='val', key:“val”, key:val)
   // Ensure common URL protocols and link prefixes (https:, http:, mailto:, tel:, external:, raw:) are not misidentified as keys when passed as positional values
-  const kvRegex = /(?<!\S)(?!https?:|mailto:|tel:|external:|raw:)([a-zA-Z0-9_-]+):(?:"([^"]*)"|'([^']*)'|[“«]([^”»]*)[”»]|(\S+))/g;
+  const kvRegex = /(?<!\S)(?!https?:|mailto:|tel:|external:|raw:)([a-zA-Z0-9_-]+)[:=](?:"([^"]*)"|'([^']*)'|[“«]([^”»]*)[”»]|(\S+))/g;
   const remaining = cleaned.replace(kvRegex, (match, key, valDouble, valSingle, valSmart, valBare) => {
     const val = valDouble !== undefined ? valDouble : (valSingle !== undefined ? valSingle : (valSmart !== undefined ? valSmart : valBare));
     result[key.toLowerCase()] = val;
