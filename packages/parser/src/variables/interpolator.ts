@@ -63,11 +63,13 @@ export function interpolateVariables(
   }
 
   // Regex to match escaped \{{ expression }} or unescaped {{ expression }}
-  const pattern = /(\\)?\{\{\s*([^{}\n\r]+?)\s*\}\}/g;
+  // Non-overlapping character class to prevent polynomial ReDoS
+  const pattern = /(\\)?\{\{([^{}\r\n]+)\}\}/g;
 
-  return content.replace(pattern, (match, escaped, expression) => {
+  return content.replace(pattern, (match, escaped, rawExpression) => {
+    const expression = rawExpression.trim();
     if (escaped) {
-      return `{{ ${expression.trim()} }}`;
+      return `{{ ${expression} }}`;
     }
 
     const { key, fallback } = parseVariableExpression(expression);

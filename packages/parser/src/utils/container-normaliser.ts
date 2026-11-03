@@ -156,14 +156,18 @@ export function indentOf(line: string): number {
 export function classifyLine(line: string): ClassifiedLine {
   const trimmed = line.trim();
 
-  if (trimmed.startsWith('::::') && !trimmed.match(/^:{3,}\s*(?:\/|end)/i)) {
+  if (!trimmed.startsWith(':::')) return { kind: 'other' };
+
+  if (trimmed.startsWith('::::') && !/^:{3,}\s*(?:\/|end)/i.test(trimmed)) {
     return { kind: 'other' };
   }
 
-  const colMatch = trimmed.match(/^:{3,}\s*(.*)$/);
-  if (!colMatch) return { kind: 'other' };
-
-  let rest = colMatch[1].trim();
+  // Count leading colons without regex backtracking
+  let colonCount = 0;
+  while (colonCount < trimmed.length && trimmed.charCodeAt(colonCount) === 58 /* ':' */) {
+    colonCount++;
+  }
+  let rest = trimmed.slice(colonCount).trim();
 
   // Strip inline comments (# ...) if preceded by space or tab
   const commentIdx = rest.search(/(^|\s+)#.*/);
@@ -172,7 +176,9 @@ export function classifyLine(line: string): ClassifiedLine {
   }
 
   // Strip extra colons left at start of rest (e.g. from 4+ colon closes like ::::/tag)
-  rest = rest.replace(/^:+/, '').trim();
+  while (rest.charCodeAt(0) === 58 /* ':' */) {
+    rest = rest.slice(1).trimStart();
+  }
 
   // Bare ::: (or ::::) or ::: /<name> or ::: end<name> or ::: end
   if (rest === '' || rest.startsWith('/') || /^end\b/i.test(rest) || /^end[_-]?\w+$/i.test(rest)) {
@@ -181,14 +187,15 @@ export function classifyLine(line: string): ClassifiedLine {
   }
 
   // Open tag candidate: ::: <name> [args] or :::name [args]
-  const openMatch = rest.match(/^([a-zA-Z][\w-]*)(?:\s+(.*))?$/);
-  if (openMatch) {
-    const name = openMatch[1];
-    const args = (openMatch[2] || '').trim();
+  // Extract name and args via whitespace split rather than regex backtracking
+  const firstSpaceIdx = rest.search(/\s/);
+  const name = firstSpaceIdx === -1 ? rest : rest.slice(0, firstSpaceIdx);
+  const args = firstSpaceIdx === -1 ? '' : rest.slice(firstSpaceIdx).trim();
 
+  if (/^[a-zA-Z][\w-]*$/.test(name)) {
     // Check if line self-closes on the same line:
     // e.g. ::: playground src="..." /::: or ::: playground src="..." ::: or ::: button "..." url:... :::
-    if (args && /(?:\s|^)(?:\/:::|:::|\/[a-zA-Z0-9_-]+)\s*$/i.test(args)) {
+    if (args && (args.endsWith('/:::') || args.endsWith(':::') || /(?:\s|^)\/[a-zA-Z0-9_-]+$/i.test(args))) {
       return { kind: 'other' };
     }
 
