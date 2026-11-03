@@ -150,6 +150,7 @@ export const test = runTestFile({
       seen.devReady.push(wss);
       wss.on('connection', () => { seen.connections++; });
     });
+    hooks.onDevServerReady.push(async () => { throw new Error('fixture onDevServerReady failed'); });
     hooks.onServerReady.unshift(async (handle) => { seen.ready.push(handle.mode); });
 
     const errors = [];
@@ -193,6 +194,7 @@ export const test = runTestFile({
       await early.opened;
       assert(earlyOpen && (await early.call('test:whoami')).identity === 'early', 'AC-25: the early client is served once onServerReady resolved');
       assert(errors.some((e) => /fixture onServerReady failed/.test(e)), 'AC-25: in dev a throwing onServerReady is logged and the host still accepts connections');
+      assert(errors.some((e) => /fixture onDevServerReady failed/.test(e)), 'AC-25: in dev a throwing onDevServerReady is logged and the host keeps serving');
       assert(seen.ready[0] === 'dev' && dev.handle.mode === 'dev', 'AC-25: onServerReady receives a handle whose mode equals opts.mode (dev)');
       assert(dev.handle.rebuild === dev.rebuild, 'AC-25: handle.rebuild is host.rebuild');
       assert(seen.devReady.length === 1 && seen.devReady[0] === dev.wss, 'onDevServerReady runs in dev with the host wss');

@@ -131,33 +131,25 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
   TUI.footer(TUI.blue);
 
   const watchers: nativeFs.FSWatcher[] = [];
-  let isRebuilding = false;
+  let watcherBuilding = false;
   let rebuildQueued = false;
 
   // Every content build (watcher or plugin-requested) goes through this
   // chain, so two builds never run at once on the same output dir and worker
-  // pool. `isRebuilding` is true while any build is queued or running, which
-  // makes the watcher queue its own request behind it.
-  let activeBuilds = 0;
+  // pool. A watcher change that arrives during a plugin build simply chains
+  // behind it; `watcherBuilding` only collapses overlapping watcher requests.
   let buildChain: Promise<void> = Promise.resolve();
   function runDevBuild(targetFiles: string[] | undefined, reloadAfter: boolean): Promise<void> {
-    activeBuilds++;
-    isRebuilding = true;
     const run = buildChain.then(async () => {
-      try {
-        await buildSite(configPathOption, {
-          isDev: true,
-          preserve: options.preserve,
-          quiet: true,
-          targetFiles,
-          workerPool
-        });
-        lastContentRebuildAt = Date.now();
-        if (reloadAfter) broadcastReload();
-      } finally {
-        activeBuilds--;
-        isRebuilding = activeBuilds > 0;
-      }
+      await buildSite(configPathOption, {
+        isDev: true,
+        preserve: options.preserve,
+        quiet: true,
+        targetFiles,
+        workerPool
+      });
+      lastContentRebuildAt = Date.now();
+      if (reloadAfter) broadcastReload();
     });
     buildChain = run.catch(() => {});
     return run;
@@ -196,8 +188,9 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
       watchers.forEach(w => w.close());
       watchers.length = 0;
       if (rebuildTimeout) { clearTimeout(rebuildTimeout); rebuildTimeout = null; }
-      isRebuilding = false;
       rebuildQueued = false;
+      // Let any watcher or plugin build finish before the pool is replaced.
+      await buildChain;
 
       // Reload config
       config = await loadConfig(configPathOption, { isDev: true, quiet: true });
@@ -210,13 +203,8 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
       delete workerConfig._workerPool;
       workerPool = new WorkerPool(workerScript, { config: workerConfig, cwd: CWD });
 
-      // Full rebuild
-      await buildSite(configPathOption, {
-        isDev: true,
-        preserve: options.preserve,
-        quiet: true,
-        workerPool
-      });
+      // Full rebuild (through the shared chain, with the new pool)
+      await runDevBuild(undefined, false);
 
       lastConfigRebuildAt = Date.now();
       // Reset the signature tracker: after a full rebuild the file
@@ -319,11 +307,12 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
         if (rebuildTimeout) clearTimeout(rebuildTimeout);
         rebuildTimeout = setTimeout(() => {
           const executeBuildFn = async () => {
-            if (isRebuilding) { rebuildQueued = true; return; }
+            if (watcherBuilding) { rebuildQueued = true; return; }
 
             const rebuildElapsed = TUI.timer();
             const sp = TUI.spinner(`Rebuilding: ${relativeFilePath}`, TUI.blue);
             rebuildQueued = false;
+            watcherBuilding = true;
             try {
               await runDevBuild(isAsset ? undefined : [filePath], false);
               sp.done(`Rebuilt: ${relativeFilePath} in ${rebuildElapsed()}`, true);
@@ -334,6 +323,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
               sp.fail(`Rebuild: ${relativeFilePath}`, true);
               TUI.error('Rebuild failed', error.message);
             } finally {
+              watcherBuilding = false;
               if (rebuildQueued) executeBuildFn();
             }
           };
