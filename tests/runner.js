@@ -300,6 +300,14 @@ addExternal(
   ['./packages/plugins/mermaid/node_modules/tsx/dist/cli.mjs', '--test', 'packages/plugins/mermaid/tests/*.test.ts']
 );
 
+// --- Browser bridge --------------------------------------------------------
+addExternal(
+  'ui-bridge',
+  'Browser bridge (docmd-api.js reconnect and reload-once)',
+  'node',
+  ['--test', 'tests/ui/*.test.js']
+);
+
 // --- Section 8: LLMS plugin -----------------------------------------------
 // The LLMS plugin doesn't have a `pnpm test` script yet, so the runner
 // invokes the test runner directly. Default-locale + i18n opt-in tests

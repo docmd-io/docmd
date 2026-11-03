@@ -69,6 +69,9 @@
   // on every invocation, causing infinite reconnection loops on static servers.
   let retryCount = 0;
   const maxRetries = 5;
+  // Set once the socket has opened at least once: only then is a failed
+  // reconnect a sign of an expired session rather than a static host.
+  let everConnected = false;
 
   function connect() {
     if (socket && (socket.readyState === 0 || socket.readyState === 1)) return;
@@ -79,6 +82,8 @@
     socket.onopen = () => {
       console.log('⚡ docmd connected');
       retryCount = 0; // reset on successful connection
+      everConnected = true;
+      sessionStorage.removeItem('docmd:reloaded-after-disconnect');
     };
 
     socket.onmessage = (e) => {
@@ -115,8 +120,15 @@
       retryCount++;
       if (retryCount < maxRetries) {
         setTimeout(connect, Math.min(1000 * (1.5 ** retryCount), 5000));
+      } else if (everConnected && !sessionStorage.getItem('docmd:reloaded-after-disconnect')) {
+        // Connected before, now unreachable (e.g. an SSO proxy answering 403
+        // after the session expired): reload once so the proxy can redirect
+        // to login. The flag stops a dead server from looping the page.
+        sessionStorage.setItem('docmd:reloaded-after-disconnect', '1');
+        window.location.reload();
       }
-      // No log on final failure — this is expected when serving a static build.
+      // No log on final failure with no prior connection — this is expected
+      // when serving a static build.
     };
   }
 
