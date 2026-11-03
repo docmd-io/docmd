@@ -567,7 +567,7 @@ export async function devWorkspace(
   const PORT = parseInt(opts.port || process.env.PORT || '3000', 10);
   const port = await findAvailablePort(PORT);
 
-  let host: any;
+  let host: import('../server/action-host.js').ActionHost | undefined;
 
   function broadcastReload() {
     host?.broadcastReload();
@@ -596,6 +596,8 @@ export async function devWorkspace(
           verifyClient: createOriginVerify(networkIp ? [networkIp] : []),
           getWorkerPool: () => undefined,
           resolvePaths: [CWD],
+          // Workspace dev has no per-project rebuild entry point: its watcher
+          // rebuilds and reloads. Plugins calling requestRebuild get this error.
           rebuild: async () => {
             throw new Error('Rebuild is not available in workspace dev');
           },
@@ -817,6 +819,8 @@ export async function devWorkspace(
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     TUI.success('Shutting down workspace dev server...\n');
     server.close();
+    // A plugin's onShutdown callback must not be able to hang Ctrl+C.
+    setTimeout(() => process.exit(0), 3000).unref();
     void (host ? host.close() : Promise.resolve()).finally(() => process.exit(0));
   });
 }

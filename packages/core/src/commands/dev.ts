@@ -133,6 +133,35 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
   const watchers: nativeFs.FSWatcher[] = [];
   let isRebuilding = false;
   let rebuildQueued = false;
+
+  // Every content build (watcher or plugin-requested) goes through this
+  // chain, so two builds never run at once on the same output dir and worker
+  // pool. `isRebuilding` is true while any build is queued or running, which
+  // makes the watcher queue its own request behind it.
+  let activeBuilds = 0;
+  let buildChain: Promise<void> = Promise.resolve();
+  function runDevBuild(targetFiles: string[] | undefined, reloadAfter: boolean): Promise<void> {
+    activeBuilds++;
+    isRebuilding = true;
+    const run = buildChain.then(async () => {
+      try {
+        await buildSite(configPathOption, {
+          isDev: true,
+          preserve: options.preserve,
+          quiet: true,
+          targetFiles,
+          workerPool
+        });
+        lastContentRebuildAt = Date.now();
+        if (reloadAfter) broadcastReload();
+      } finally {
+        activeBuilds--;
+        isRebuilding = activeBuilds > 0;
+      }
+    });
+    buildChain = run.catch(() => {});
+    return run;
+  }
   let rebuildTimeout: any = null;
   let lastContentRebuildAt = 0;
   let lastConfigRebuildAt = 0;
@@ -294,17 +323,9 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
 
             const rebuildElapsed = TUI.timer();
             const sp = TUI.spinner(`Rebuilding: ${relativeFilePath}`, TUI.blue);
-            isRebuilding = true;
             rebuildQueued = false;
             try {
-              await buildSite(configPathOption, {
-                isDev: true,
-                preserve: options.preserve,
-                quiet: true,
-                targetFiles: isAsset ? undefined : [filePath],
-                workerPool
-              });
-              lastContentRebuildAt = Date.now();
+              await runDevBuild(isAsset ? undefined : [filePath], false);
               sp.done(`Rebuilt: ${relativeFilePath} in ${rebuildElapsed()}`, true);
               if (!wasWrittenByRpc(filePath)) {
                 broadcastReload();
@@ -313,7 +334,6 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
               sp.fail(`Rebuild: ${relativeFilePath}`, true);
               TUI.error('Rebuild failed', error.message);
             } finally {
-              isRebuilding = false;
               if (rebuildQueued) executeBuildFn();
             }
           };
@@ -386,13 +406,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
           verifyClient: createOriginVerify(),
           getWorkerPool: () => workerPool,
           resolvePaths: [__dirname],
-          rebuild: (files) => buildSite(configPathOption, {
-            isDev: true,
-            preserve: options.preserve,
-            quiet: true,
-            targetFiles: files,
-            workerPool
-          }),
+          rebuild: (files) => runDevBuild(files, true),
         });
 
         const indexHtmlPath = path.join(paths.outputDir, 'index.html');

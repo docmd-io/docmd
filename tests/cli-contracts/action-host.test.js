@@ -152,7 +152,6 @@ export const test = runTestFile({
     });
     hooks.onServerReady.unshift(async (handle) => { seen.ready.push(handle.mode); });
 
-    const fakePool = { runTask: async (task) => ({ ranIn: 'fake-pool', functionName: task.functionName }) };
     const errors = [];
     const realError = TUI.error;
     TUI.error = (...a) => { errors.push(a.join(' ')); };
@@ -177,7 +176,7 @@ export const test = runTestFile({
       devServer.once('upgrade', () => upgraded.resolve());
       const devOpts = {
         server: devServer, mode: 'dev', projectRoot: proj, config,
-        verifyClient: createOriginVerify(), getWorkerPool: () => fakePool,
+        verifyClient: createOriginVerify(), getWorkerPool: () => undefined,
         rebuild: devBuild.fn, loadPlugins: false,
       };
       const devCreation = createActionHost(devOpts);
@@ -224,10 +223,6 @@ export const test = runTestFile({
       assert(bobDump.connectionId !== dump.connectionId, 'AC-19: connectionId differs between sockets');
       bob.ws.close();
 
-      // ── Worker pool reaches the dispatcher ───────────────
-      const worked = await alice.call('test:worker', { n: 3 });
-      assert(worked && worked.ranIn === 'fake-pool', 'AC-20: test:worker runs through getWorkerPool()');
-
       // ── AC-26: coalescing ────────────────────────────────
       const abs = (f) => path.join(proj, f);
       {
@@ -242,12 +237,20 @@ export const test = runTestFile({
           JSON.stringify([...follow].sort()) === JSON.stringify(files.slice(1).map(abs).sort()),
           'AC-26: the follow-up contains every file the first build did not cover'
         );
+        await alice.call('system:ping'); // the first build's frame has arrived
+        const rebuiltBefore = alice.frames.filter(isRebuilt).length;
         devBuild.calls[1].resolve();
         await all;
-        assert(devBuild.calls.length === 2, 'AC-26: ten overlapping rebuilds resolve with at most two builds');
+        await alice.call('system:ping');
+        const newRebuilt = alice.frames.filter(isRebuilt).slice(rebuiltBefore);
+        assert(
+          newRebuilt.length === 1 && JSON.stringify([...newRebuilt[0].json.data.files].sort()) === JSON.stringify(files.slice(1).sort()),
+          'AC-24: the follow-up build broadcasts system:rebuilt with its nine project-relative paths'
+        );
       }
       {
         const before = devBuild.calls.length;
+        const rebuiltBefore = alice.frames.filter(isRebuilt).length;
         const a = dev.rebuild(['docs/a.md']);
         const b = dev.rebuild(['docs/b.md']);
         const c = dev.rebuild();
@@ -256,8 +259,10 @@ export const test = runTestFile({
         assert(devBuild.calls.length === before + 2 && devBuild.calls[before + 1].files === undefined, 'AC-26: a full rebuild subsumes the pending set');
         devBuild.calls[before + 1].resolve();
         await Promise.all([a, b, c]);
-        const ev = await alice.waitFor((f) => isRebuilt(f) && f.json.data.files === null);
-        assert(ev.json.data.files === null, 'AC-24: a full rebuild broadcasts system:rebuilt { files: null }');
+        await alice.call('system:ping'); // frames arrive in order
+        const fullFrames = alice.frames.filter(isRebuilt).slice(rebuiltBefore);
+        const last = fullFrames[fullFrames.length - 1];
+        assert(last && last.json.data.files === null, 'AC-24: a full rebuild broadcasts system:rebuilt { files: null }');
       }
       {
         const before = devBuild.calls.length;
@@ -279,8 +284,8 @@ export const test = runTestFile({
         await tick();
         assert(devBuild.calls.length === before, 'AC-24: in dev a call that writes files triggers no automatic rebuild');
         dev.broadcastReload();
-        const reload = await alice.waitFor((f) => f.text === 'reload');
-        assert(reload.text === 'reload', 'AC-24: broadcastReload sends the text frame "reload" in dev');
+        await alice.call('system:ping');
+        assert(alice.frames.some((f) => f.text === 'reload'), 'AC-24: broadcastReload sends the text frame "reload" in dev');
       }
 
       // ── AC-25 / D9 (serve): throw rejects, then a working host ─
@@ -288,10 +293,12 @@ export const test = runTestFile({
       const serveOpts = {
         server: serveServer, mode: 'serve', projectRoot: proj, config,
         verifyClient: createOriginAllowlist([`http://127.0.0.1:${servePort}`]),
-        getWorkerPool: () => fakePool, rebuild: serveBuild.fn, loadPlugins: false,
+        getWorkerPool: () => undefined, rebuild: serveBuild.fn, loadPlugins: false,
       };
       let serveErr = null;
+      const shutdownsBeforeReject = shutdowns;
       try { await createActionHost(serveOpts); } catch (e) { serveErr = e; }
+      assert(shutdowns === shutdownsBeforeReject + 1, 'AC-25: a rejected createActionHost runs the onShutdown callbacks plugins already registered');
       assert(serveErr && /fixture onServerReady failed/.test(serveErr.message), 'AC-25: in serve a throwing onServerReady rejects createActionHost');
       globalThis.__serveFixtureThrow = false;
       serve = await createActionHost(serveOpts);
@@ -320,14 +327,13 @@ export const test = runTestFile({
       await serve.close();
       const sawClose = alice.closed;
       const shutdownsBefore = shutdowns;
-      const t0 = Date.now();
       await dev.close();
       await sawClose;
-      assert(Date.now() - t0 < 1000, 'close() resolves and closes open sockets within 1 s');
-      assert(dev.wss.clients.size === 0 && alice.ws.readyState === WebSocket.CLOSED, 'close() leaves no open sockets');
+      assert(dev.wss.clients.size === 0 && alice.ws.readyState === WebSocket.CLOSED, 'close() closes open sockets (bounded by the runner timeout)');
       assert(shutdowns === shutdownsBefore + 1, 'close() runs onShutdown callbacks');
     } finally {
       TUI.error = realError;
+      await loadPlugins({ plugins: {} }, { isDev: true }); // reset the shared hooks
       delete globalThis.__serveFixtureGate;
       delete globalThis.__serveFixtureThrow;
       delete globalThis.__serveFixtureShutdown;

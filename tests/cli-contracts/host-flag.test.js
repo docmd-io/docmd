@@ -76,11 +76,14 @@ async function waitForHttp(port, child, output, timeoutMs = 10000) {
 function wsCall(port, action, payload, headers = {}) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`, { origin: `http://127.0.0.1:${port}`, headers });
-    ws.once('error', reject);
+    let answered = false;
+    ws.on('error', reject);
+    ws.once('close', () => { if (!answered) reject(new Error(`socket closed before ${action} was answered`)); });
     ws.once('open', () => ws.send(JSON.stringify({ id: 1, type: 'call', action, payload })));
     ws.on('message', (raw) => {
       const msg = JSON.parse(raw.toString());
       if (msg.id !== 1) return;
+      answered = true;
       ws.close();
       if (msg.error) reject(new Error(msg.error)); else resolve(msg.result);
     });

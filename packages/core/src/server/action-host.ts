@@ -25,6 +25,7 @@ import type http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { TUI, createActionDispatcher, loadPlugins, hooks as globalHooks } from '@docmd/api';
 import type { ActionCaller, ServerHandle } from '@docmd/api';
+import type { WorkerPool } from '@docmd/utils';
 
 export interface ActionHostOptions {
   server: http.Server;
@@ -34,12 +35,12 @@ export interface ActionHostOptions {
   /** dev: createOriginVerify(...); serve: createOriginAllowlist(origins). */
   verifyClient: (info: any, cb: (allowed: boolean, code?: number, message?: string) => void) => void;
   /** dev swaps the pool on config reload, so the host asks every time. */
-  getWorkerPool: () => any;
+  getWorkerPool: () => WorkerPool | undefined;
   /** Provided by the command; serialised and coalesced inside the host. */
   rebuild: (files?: string[]) => Promise<void>;
   /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev' }). */
   loadPlugins?: boolean;
-  /** Extra plugin resolution roots handed to loadPlugins. */
+  /** Extra plugin resolution roots handed to loadPlugins (dev: the CLI dir; workspace dev: the project root). */
   resolvePaths?: string[];
 }
 
@@ -94,11 +95,28 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
   const { server, mode, projectRoot, config } = opts;
   const shutdownCallbacks: Array<() => void | Promise<void>> = [];
 
-  // ── Plugins ──────────────────────────────────────────
-  if (opts.loadPlugins !== false) {
-    await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev' });
-  }
   const hooks: any = globalHooks;
+
+  // ── WebSocket server ─────────────────────────────────
+  // Handshakes wait for `onServerReady`: a client that connects while a
+  // plugin is still starting up is accepted only after the hooks resolved.
+  const ready = defer();
+  const wss = new WebSocketServer({
+    server,
+    verifyClient: (info: any, cb: any) => {
+      ready.promise.then(
+        () => opts.verifyClient(info, cb),
+        () => cb(false, 503, 'Server not ready'),
+      );
+    },
+  });
+  wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
+
+  async function runShutdownCallbacks(): Promise<void> {
+    for (const fn of shutdownCallbacks) {
+      try { await fn(); } catch (e: any) { TUI.error('Shutdown callback failed', e?.message ?? String(e)); }
+    }
+  }
 
   // ── Serialised, coalescing rebuild ───────────────────
   let inFlight = false;
@@ -118,7 +136,7 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
     try {
       await opts.rebuild(files ?? undefined);
       broadcast('system:rebuilt', {
-        files: files ? files.map((f) => path.relative(projectRoot, f)) : null,
+        files: files ? files.map((f) => path.relative(projectRoot, f).split(path.sep).join('/')) : null,
       });
       waiter.resolve();
     } catch (e) {
@@ -165,21 +183,6 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
     requestRebuild: rebuild,
   });
 
-  // ── WebSocket server ─────────────────────────────────
-  // Handshakes wait for `onServerReady`: a client that connects while a
-  // plugin is still starting up is accepted only after the hooks resolved.
-  const ready = defer();
-  const wss = new WebSocketServer({
-    server,
-    verifyClient: (info: any, cb: any) => {
-      ready.promise.then(
-        () => opts.verifyClient(info, cb),
-        () => cb(false, 503, 'Server not ready'),
-      );
-    },
-  });
-  wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
-
   wss.on('connection', (ws: any, req: http.IncomingMessage) => {
     const caller = buildCaller(req);
     ws.on('message', async (raw: any) => {
@@ -218,28 +221,38 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
     async close() {
       wss.clients.forEach((client) => client.terminate());
       const closed = new Promise<void>((resolve) => wss.close(() => resolve()));
-      for (const fn of shutdownCallbacks) {
-        try { await fn(); } catch (e: any) { TUI.error('Shutdown callback failed', e?.message ?? String(e)); }
-      }
+      await runShutdownCallbacks();
       await closed;
     },
   };
 
-  // ── Ready hooks ──────────────────────────────────────
+  // ── Plugins and ready hooks ──────────────────────────
+  // Dev keeps live reload alive whatever a plugin does: failures are logged
+  // and the host carries on. In serve any failure rejects, after the
+  // shutdown callbacks plugins already registered have run.
+  const fail = async (e: unknown, what: string): Promise<void> => {
+    if (mode === 'serve') throw e;
+    TUI.error(what, (e as any)?.message ?? String(e));
+  };
   try {
+    if (opts.loadPlugins !== false) {
+      try {
+        await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev' });
+      } catch (e) {
+        await fail(e, 'Plugin loading failed');
+      }
+    }
     if (mode === 'dev') {
-      for (const fn of hooks.onDevServerReady) await fn(server, wss);
+      for (const fn of hooks.onDevServerReady) {
+        try { await fn(server, wss); } catch (e) { await fail(e, 'onDevServerReady failed'); }
+      }
     }
     for (const fn of hooks.onServerReady) {
-      try {
-        await fn(handle);
-      } catch (e: any) {
-        if (mode === 'serve') throw e;
-        TUI.error('onServerReady failed', e?.message ?? String(e));
-      }
+      try { await fn(handle); } catch (e) { await fail(e, 'onServerReady failed'); }
     }
   } catch (e) {
     ready.reject(e);
+    await runShutdownCallbacks();
     wss.close();
     throw e;
   }
