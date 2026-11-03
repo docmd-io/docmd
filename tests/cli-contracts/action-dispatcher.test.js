@@ -37,7 +37,7 @@ export const test = runTestFile({
   emoji: '🔌',
   run: async () => {
     const { createActionDispatcher } = await import(apiDist('rpc.js'));
-    const { loadPlugins, hooks, getPluginErrors } = await import(apiDist('hooks.js'));
+    const { loadPlugins, hooks, getPluginErrors, TUI } = await import(apiDist('index.js'));
 
     const proj = setup('action-dispatcher');
     writeFile(proj, 'docs/a.md', 'Hello world\n');
@@ -54,7 +54,6 @@ export const test = runTestFile({
         },
         noop: async () => 1,
         worker: (_p, ctx) => ctx.runWorkerTask('m', 'f', [1]),
-        rebuild: (_p, ctx) => ctx.requestRebuild(['docs/a.md']),
       },
       events: { rec: (_d, ctx) => { seen = ctx; } },
     };
@@ -102,11 +101,18 @@ export const test = runTestFile({
     // requestRebuild forwards
     {
       const files = ['docs/a.md'];
-      const d = createActionDispatcher(
-        { actions: { rb: (_p, ctx) => ctx.requestRebuild(files) }, events: {} },
-        { ...base, requestRebuild: async (f) => { rebuilds.push(f); return undefined; } });
-      await d.handleCall('rb', {});
+      const rbHooks = { actions: { rb: (_p, ctx) => ctx.requestRebuild(files) }, events: {} };
+      const d = createActionDispatcher(rbHooks,
+        { ...base, requestRebuild: async (f) => { rebuilds.push(f); return 'sentinel'; } });
+      const r = await d.handleCall('rb', {});
       assert(rebuilds.length === 1 && rebuilds[0] === files, 'requestRebuild forwards the same array');
+      assert(r.result === 'sentinel', 'requestRebuild returns the host promise value');
+
+      const dFail = createActionDispatcher(rbHooks,
+        { ...base, requestRebuild: async () => { throw new Error('build failed'); } });
+      let msg = '';
+      try { await dFail.handleCall('rb', {}); } catch (e) { msg = e.message; }
+      assert(msg === 'build failed', 'requestRebuild propagates host rejection');
     }
 
     // AC-24 writtenFiles
@@ -134,32 +140,42 @@ export const test = runTestFile({
 
     // AC-25: onServerReady registration
     {
-      const mk = (dir, caps, body) => {
+      const mk = (dir, caps, body, extra = '') => {
         writeFile(proj, `plugins/${dir}/package.json`, JSON.stringify({ name: dir, version: '1.0.0', type: 'module', main: 'index.js' }));
         writeFile(proj, `plugins/${dir}/index.js`, [
           `export const plugin = { name: '${dir}', version: '1.0.0', capabilities: ${JSON.stringify(caps)} };`,
-          `export async function onServerReady(h) { ${body} }`, '',
+          `export async function onServerReady(h) { ${body} }`, extra, '',
         ].join('\n'));
         return `./plugins/${dir}`;
       };
-      const withCap = mk('srv-ok', ['server'], 'h.seen = true; throw new Error("boom");');
-      const noCap = mk('srv-nocap', ['actions'], 'h.seen = true;');
+      const withCap = mk('srv-ok', ['server'], 'throw new Error("boom");');
+      const noCap = mk('srv-nocap', ['actions'], '',
+        "export const actions = { 'nocap:ping': async () => 1 };");
       // Local plugin paths resolve against cwd.
       const cwd = process.cwd();
       process.chdir(proj);
-      const run = (p) => loadPlugins({ title: 't', src: './docs', plugins: { [p]: {} } },
-        { resolvePaths: [proj] });
+      try {
+        const run = (p) => loadPlugins({ title: 't', src: './docs', plugins: { [p]: {} } },
+          { resolvePaths: [proj] });
 
-      await run(withCap);
-      assert(hooks.onServerReady.length === 1, 'onServerReady registered with server capability');
-      let thrown = '';
-      try { await hooks.onServerReady[0]({}); } catch (e) { thrown = e.message; }
-      assert(thrown === 'boom', 'throwing onServerReady rejects to the host');
-      assert(getPluginErrors().some((e) => e.hook === 'onServerReady'), 'throw also recorded in plugin errors');
+        await run(withCap);
+        assert(hooks.onServerReady.length === 1, 'onServerReady registered with server capability');
+        let thrown = '';
+        try { await hooks.onServerReady[0]({}); } catch (e) { thrown = e.message; }
+        assert(thrown === 'boom', 'throwing onServerReady rejects to the host');
+        assert(getPluginErrors().some((e) => e.hook === 'onServerReady'), 'throw also recorded in plugin errors');
 
-      await run(noCap);
-      assert(hooks.onServerReady.length === 0, 'onServerReady skipped without server capability');
-      process.chdir(cwd);
+        const warns = [];
+        const origWarn = TUI.warn;
+        TUI.warn = (...a) => { warns.push(a.join(' ')); };
+        try { await run(noCap); } finally { TUI.warn = origWarn; }
+        assert(hooks.onServerReady.length === 0, 'onServerReady skipped without server capability');
+        assert(typeof hooks.actions['nocap:ping'] === 'function', 'skipped plugin itself still loaded');
+        assert(warns.some((w) => /exports onServerReady but didn't declare "server" capability/.test(w)),
+          'skip warns with the capability warning');
+      } finally {
+        process.chdir(cwd);
+      }
     }
 
   },

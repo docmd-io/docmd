@@ -95,7 +95,7 @@ export interface ActionContext {
  * and must refuse writes when its configured header is absent.
  */
 export interface ActionCaller {
-  /** Transport the call arrived on; 'local' when a host called the dispatcher without a caller. */
+  /** Transport the call arrived on; 'local' when a host called the dispatcher without a caller (D8). */
   transport: 'websocket' | 'local';
   /** Lower-cased header names → values of the upgrade request; multi-value headers joined with ", ". Never contains `cookie` or `set-cookie`. */
   headers: Readonly<Record<string, string>>;
