@@ -170,7 +170,13 @@ export function normalizeConfig(userConfig: any, options: any = {}) {
     const projectPrefix = process.env.DOCMD_PROJECT_PREFIX || '';
     if (projectPrefix && projectPrefix !== '/') {
       if (workspaceBase !== '/') {
-        config.base = path.posix.join(workspaceBase, projectPrefix);
+        const cleanBase = workspaceBase.replace(/\/+$/, '');
+        const cleanPrefix = projectPrefix.replace(/^\/+/, '').replace(/\/+$/, '');
+        if (cleanBase.endsWith('/' + cleanPrefix) || cleanBase === '/' + cleanPrefix) {
+          config.base = workspaceBase;
+        } else {
+          config.base = path.posix.join(workspaceBase, projectPrefix);
+        }
       } else {
         config.base = projectPrefix;
       }

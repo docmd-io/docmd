@@ -371,7 +371,19 @@ export async function resolveBuildAssets(hooks: BuildAssetHooks): Promise<readon
 export async function copyResolvedAssets(assets: readonly ResolvedAsset[], outputDir: string) {
   for (const asset of assets) {
     if (asset.kind !== 'file') continue;
-    if (asset.provider.kind === 'template' && !await fs.exists(asset.sourcePath)) continue;
+    let sourcePath = asset.sourcePath;
+    if (asset.provider.kind === 'template' && !await fs.exists(sourcePath)) {
+      const slug = String(asset.provider.name || '').replace(/^@docmd\//, '').replace(/^template-/, '');
+      const monorepoDist = path.resolve(__dirname, '../../..', 'templates', slug, 'dist/assets', asset.type, path.basename(sourcePath));
+      const monorepoSrc = path.resolve(__dirname, '../../..', 'templates', slug, 'assets', asset.type, path.basename(sourcePath));
+      if (await fs.exists(monorepoDist)) {
+        sourcePath = monorepoDist;
+      } else if (await fs.exists(monorepoSrc)) {
+        sourcePath = monorepoSrc;
+      } else {
+        continue;
+      }
+    }
     const destPath = path.join(outputDir, asset.outputPath);
     await fs.ensureDir(path.dirname(destPath));
 
@@ -380,14 +392,14 @@ export async function copyResolvedAssets(assets: readonly ResolvedAsset[], outpu
     // verbatim before the shared resolver and remains so.
     if (asset.provider.kind === 'plugin' && asset.outputPath.endsWith('.js')) {
       try {
-        const content = await fs.readFile(asset.sourcePath, 'utf8');
+        const content = await fs.readFile(sourcePath, 'utf8');
         const stripped = content.replace(/\n?\/\/# sourceMappingURL=\S+\s*$/, '');
         await fs.writeFile(destPath, stripped);
       } catch {
-        await fs.copy(asset.sourcePath, destPath);
+        await fs.copy(sourcePath, destPath);
       }
     } else {
-      await fs.copy(asset.sourcePath, destPath);
+      await fs.copy(sourcePath, destPath);
     }
   }
 }
