@@ -34,7 +34,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.19.2",
     "chalk": "^5.6.2",
-    "docmd-search": "^0.1.6",
+    "docmd-search": "^0.1.7",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",

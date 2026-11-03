@@ -26,8 +26,8 @@ importers:
         specifier: ^5.6.2
         version: 5.6.2
       docmd-search:
-        specifier: ^0.1.6
-        version: 0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
+        specifier: ^0.1.7
+        version: 0.1.7(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -273,8 +273,8 @@ importers:
   packages/plugins/ai:
     dependencies:
       docmd-assistant:
-        specifier: ^0.1.20
-        version: 0.1.20
+        specifier: ^0.1.21
+        version: 0.1.21
     devDependencies:
       '@docmd/api':
         specifier: workspace:*
@@ -1487,12 +1487,43 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  docmd-assistant@0.1.20:
-    resolution: {integrity: sha512-ELWpPbqQ+vyZs4CnNvGDNQyOmpTUWpTpRCFS9C4RO9AB301/JYUhob8ww1dISzW0eSzk20yDIi5QJauJyruqIQ==}
+  docmd-assistant@0.1.21:
+    resolution: {integrity: sha512-V5udCQSslgUqIFYThRI1ISNBr98c58x93dsaulNB+8WZpLFDGdox+ifx/SQFr67HHlqytzHMOpsncOUdcywS6Q==}
     engines: {node: '>=20.0.0'}
 
   docmd-search@0.1.6:
     resolution: {integrity: sha512-KrESkYVwKAtKLIdBeM4p+JjkAfkl/rW0fvaa2fNl2MkJzCdhbk/raVv/I4k5YkIUQI1f2+BILb8xCr6LAr61iw==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@docmd/engine-js': '>=0.8.10'
+      '@docmd/engine-python': '>=0.8.10'
+      '@docmd/engine-rust': '>=0.8.10'
+      '@huggingface/transformers': ^4.2.0
+      adm-zip: '>=0.6.1'
+      onnxruntime-node: ^1.29.0
+      protobufjs: ^8.8.0
+      sharp: ^0.35.5
+    peerDependenciesMeta:
+      '@docmd/engine-js':
+        optional: true
+      '@docmd/engine-python':
+        optional: true
+      '@docmd/engine-rust':
+        optional: true
+      '@huggingface/transformers':
+        optional: true
+      adm-zip:
+        optional: true
+      onnxruntime-node:
+        optional: true
+      protobufjs:
+        optional: true
+      sharp:
+        optional: true
+
+  docmd-search@0.1.7:
+    resolution: {integrity: sha512-xQCxI9Y3L/w6DWqpp6b25KSDqLhL+29KdRmssN2slFSUnoatGhPCXXF/HUdgpud3wk4iXuFfeu8tU/0cQKx6uw==}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
@@ -2970,11 +3001,19 @@ snapshots:
   detect-libc@2.1.2:
     optional: true
 
-  docmd-assistant@0.1.20:
+  docmd-assistant@0.1.21:
     dependencies:
       aiplug: 0.2.0
 
   docmd-search@0.1.6(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2)):
+    optionalDependencies:
+      '@huggingface/transformers': 4.2.0(@types/node@24.19.2)
+      adm-zip: 0.6.1
+      onnxruntime-node: 1.29.0
+      protobufjs: 8.8.0
+      sharp: 0.35.5(@types/node@24.19.2)
+
+  docmd-search@0.1.7(@huggingface/transformers@4.2.0(@types/node@24.19.2))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@24.19.2)):
     optionalDependencies:
       '@huggingface/transformers': 4.2.0(@types/node@24.19.2)
       adm-zip: 0.6.1
