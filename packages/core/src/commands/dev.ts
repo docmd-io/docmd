@@ -189,19 +189,22 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
       watchers.length = 0;
       if (rebuildTimeout) { clearTimeout(rebuildTimeout); rebuildTimeout = null; }
       rebuildQueued = false;
-      // Let any watcher or plugin build finish before the pool is replaced.
-      await buildChain;
+      // Reload the config and swap the worker pool as a step ON the build
+      // chain: any watcher or plugin build already running finishes first, and
+      // none can start between the drain and the terminate.
+      const swap = buildChain.then(async () => {
+        config = await loadConfig(configPathOption, { isDev: true, quiet: true });
+        paths = resolveConfigPaths(config);
+        state.outputDir = paths.outputDir;
 
-      // Reload config
-      config = await loadConfig(configPathOption, { isDev: true, quiet: true });
-      paths = resolveConfigPaths(config);
-      state.outputDir = paths.outputDir;
-
-      if (workerPool) await workerPool.terminateAll();
-      const workerScript = path.resolve(__dirname, '../engine/worker-parser.js');
-      const workerConfig = { ...config };
-      delete workerConfig._workerPool;
-      workerPool = new WorkerPool(workerScript, { config: workerConfig, cwd: CWD });
+        if (workerPool) await workerPool.terminateAll();
+        const workerScript = path.resolve(__dirname, '../engine/worker-parser.js');
+        const workerConfig = { ...config };
+        delete workerConfig._workerPool;
+        workerPool = new WorkerPool(workerScript, { config: workerConfig, cwd: CWD });
+      });
+      buildChain = swap.catch(() => {});
+      await swap;
 
       // Full rebuild (through the shared chain, with the new pool)
       await runDevBuild(undefined, false);
