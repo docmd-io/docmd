@@ -216,6 +216,7 @@ function runLint() {
 
     let errors = 0, warnings = 0;
     const details = [];
+    let parseFailed = false;
     try {
         const results = JSON.parse(result.stdout || '[]');
         for (const file of results) {
@@ -230,7 +231,15 @@ function runLint() {
                 }
             }
         }
-    } catch (_) { /* malformed output */ }
+    } catch (_) {
+        parseFailed = true;
+    }
+
+    if (!result.ok && (errors === 0 || parseFailed)) {
+        errors = Math.max(errors, 1);
+        const errMsg = (result.stderr || result.stdout || 'ESLint process failed to execute').trim();
+        details.unshift(errMsg);
+    }
 
     const status = errors > 0 ? 'fail' : (warnings > 0 ? 'warn' : 'done');
     finishStep(s, status);

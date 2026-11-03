@@ -121,6 +121,21 @@ async function build(outputPath?: string) {
                         export default { promises, existsSync, readFileSync };
                     `, loader: 'js'
                 }));
+                build.onResolve({ filter: /^(node:)?module$/ }, args => ({ path: args.path, namespace: 'module-shim' }));
+                build.onLoad({ filter: /.*/, namespace: 'module-shim' }, () => ({
+                    contents: `
+                        export const createRequire = () => () => ({});
+                        export default { createRequire };
+                    `, loader: 'js'
+                }));
+                build.onResolve({ filter: /^(node:)?child_process$/ }, args => ({ path: args.path, namespace: 'cp-shim' }));
+                build.onLoad({ filter: /.*/, namespace: 'cp-shim' }, () => ({
+                    contents: `
+                        export const execSync = () => '';
+                        export const spawnSync = () => ({});
+                        export default { execSync, spawnSync };
+                    `, loader: 'js'
+                }));
             }
         };
 
@@ -159,9 +174,10 @@ async function build(outputPath?: string) {
         } catch { /* Ignore if missing presets */ }
 
         if (Object.keys(snippets).length > 0) {
+            const safeSnippetsJson = JSON.stringify(snippets, null, 4).replace(/<\/script/gi, '<\\/script');
             indexHtml = indexHtml.replace(
                 /const SNIPPETS = \{[\s\S]*?\};/,
-                () => `const SNIPPETS = ${JSON.stringify(snippets, null, 4)};`
+                () => `const SNIPPETS = ${safeSnippetsJson};`
             );
         }
 
@@ -201,7 +217,10 @@ async function build(outputPath?: string) {
             presetHtml = presetHtml.replace(new RegExp(`data-preset="${key}"`), `class="active" data-preset="${key}"`);
 
             const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            presetHtml = presetHtml.replace(/<textarea id="input" spellcheck="false"><\/textarea>/, `<textarea id="input" spellcheck="false">${escapedCode}</textarea>`);
+            presetHtml = presetHtml.replace(
+                /<textarea id="input" spellcheck="false"><\/textarea>/,
+                () => `<textarea id="input" spellcheck="false">${escapedCode}</textarea>`
+            );
             presetHtml = presetHtml.replace('href="docmd-live.css"', 'href="../docmd-live.css"');
             presetHtml = presetHtml.replace('src="docmd-live.js"', 'src="../docmd-live.js"');
 
