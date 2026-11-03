@@ -13,16 +13,16 @@
  */
 
 import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import nativeFs from 'node:fs';
 import path from 'path';
 import { fsUtils as fs, WorkerPool, FileSignatureTracker } from '@docmd/utils';
 import { createOriginVerify } from '../utils/ws-origin-guard.js';
+import { createActionHost, type ActionHost } from '../server/action-host.js';
 import { TUI } from '@docmd/api';
 import { buildSite } from './build.js';
 import { loadConfig } from '../utils/config-loader.js';
 import { createRequire } from 'module';
-import { createActionDispatcher, loadPlugins, hooks, wasWrittenByRpc } from '@docmd/api';
+import { wasWrittenByRpc } from '@docmd/api';
 import {
   formatPathForDisplay, getNetworkIp, serveStatic, findAvailablePort, openBrowser,
 } from '../utils/dev-utils.js';
@@ -85,14 +85,10 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
   // Create Server - uses a mutable reference so config restarts update the output dir
   const state = { outputDir: paths.outputDir };
   const server = http.createServer((req, res) => serveStatic(req, res, state.outputDir));
-  let wss;
+  let host: ActionHost | undefined;
 
   function broadcastReload() {
-    if (wss) {
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) client.send('reload');
-      });
-    }
+    host?.broadcastReload();
   }
 
   // ── Initial Build ────────────────────────────────────
@@ -379,52 +375,24 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
         if (BIND_HOST !== '127.0.0.1' && BIND_HOST !== '::1' && BIND_HOST !== 'localhost') {
           TUI.warn(`Dev server bound to ${BIND_HOST} (LAN). Any host able to reach this port can connect; verifyClient guards Origin.`);
         }
-        // Phase 1.D: CWE-1385 CSWSH fix (N-S1). verifyClient validates the
-        // Origin header against the loopback allowlist before accepting the
-        // WebSocket handshake.
-        wss = new WebSocketServer({
+        // Phase 1.D: CWE-1385 CSWSH fix (N-S1). The loopback Origin guard runs
+        // on every WebSocket handshake; the shared action host owns the socket,
+        // the plugin dispatcher and the onDevServerReady/onServerReady hooks.
+        host = await createActionHost({
           server,
-          verifyClient: createOriginVerify(),
-        });
-        wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
-
-        // Action dispatcher for plugin actions/events
-        await loadPlugins(config, { resolvePaths: [__dirname], isDev: true });
-        const dispatcher = createActionDispatcher(hooks, {
+          mode: 'dev',
           projectRoot: CWD,
           config,
-          broadcast: (event: string, data: any) => {
-            wss.clients.forEach((client: any) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ type: 'event', name: event, data }));
-              }
-            });
-          }
-        });
-
-        // Execute onDevServerReady hooks
-        for (const fn of hooks.onDevServerReady) {
-          await fn(server, wss);
-        }
-
-        wss.on('connection', (ws: any) => {
-          ws.on('message', async (raw: any) => {
-            let msg: any;
-            try { msg = JSON.parse(raw.toString()); } catch { return; }
-
-            if (msg.type === 'call') {
-              try {
-                const { result } = await dispatcher.handleCall(msg.action, msg.payload);
-                // Don't send reload flag to client - let the file watcher detect
-                // the change, rebuild, and send the reload via broadcastReload()
-                ws.send(JSON.stringify({ id: msg.id, type: 'response', result, reload: false }));
-              } catch (e: any) {
-                ws.send(JSON.stringify({ id: msg.id, type: 'response', error: e.message }));
-              }
-            } else if (msg.type === 'event') {
-              dispatcher.handleEvent(msg.name, msg.data);
-            }
-          });
+          verifyClient: createOriginVerify(),
+          getWorkerPool: () => workerPool,
+          resolvePaths: [__dirname],
+          rebuild: (files) => buildSite(configPathOption, {
+            isDev: true,
+            preserve: options.preserve,
+            quiet: true,
+            targetFiles: files,
+            workerPool
+          }),
         });
 
         const indexHtmlPath = path.join(paths.outputDir, 'index.html');
@@ -507,7 +475,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
     try {
       const closures: any[] = [];
       watchers.forEach(w => closures.push(new Promise<void>(resolve => { w.close(); resolve(); })));
-      if (wss) closures.push(new Promise(resolve => wss.close(resolve)));
+      if (host) closures.push(host.close());
       if (server) closures.push(new Promise(resolve => server.close(resolve)));
       if (workerPool) closures.push(workerPool.terminateAll());
 

@@ -206,6 +206,11 @@ addInProcess(
   'Dev --host flag binds the requested interface (AC-2, AC-15)',
   await import('./cli-contracts/host-flag.test.js')
 );
+addInProcess(
+  'action-host',
+  'Action host: caller, origin allowlist, rebuild, onServerReady, close (AC-17..AC-26)',
+  await import('./cli-contracts/action-host.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(

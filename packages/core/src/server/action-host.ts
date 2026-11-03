@@ -1,0 +1,249 @@
+/**
+ * --------------------------------------------------------------------
+ * docmd : the zero-config documentation engine.
+ *
+ * @package     @docmd/core (and ecosystem)
+ * @website     https://docmd.io
+ * @repository  https://github.com/docmd-io/docmd
+ * @license     MIT
+ * @copyright   Copyright (c) 2025-present docmd.io
+ *
+ * [docmd-source] - Please do not remove this header.
+ * --------------------------------------------------------------------
+ */
+
+/**
+ * Shared WebSocket plugin-action host. `docmd dev`, workspace dev and
+ * `docmd serve` all attach plugin actions to their HTTP server through
+ * `createActionHost`, so the WebSocket server and the action dispatcher
+ * are wired in exactly one place.
+ */
+
+import crypto from 'node:crypto';
+import path from 'node:path';
+import type http from 'node:http';
+import { WebSocketServer, WebSocket } from 'ws';
+import { TUI, createActionDispatcher, loadPlugins, hooks as globalHooks } from '@docmd/api';
+import type { ActionCaller, ServerHandle } from '@docmd/api';
+
+export interface ActionHostOptions {
+  server: http.Server;
+  mode: 'dev' | 'serve';
+  projectRoot: string;
+  config: any;
+  /** dev: createOriginVerify(...); serve: createOriginAllowlist(origins). */
+  verifyClient: (info: any, cb: (allowed: boolean, code?: number, message?: string) => void) => void;
+  /** dev swaps the pool on config reload, so the host asks every time. */
+  getWorkerPool: () => any;
+  /** Provided by the command; serialised and coalesced inside the host. */
+  rebuild: (files?: string[]) => Promise<void>;
+  /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev' }). */
+  loadPlugins?: boolean;
+  /** Extra plugin resolution roots handed to loadPlugins. */
+  resolvePaths?: string[];
+}
+
+export interface ActionHost {
+  wss: InstanceType<typeof WebSocketServer>;
+  /** `{type:'event', name, data}` to every OPEN client. */
+  broadcast(event: string, data: any): void;
+  /** dev only: sends the bare `reload` text frame. A no-op in serve. */
+  broadcastReload(): void;
+  /** Serialised, coalescing wrapper around `opts.rebuild`. */
+  rebuild(files?: string[]): Promise<void>;
+  /** What `onServerReady` receives. */
+  handle: ServerHandle;
+  /** Terminates sockets, closes wss, runs onShutdown callbacks. */
+  close(): Promise<void>;
+}
+
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (e: unknown) => void;
+}
+
+function defer(): Deferred {
+  let resolve!: () => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<void>((res, rej) => { resolve = res; reject = rej; });
+  // Callers that never await (fire-and-forget) must not trigger unhandled rejections.
+  promise.catch(() => {});
+  return { promise, resolve, reject };
+}
+
+/** Build the per-socket caller from the upgrade request (cookies never reach plugins). */
+function buildCaller(req: http.IncomingMessage): ActionCaller {
+  const headers: Record<string, string> = {};
+  for (const [name, value] of Object.entries(req.headers)) {
+    const key = name.toLowerCase();
+    if (key === 'cookie' || key === 'set-cookie' || value === undefined) continue;
+    headers[key] = Array.isArray(value) ? value.join(', ') : value;
+  }
+  return {
+    transport: 'websocket',
+    headers,
+    origin: (req.headers.origin as string | undefined) ?? null,
+    remoteAddress: req.socket.remoteAddress ?? null,
+    connectionId: crypto.randomUUID(),
+    connectedAt: Date.now(),
+  };
+}
+
+export async function createActionHost(opts: ActionHostOptions): Promise<ActionHost> {
+  const { server, mode, projectRoot, config } = opts;
+  const shutdownCallbacks: Array<() => void | Promise<void>> = [];
+
+  // ── Plugins ──────────────────────────────────────────
+  if (opts.loadPlugins !== false) {
+    await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev' });
+  }
+  const hooks: any = globalHooks;
+
+  // ── Serialised, coalescing rebuild ───────────────────
+  let inFlight = false;
+  let pending: { files: Set<string> | null; waiter: Deferred } | null = null;
+
+  const toAbsolute = (f: string) => path.resolve(projectRoot, f);
+
+  const broadcast = (event: string, data: any): void => {
+    const frame = JSON.stringify({ type: 'event', name: event, data });
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(frame);
+    });
+  };
+
+  async function runBuild(files: string[] | null, waiter: Deferred): Promise<void> {
+    inFlight = true;
+    try {
+      await opts.rebuild(files ?? undefined);
+      broadcast('system:rebuilt', {
+        files: files ? files.map((f) => path.relative(projectRoot, f)) : null,
+      });
+      waiter.resolve();
+    } catch (e) {
+      waiter.reject(e);
+    } finally {
+      inFlight = false;
+      if (pending) {
+        const next = pending;
+        pending = null;
+        void runBuild(next.files ? [...next.files] : null, next.waiter);
+      }
+    }
+  }
+
+  function rebuild(files?: string[]): Promise<void> {
+    const absolute = files ? files.map(toAbsolute) : null;
+    if (!inFlight) {
+      const waiter = defer();
+      void runBuild(absolute, waiter);
+      return waiter.promise;
+    }
+    if (!pending) pending = { files: new Set(), waiter: defer() };
+    if (absolute === null) pending.files = null;
+    else if (pending.files) for (const f of absolute) pending.files.add(f);
+    return pending.waiter.promise;
+  }
+
+  // ── Handle ───────────────────────────────────────────
+  const handle: ServerHandle = {
+    mode,
+    projectRoot,
+    config,
+    rebuild,
+    broadcast,
+    onShutdown: (fn) => { shutdownCallbacks.push(fn); },
+  };
+
+  const dispatcher = createActionDispatcher(hooks, {
+    projectRoot,
+    config,
+    broadcast,
+    mode,
+    getWorkerPool: opts.getWorkerPool,
+    requestRebuild: rebuild,
+  });
+
+  // ── WebSocket server ─────────────────────────────────
+  // Handshakes wait for `onServerReady`: a client that connects while a
+  // plugin is still starting up is accepted only after the hooks resolved.
+  const ready = defer();
+  const wss = new WebSocketServer({
+    server,
+    verifyClient: (info: any, cb: any) => {
+      ready.promise.then(
+        () => opts.verifyClient(info, cb),
+        () => cb(false, 503, 'Server not ready'),
+      );
+    },
+  });
+  wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
+
+  wss.on('connection', (ws: any, req: http.IncomingMessage) => {
+    const caller = buildCaller(req);
+    ws.on('message', async (raw: any) => {
+      let msg: any;
+      try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+      if (msg.type === 'call') {
+        try {
+          const { result, writtenFiles } = await dispatcher.handleCall(msg.action, msg.payload, caller);
+          // Never ask the client to reload from here: dev's watcher rebuilds and
+          // broadcasts `reload`; serve rebuilds below and broadcasts `system:rebuilt`.
+          ws.send(JSON.stringify({ id: msg.id, type: 'response', result, reload: false }));
+          if (mode === 'serve' && writtenFiles.length > 0) {
+            rebuild(writtenFiles).catch((e: any) => TUI.error('Rebuild failed', e?.message ?? String(e)));
+          }
+        } catch (e: any) {
+          ws.send(JSON.stringify({ id: msg.id, type: 'response', error: e.message }));
+        }
+      } else if (msg.type === 'event') {
+        dispatcher.handleEvent(msg.name, msg.data, caller);
+      }
+    });
+  });
+
+  const host: ActionHost = {
+    wss,
+    broadcast,
+    broadcastReload() {
+      if (mode !== 'dev') return;
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) client.send('reload');
+      });
+    },
+    rebuild,
+    handle,
+    async close() {
+      wss.clients.forEach((client) => client.terminate());
+      const closed = new Promise<void>((resolve) => wss.close(() => resolve()));
+      for (const fn of shutdownCallbacks) {
+        try { await fn(); } catch (e: any) { TUI.error('Shutdown callback failed', e?.message ?? String(e)); }
+      }
+      await closed;
+    },
+  };
+
+  // ── Ready hooks ──────────────────────────────────────
+  try {
+    if (mode === 'dev') {
+      for (const fn of hooks.onDevServerReady) await fn(server, wss);
+    }
+    for (const fn of hooks.onServerReady) {
+      try {
+        await fn(handle);
+      } catch (e: any) {
+        if (mode === 'serve') throw e;
+        TUI.error('onServerReady failed', e?.message ?? String(e));
+      }
+    }
+  } catch (e) {
+    ready.reject(e);
+    wss.close();
+    throw e;
+  }
+  ready.resolve();
+
+  return host;
+}
