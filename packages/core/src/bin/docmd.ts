@@ -124,6 +124,14 @@ if (!command || values.help) {
   process.exit(0);
 }
 
+if (
+  values.host !== undefined &&
+  (typeof values.host !== 'string' || values.host === '' || values.host.startsWith('-'))
+) {
+  console.error('Error: --host requires a value, e.g. --host 0.0.0.0');
+  process.exit(1);
+}
+
 const opts = {
   config: values.config || 'docmd.config.js',
   offline: values.offline,

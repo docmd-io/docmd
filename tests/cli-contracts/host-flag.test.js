@@ -54,17 +54,17 @@ function get(port, urlPath) {
   });
 }
 
-async function waitForHttp(port, child, timeoutMs = 30000) {
+async function waitForHttp(port, child, output, timeoutMs = 10000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`dev server exited early (${child.exitCode})`);
+    if (child.exitCode !== null) throw new Error(`dev server exited early (${child.exitCode}): ${output.text}`);
     try {
       const res = await get(port, '/');
       if (res.status === 200) return res;
     } catch { /* not listening yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error('dev server did not answer GET / in time');
+  throw new Error(`dev server did not answer GET / on port ${port} in time; output: ${output.text}`);
 }
 
 function canConnect(host, port) {
@@ -94,6 +94,19 @@ export const test = runTestFile({
       assert(/--host/.test(help), 'AC-2: `docmd --help` lists --host');
     }
 
+    // A valueless --host is rejected instead of being passed to listen().
+    for (const argv of [['dev', '--host'], ['dev', '--host', '--port', '4000']]) {
+      let code = 0;
+      let err = '';
+      try {
+        execFileSync(process.execPath, [DOCMD, ...argv], { encoding: 'utf8', stdio: 'pipe' });
+      } catch (e) {
+        code = e.status;
+        err = String(e.stderr);
+      }
+      assert(code === 1 && /--host requires a value/.test(err), `--host without a value exits 1 with a message (${argv.slice(1).join(' ')})`);
+    }
+
     // AC-2 (bind) + AC-15 (dev wrapper): one dev spawn, reused.
     {
       const dir = setup('host-flag-dev');
@@ -105,17 +118,20 @@ export const test = runTestFile({
       delete env.DOCMD_HOST;
       delete env.DOCMD_PROJECT_OUT;
       const child = spawn(process.execPath, [DOCMD, 'dev', '--host', '0.0.0.0', '--port', String(port)], {
-        cwd: dir, env, stdio: 'ignore'
+        cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe']
       });
+      const output = { text: '' };
+      child.stdout.on('data', (c) => { output.text += c; });
+      child.stderr.on('data', (c) => { output.text += c; });
       const exited = new Promise((resolve) => child.once('exit', resolve));
       try {
-        const root = await waitForHttp(port, child);
+        const root = await waitForHttp(port, child, output);
 
         const lan = lanIPv4();
         if (lan) {
           assert(await canConnect(lan, port), `AC-2: dev --host 0.0.0.0 accepts a connection on ${lan}:${port}`);
         } else {
-          console.log('    ⚠️  no non-loopback IPv4 interface; skipping LAN connect check');
+          assert(false, 'AC-2: no non-loopback IPv4 interface; cannot verify --host binding');
         }
 
         assert(root.body.includes('window.__docmd_dev'), 'AC-15: GET / injects window.__docmd_dev');
