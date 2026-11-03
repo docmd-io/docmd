@@ -52,5 +52,5 @@ for (let i = 0; i <= 8; i++) {
   console.log(`F(${i}) = ${fibonacci(i)}`);
 }
 
-console.log({ status: "success", version: docmd?.version || "0.9.9" });
+console.log({ status: "success", version: docmd.version });
 ```

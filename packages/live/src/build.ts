@@ -139,6 +139,8 @@ async function build(outputPath?: string) {
             }
         };
 
+        const livePkg = JSON.parse(await fs.readFile(path.join(PKG_ROOT, 'package.json'), 'utf8'));
+
         // 5. Bundle JS
         await esbuild.build({
             entryPoints: [path.join(assetsDir, 'browser-entry.ts')],
@@ -150,14 +152,14 @@ async function build(outputPath?: string) {
             minify: true,
             define: {
                 'process.env.NODE_ENV': '"production"',
-                'import.meta.url': 'window.location.href'
+                'import.meta.url': 'window.location.href',
+                '__DOCMD_VERSION__': JSON.stringify(livePkg.version)
             },
             inject: [shimPath],
             plugins: [templatePlugin, nodeShimPlugin]
         });
 
         // 6. Copy Static Assets, Auto-Load Presets & Inject Version
-        const livePkg = JSON.parse(await fs.readFile(path.join(PKG_ROOT, 'package.json'), 'utf8'));
         let indexHtml = await fs.readFile(path.join(assetsDir, 'index.html'), 'utf8');
         indexHtml = indexHtml.replace(/content="docmd v[^"]*"/, `content="docmd v${livePkg.version}"`);
 

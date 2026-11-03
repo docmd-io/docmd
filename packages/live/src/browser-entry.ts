@@ -19,6 +19,14 @@ import { markdownSetup as playgroundMarkdownSetup } from '@docmd/plugin-playgrou
 // @ts-expect-error virtual module
 import templates from 'virtual:docmd-templates';
 
+declare const __DOCMD_VERSION__: string;
+const LIVE_VERSION = typeof __DOCMD_VERSION__ !== 'undefined' ? __DOCMD_VERSION__ : '0.9.9';
+
+if (typeof window !== 'undefined') {
+    (window as any).docmd = (window as any).docmd || {};
+    (window as any).docmd.version = LIVE_VERSION;
+}
+
 // Expose the compile function to the window.docmd global
 async function compile(markdown: string, config: any = {}) {
     const defaults: any = {
@@ -127,7 +135,11 @@ async function compile(markdown: string, config: any = {}) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${result.frontmatter.title || 'Live Preview'}</title>
-    <script>window.DOCMD_APPEARANCE = "${appearance}";</script>
+    <script>
+        window.DOCMD_APPEARANCE = "${appearance}";
+        window.docmd = window.docmd || {};
+        window.docmd.version = "${LIVE_VERSION}";
+    </script>
     <script>${themeInitScript}</script>
     <link rel="stylesheet" href="${assetsRoot}/css/docmd-main.css?v=live">
     <link rel="stylesheet" href="${assetsRoot}/css/docmd-live-preview.css">

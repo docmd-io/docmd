@@ -379,6 +379,9 @@
 
   // Expose global API
   window.docmd = window.docmd || {};
+  if (!window.docmd.version) {
+    window.docmd.version = '0.9.9';
+  }
   window.docmd.playground = {
     init: initPlaygrounds
   };
