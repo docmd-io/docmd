@@ -33,7 +33,7 @@
     "@docmd/api": "workspace:*",
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
-    "mermaid": "^12.2.0",
+    "mermaid": "^12.3.0",
     "tsx": "^4.23.15"
   },
   "keywords": [
