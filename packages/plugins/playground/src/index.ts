@@ -404,14 +404,14 @@ export function getAssets(): Asset[] {
       dest: 'assets/js/docmd-playground.js',
       type: 'js',
       location: 'body',
-      condition: { pageHtmlMatches: 'class="docmd-playground"' }
+      condition: { pageHtmlMatches: 'docmd-playground' }
     },
     {
       src: resolveAssetPath(path.join('css', 'playground.css')),
       dest: 'assets/css/docmd-playground.css',
       type: 'css',
       location: 'head',
-      condition: { pageHtmlMatches: 'class="docmd-playground"' }
+      condition: { pageHtmlMatches: 'docmd-playground' }
     }
   ];
 }
