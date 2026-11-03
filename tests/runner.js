@@ -191,6 +191,11 @@ addInProcess(
   await import('./cli-contracts/variables-engine.test.js')
 );
 addInProcess(
+  'mcp-read-doc',
+  'MCP read_doc confines reads to markdown inside the source directory',
+  await import('./cli-contracts/mcp-read-doc.test.js')
+);
+addInProcess(
   'plugin-playground',
   'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
   await import('./cli-contracts/plugin-playground.test.js')
