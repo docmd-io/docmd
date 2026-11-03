@@ -107,7 +107,10 @@
 
     bindActions() {
       if (this.runBtn) {
-        this.runBtn.addEventListener('click', () => this.run());
+        this.runBtn.addEventListener('click', () => {
+          this.run();
+          this.switchView('live');
+        });
       }
       if (this.resetBtn) {
         this.resetBtn.addEventListener('click', () => this.reset());
@@ -281,36 +284,34 @@
       const iframe = document.createElement('iframe');
       iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms');
       iframe.style.width = '100%';
-      iframe.style.height = '100%';
+      iframe.style.minHeight = '200px';
       iframe.style.border = 'none';
+      iframe.style.background = '#ffffff';
+      iframe.style.display = 'block';
+
+      iframe.srcdoc = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #0f172a;
+        background: #ffffff;
+        box-sizing: border-box;
+      }
+      * { box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    ${html}
+  </body>
+</html>`;
 
       this.previewEl.appendChild(iframe);
-
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <style>
-                body {
-                  margin: 0;
-                  padding: 12px;
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                  color: #0f172a;
-                  background: #ffffff;
-                }
-              </style>
-            </head>
-            <body>
-              ${html}
-            </body>
-          </html>
-        `);
-        doc.close();
-      }
     }
 
     reset() {

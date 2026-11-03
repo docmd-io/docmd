@@ -88,7 +88,7 @@ function renderPlaygroundHtml(
   const readonlyAttr = isReadonly ? ' data-readonly="true"' : '';
   const nocodeAttr = hideCode ? ' data-nocode="true"' : '';
   const activeView = (hideCode || initialView !== 'code') ? 'live' : 'code';
-  const modeAttr = hasTabs ? ` data-mode="tabs" data-active-view="${activeView}"` : '';
+  const modeAttr = ` data-mode="tabs" data-active-view="${activeView}"`;
   const layoutClass = layout ? ` docmd-playground-layout-${layout}` : '';
 
   const isMarkup = safeLang === 'html' || safeLang === 'svg' || safeLang === 'xml';
@@ -111,29 +111,26 @@ function renderPlaygroundHtml(
   </div>` : '';
 
   let viewTabsHtml = '';
-  if (hasTabs) {
-    if (hideCode) {
-      // User disabled code view, show only Live badge
-      viewTabsHtml = `
-      <div class="docmd-playground-view-tabs docmd-playground-view-single">
-        <button type="button" class="docmd-playground-view-tab active" data-view="live" title="Live Preview">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          <span>Live</span>
-        </button>
-      </div>`;
-    } else {
-      viewTabsHtml = `
-      <div class="docmd-playground-view-tabs">
-        <button type="button" class="docmd-playground-view-tab ${activeView === 'live' ? 'active' : ''}" data-view="live" title="View Live Output">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          <span>Live</span>
-        </button>
-        <button type="button" class="docmd-playground-view-tab ${activeView === 'code' ? 'active' : ''}" data-view="code" title="View Source Code">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          <span>Code</span>
-        </button>
-      </div>`;
-    }
+  if (hideCode) {
+    viewTabsHtml = `
+    <div class="docmd-playground-view-tabs docmd-playground-view-single">
+      <button type="button" class="docmd-playground-view-tab active" data-view="live" title="Play">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        <span>Play</span>
+      </button>
+    </div>`;
+  } else {
+    viewTabsHtml = `
+    <div class="docmd-playground-view-tabs">
+      <button type="button" class="docmd-playground-view-tab ${activeView === 'live' ? 'active' : ''}" data-view="live" title="Play">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        <span>Play</span>
+      </button>
+      <button type="button" class="docmd-playground-view-tab ${activeView === 'code' ? 'active' : ''}" data-view="code" title="Code">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Code</span>
+      </button>
+    </div>`;
   }
 
   // Header action buttons

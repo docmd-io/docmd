@@ -399,7 +399,7 @@
       // Intercept any style mutation by search plugin trying to show the modal
       if (window.MutationObserver && !searchModal.__summerObserved) {
         searchModal.__summerObserved = true;
-        var modalObserver = new MutationObserver(function () {
+        var modalObserver = new window.MutationObserver(function () {
           if (searchModal.style.display !== 'none') {
             searchModal.style.setProperty('display', 'none', 'important');
           }
