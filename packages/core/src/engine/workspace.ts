@@ -577,7 +577,7 @@ export async function devWorkspace(
     }
   }
 
-  // Phase 1.D: default to loopback. Set DOCMD_HOST=0.0.0.0 to expose on LAN
+  // Phase 1.D: default to loopback. Pass --host 0.0.0.0 to expose on LAN
   // (with the verifyClient callback below still guarding the Origin header).
   const BIND_HOST = opts.host || process.env.DOCMD_HOST || '127.0.0.1';
 
