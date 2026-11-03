@@ -18,7 +18,7 @@ import path from 'path';
 import { buildSite } from './build.js';
 import { loadConfig } from '../utils/config-loader.js';
 import { safePath, asUserPath } from '@docmd/utils';
-import { findFilesRecursive } from '../engine/assets.js';
+import { findFilesRecursive, isDocEntryHidden } from '../engine/assets.js';
 
 const pkgUrl = new URL('../../package.json', import.meta.url);
 const { version } = JSON.parse(fs.readFileSync(pkgUrl, 'utf-8'));
@@ -109,7 +109,7 @@ function isExcludedByPatterns(fullPath: string, name: string, patterns: string[]
   return false;
 }
 
-export type ReadDocRoute = { ok: true; path: string } | { ok: false; error: string };
+type ReadDocRoute = { ok: true; path: string } | { ok: false; error: string };
 
 /**
  * Pure rule for the `read_doc` tool. A route is the cwd-relative form that
@@ -132,18 +132,22 @@ export function resolveReadDocRoute(
   const outside = { ok: false, error: `Error: Path "${route}" is outside the documentation source directory.` } as const;
   const docsDir = path.resolve(opts.docsDir);
   if (!resolved.startsWith(docsDir + path.sep)) return outside;
-  if (!['.md', '.markdown'].includes(path.extname(resolved).toLowerCase())) return outside;
+  if (!['.md', '.markdown'].includes(path.extname(resolved))) return outside;
+  // Same hidden-entry rule as list_docs/search_docs, applied to each segment.
   const exclude = opts.exclude || [];
-  if (exclude.length > 0) {
-    let current = docsDir;
-    for (const segment of path.relative(docsDir, resolved).split(path.sep)) {
-      current = path.join(current, segment);
-      if (isExcludedByPatterns(current, segment, exclude, docsDir)) return outside;
-    }
+  let current = docsDir;
+  for (const segment of path.relative(docsDir, resolved).split(path.sep)) {
+    if (isDocEntryHidden(current, segment, exclude, docsDir)) return outside;
+    current = path.join(current, segment);
+  }
+  // Symlinks must not lead out of the source dir (list_docs never lists them).
+  if (fs.existsSync(resolved)) {
+    const realDocs = fs.realpathSync(docsDir);
+    const real = fs.realpathSync(resolved);
+    if (!real.startsWith(realDocs + path.sep)) return outside;
   }
   return { ok: true, path: resolved };
 }
-
 
 // excludePatterns is forwarded from config.exclude so that validate_docs
 // honours the same file set that the build produces.
@@ -654,7 +658,7 @@ export async function runMcpServer() {
             sendResponse(id, { content: [{ type: "text", text: decision.error }] });
             return;
           }
-          const resolvedFilePath = (decision as { ok: true; path: string }).path;
+          const resolvedFilePath = decision.path;
           if (!fs.existsSync(resolvedFilePath)) {
             sendResponse(id, { content: [{ type: "text", text: `Error: File not found at path "${route}".` }] });
             return;

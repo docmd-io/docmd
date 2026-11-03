@@ -9,6 +9,7 @@
  * --------------------------------------------------------------------
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { setup, writeFile, runTestFile, DOCMD } from '../shared.js';
@@ -62,16 +63,20 @@ export const test = runTestFile({
   emoji: '📖',
   run: async () => {
     const dir = setup('mcp-read-doc');
-    writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'T', exclude: ['secret.md'] }));
+    writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'T', exclude: ['secret.md', 'drafts/*.md'] }));
     writeFile(dir, '.env', 'SECRET=1\n');
     writeFile(dir, 'docs/intro.md', '# Intro content\n');
     writeFile(dir, 'docs/a.markdown', '# A\n');
     writeFile(dir, 'docs/notes.txt', 'notes\n');
     writeFile(dir, 'docs/secret.md', '# Secret\n');
+    writeFile(dir, 'docs/drafts/a.md', '# Draft\n');
+    writeFile(dir, 'docs/.hidden/x.md', '# Hidden\n');
+    let symlinked = true;
+    try { fs.symlinkSync(path.join(dir, '.env'), path.join(dir, 'docs/link.md')); } catch { symlinked = false; }
     writeFile(dir, 'docs-private/x.md', '# Private\n');
     writeFile(dir, 'x.md', '# Root\n');
 
-    const opts = { cwd: dir, docsDir: path.join(dir, 'docs'), exclude: ['secret.md'] };
+    const opts = { cwd: dir, docsDir: path.join(dir, 'docs'), exclude: ['secret.md', 'drafts/*.md'] };
     const table = [
       ['docs/intro.md', true],
       ['docs/a.markdown', true],
@@ -80,6 +85,9 @@ export const test = runTestFile({
       ['x.md', false],
       ['docs-private/x.md', false],
       ['docs/secret.md', false],
+      ['docs/drafts/a.md', false],
+      ['docs/.hidden/x.md', false],
+      ...(symlinked ? [['docs/link.md', false]] : []),
       ['../x.md', false],
     ];
     for (const [route, ok] of table) {
