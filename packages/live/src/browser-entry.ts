@@ -139,6 +139,23 @@ async function compile(markdown: string, config: any = {}) {
         window.DOCMD_APPEARANCE = "${appearance}";
         window.docmd = window.docmd || {};
         window.docmd.version = "${LIVE_VERSION}";
+        window.docmd.var = window.docmd.var || {
+            _store: {
+                docmd: { version: "${LIVE_VERSION}", buildYear: String(new Date().getFullYear()) },
+                version: "${LIVE_VERSION}",
+                DOCMD_VERSION: "${LIVE_VERSION}"
+            },
+            get: function(k) {
+                if (!k || typeof k !== 'string') return undefined;
+                if (k in this._store) return this._store[k];
+                if (k === 'docmd.version') return this._store.docmd.version;
+                if (k === 'docmd.buildYear') return this._store.docmd.buildYear;
+                if (k === 'docmd') return this._store.docmd;
+                return undefined;
+            },
+            set: function(k, v) { this._store[k] = v; },
+            all: function() { return this._store; }
+        };
     </script>
     <script>${themeInitScript}</script>
     <link rel="stylesheet" href="${assetsRoot}/css/docmd-main.css?v=live">

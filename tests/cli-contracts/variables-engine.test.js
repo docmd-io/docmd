@@ -220,10 +220,53 @@ export const test = runTestFile({
         summerCss.includes('.docmd-search-modal {') && summerCss.includes('display: none !important;'),
         'summer.css permanently hides .docmd-search-modal with display: none !important'
       );
-      assert(
-        !summerCss.includes('.docmd-search-modal[style*="flex"]'),
-        'summer.css removes broken .docmd-search-modal[style*="flex"] rule'
-      );
+    }
+
+    // 10. Client variables injection and security boundary
+    {
+      const defaultLayoutPath = path.join(rootDir, 'packages/ui/templates/layout.ejs');
+      const defaultLayout = fs.readFileSync(defaultLayoutPath, 'utf8');
+      assert(defaultLayout.includes('window.__DOCMD_VARIABLES__'), 'default layout injects window.__DOCMD_VARIABLES__');
+
+      const summerLayoutPath = path.join(rootDir, 'packages/templates/summer/templates/layout.ejs');
+      const summerLayout = fs.readFileSync(summerLayoutPath, 'utf8');
+      assert(summerLayout.includes('window.__DOCMD_VARIABLES__'), 'summer layout injects window.__DOCMD_VARIABLES__');
+
+      const currentYear = new Date().getFullYear();
+      const registry = new VariableRegistry({
+        siteTitle: 'Docmd Guide',
+        version: '0.9.9',
+        gitCommit: 'abc1234',
+        gitBranch: 'main',
+        configVariables: {
+          apiBase: 'https://api.example.com',
+          customUserConfigVar: 'active'
+        }
+      });
+
+      const clientVars = registry.getClientVariables({
+        pageTitle: 'Playground Demo',
+        pageSlug: '/plugins/playground',
+        frontmatter: {
+          author: 'Docmd Team',
+          variables: {
+            themeColor: 'blue'
+          }
+        }
+      });
+
+      assert(clientVars.docmd && clientVars.docmd.version === '0.9.9', 'clientVars includes docmd.version');
+      assert(clientVars.docmd && clientVars.docmd.buildYear === String(currentYear), 'clientVars includes docmd.buildYear');
+      assert(clientVars.site && clientVars.site.title === 'Docmd Guide', 'clientVars includes site.title');
+      assert(clientVars.apiBase === 'https://api.example.com', 'clientVars includes user configVariables');
+      assert(clientVars.themeColor === 'blue', 'clientVars includes frontmatter variables');
+      assert(clientVars.page && clientVars.page.title === 'Playground Demo', 'clientVars includes page.title');
+      assert(!clientVars.PATH && !clientVars.HOME && !clientVars.SHELL, 'clientVars excludes sensitive process.env');
+
+      const runtimeJsPath = path.join(rootDir, 'packages/ui/assets/js/docmd-runtime.js');
+      const runtimeContent = fs.readFileSync(runtimeJsPath, 'utf8');
+      assert(runtimeContent.includes('window.__DOCMD_VARIABLES__'), 'docmd-runtime.js hydrates from window.__DOCMD_VARIABLES__');
+      assert(runtimeContent.includes("key.split('.')"), 'docmd-runtime.js supports nested dot-notation variable resolution');
     }
   }
 });

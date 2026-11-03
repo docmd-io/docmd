@@ -379,8 +379,44 @@
 
   // Expose global API
   window.docmd = window.docmd || {};
+  const injectedVars = (typeof window !== 'undefined' && window.__DOCMD_VARIABLES__ && typeof window.__DOCMD_VARIABLES__ === 'object') ? window.__DOCMD_VARIABLES__ : {};
   if (!window.docmd.version) {
-    window.docmd.version = '0.9.9';
+    window.docmd.version = injectedVars.docmd?.version || injectedVars.DOCMD_VERSION || '0.9.9';
+  }
+  if (!window.docmd.var) {
+    window.docmd.var = {
+      _store: {
+        docmd: { version: window.docmd.version, buildYear: String(new Date().getFullYear()) },
+        version: window.docmd.version,
+        DOCMD_VERSION: window.docmd.version,
+        ...injectedVars
+      },
+      get: function(k) {
+        if (!k || typeof k !== 'string') return undefined;
+        if (k in this._store && this._store[k] !== undefined) return this._store[k];
+        const parts = k.split('.');
+        if (parts.length > 1) {
+          let cur = this._store;
+          let found = true;
+          for (const p of parts) {
+            if (cur !== null && cur !== undefined && typeof cur === 'object' && p in cur) cur = cur[p];
+            else { found = false; break; }
+          }
+          if (found && cur !== undefined) return cur;
+        }
+        if (k === 'docmd.version' || k === 'DOCMD_VERSION' || k === 'version') return window.docmd.version;
+        if (k === 'docmd.buildYear' || k === 'BUILD_YEAR') return String(new Date().getFullYear());
+        return undefined;
+      },
+      set: function(k, v) {
+        if (typeof k === 'string') this._store[k] = v;
+        else if (typeof k === 'object' && k !== null) Object.assign(this._store, k);
+      },
+      all: function() { return { ...this._store }; }
+    };
+  }
+  if (!window.docmd.get) {
+    window.docmd.get = (k) => window.docmd.var?.get?.(k);
   }
   window.docmd.playground = {
     init: initPlaygrounds

@@ -60,6 +60,11 @@
       this._runtime = runtime;
       this._store = {};
       this._defaults = {};
+
+      // Seed with initial variables from compiler/template if injected
+      if (typeof window !== 'undefined' && window.__DOCMD_VARIABLES__ && typeof window.__DOCMD_VARIABLES__ === 'object') {
+        Object.assign(this._store, window.__DOCMD_VARIABLES__);
+      }
     }
 
     /**
@@ -85,9 +90,50 @@
 
     /**
      * Get active variable value.
+     * Supports direct keys ("DOCMD_VERSION"), dot-notation ("docmd.version", "git.branch", "site.title"),
+     * DOM-hydrated defaults, and system built-ins.
      */
     get(key) {
-      return this._store[key];
+      if (!key || typeof key !== 'string') return undefined;
+
+      // 1. Direct match in active store
+      if (key in this._store && this._store[key] !== undefined) {
+        return this._store[key];
+      }
+
+      // 2. Nested dot-notation lookup in store (e.g. "docmd.version", "git.branch", "site.title")
+      const parts = key.split('.');
+      if (parts.length > 1) {
+        let current = this._store;
+        let found = true;
+        for (const part of parts) {
+          if (current !== null && current !== undefined && typeof current === 'object' && part in current) {
+            current = current[part];
+          } else {
+            found = false;
+            break;
+          }
+        }
+        if (found && current !== undefined) return current;
+      }
+
+      // 3. Fallback to defaults captured from DOM hydration
+      if (key in this._defaults && this._defaults[key] !== undefined) {
+        return this._defaults[key];
+      }
+
+      // 4. Built-in system fallbacks
+      if (key === 'docmd.version' || key === 'DOCMD_VERSION' || key === 'version') {
+        return this._runtime.version || '0.9.9';
+      }
+      if (key === 'docmd.buildYear' || key === 'BUILD_YEAR') {
+        return String(new Date().getFullYear());
+      }
+      if (key === 'docmd') {
+        return { version: this._runtime.version || '0.9.9', buildYear: String(new Date().getFullYear()) };
+      }
+
+      return undefined;
     }
 
     /**

@@ -1095,6 +1095,18 @@
         initializeScrollSpy();
         updateTocClass();
         initializeHeroSliders();
+        const varScript = Array.from(doc.querySelectorAll('script')).find(s => s.textContent && s.textContent.includes('window.__DOCMD_VARIABLES__'));
+        if (varScript) {
+          try {
+            const jsonMatch = varScript.textContent.match(/window\.__DOCMD_VARIABLES__\s*=\s*(\{[\s\S]*?\});/);
+            if (jsonMatch) {
+              const newVars = JSON.parse(jsonMatch[1]);
+              if (window.docmd && window.docmd.var && typeof window.docmd.var.set === 'function') {
+                window.docmd.var.set(newVars);
+              }
+            }
+          } catch { /* ignore parse error */ }
+        }
         if (window.docmd && window.docmd.var && typeof window.docmd.var.hydrate === 'function') {
           window.docmd.var.hydrate();
         }

@@ -776,6 +776,12 @@ export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, h
       );
       const titleSeparator = resolveTitleSeparator(config, page.frontmatter);
       const titleAppend = resolveTitleAppend(config, page.frontmatter);
+      const pageVariables = variableRegistry ? variableRegistry.getClientVariables({
+        pageTitle: page.frontmatter.title,
+        pageSlug: pageUrls.pathname,
+        pagePath: page.outputPath,
+        frontmatter: page.frontmatter
+      }) : {};
 
       let fullHtml = await parser.renderTemplateAsync(templateString, {
         content: page.htmlContent,
@@ -785,6 +791,7 @@ export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, h
         config,
         buildHash,
         coreVersion: coreVersion || CORE_VERSION,
+        pageVariables,
         siteTitle: config.title,
         pageTitle: page.frontmatter.title,
         fullTitle,
