@@ -454,3 +454,14 @@ html[data-theme="dark"] .docmd-pg-error-notice {
   word-break: break-word;
 }
 
+/* Read-Only State */
+.docmd-playground[data-readonly="true"] .docmd-playground-reset-btn {
+  display: none !important;
+}
+
+.docmd-playground[data-readonly="true"] .docmd-playground-editor {
+  cursor: default;
+  background: var(--pg-header-bg);
+  opacity: 0.95;
+}
+

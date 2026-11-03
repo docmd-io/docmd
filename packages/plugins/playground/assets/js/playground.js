@@ -40,8 +40,12 @@
     constructor(container) {
       this.container = container;
       this.lang = (container.getAttribute('data-lang') || 'js').toLowerCase();
-      this.initialCode = container.querySelector('.docmd-playground-initial-code')?.textContent || '';
+      const template = container.querySelector('.docmd-playground-initial-code');
+      const templateCode = template ? (template.content ? template.content.textContent : (template.textContent || template.innerHTML)) : '';
       this.editor = container.querySelector('.docmd-playground-editor');
+      this.initialCode = (this.editor && typeof this.editor.defaultValue === 'string' && this.editor.defaultValue.length > 0)
+        ? this.editor.defaultValue
+        : (templateCode || '').trim();
       this.consoleEl = container.querySelector('.docmd-playground-console');
       this.previewEl = container.querySelector('.docmd-playground-preview');
       this.runBtn = container.querySelector('.docmd-playground-run-btn');
@@ -58,7 +62,7 @@
 
     init() {
       if (this.editor && !this.editor.value) {
-        this.editor.value = this.initialCode.trim();
+        this.editor.value = this.initialCode;
       }
 
       this.defaultTab = (this.container.getAttribute('data-default-tab') || (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg' ? 'preview' : 'console')).toLowerCase();
@@ -316,11 +320,15 @@
 
     reset() {
       if (this.editor) {
-        this.editor.value = this.initialCode.trim();
+        this.editor.value = this.initialCode;
       }
       this.clearConsole();
       if (this.previewEl) {
-        this.previewEl.innerHTML = '';
+        if (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg' || this.defaultTab === 'preview') {
+          this.renderHtmlPreview(this.initialCode);
+        } else {
+          this.previewEl.innerHTML = '';
+        }
       }
       if (this.container.getAttribute('data-live') === 'true') {
         this.run();
