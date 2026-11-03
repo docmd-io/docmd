@@ -394,7 +394,7 @@
       <script src="<%= assetBaseUrl %>assets/js/docmd-i18n-manifest.js?v=<%= buildHash %>"></script>
       <% } %>
       <% if (locals.pageVariables && Object.keys(pageVariables).length > 0) { %>
-      <script>window.__DOCMD_VARIABLES__ = <%- JSON.stringify(pageVariables).replace(/<\/script/gi, '<\\/script') %>;</script>
+      <script>window.__DOCMD_VARIABLES__ = <%- JSON.stringify(pageVariables).replace(/</g, '\\u003c') %>;</script>
       <% } %>
       <script src="<%= assetBaseUrl %>assets/js/docmd-runtime.js?v=<%= buildHash %>"></script>
       <script src="<%= assetBaseUrl %>assets/js/docmd-main.js?v=<%= buildHash %>"></script>

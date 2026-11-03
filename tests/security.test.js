@@ -384,25 +384,26 @@ function callMcp(cwd, messages) {
           if (msg.id != null) responses.set(msg.id, msg);
         } catch { /* non-JSON line, skip */ }
       }
+      if (responses.size >= messages.length) {
+        proc.kill('SIGTERM');
+        resolve({ responses, stderr: stderrBuf });
+      }
     });
     proc.stderr.on('data', (chunk) => { stderrBuf += chunk.toString(); });
     proc.on('error', reject);
+    proc.on('close', () => {
+      resolve({ responses, stderr: stderrBuf });
+    });
 
-    let i = 0;
-    function sendNext() {
-      if (i >= messages.length) {
-        proc.stdin.end();
-        setTimeout(() => {
-          proc.kill('SIGTERM');
-          resolve({ responses, stderr: stderrBuf });
-        }, 800);
-        return;
-      }
-      proc.stdin.write(JSON.stringify(messages[i]) + '\n');
-      i++;
-      setTimeout(sendNext, 100);
+    for (const msg of messages) {
+      proc.stdin.write(JSON.stringify(msg) + '\n');
     }
-    sendNext();
+    proc.stdin.end();
+
+    setTimeout(() => {
+      proc.kill('SIGTERM');
+      resolve({ responses, stderr: stderrBuf });
+    }, 15000);
   });
 }
 
@@ -413,7 +414,7 @@ const cases = [
   { id: 5, route: 'docs/index.md',               expectValid: '# MCP test content' }
 ];
 
-(async () => {
+await (async () => {
   const dir = setup('s10-mcp-read-doc');
   writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'MCP test' }));
   writeFile(dir, 'docs/index.md', '# MCP test content\n');
@@ -440,21 +441,11 @@ const cases = [
       assert(`read_doc accepts "${c.route}"`, text.includes(c.expectValid), `got: ${text.slice(0, 80)}`);
     }
   }
-
-  // Final summary run after async S10
-  console.log('\n' + '═'.repeat(50));
-  console.log(`  ${passed} passed, ${failed} failed out of ${passed + failed} assertions`);
-  if (failures.length > 0) {
-    console.log(`\n  Failures:`);
-    failures.forEach(f => console.log(`    ${FAIL} ${f}`));
-  }
-  console.log('═'.repeat(50) + '\n');
-  process.exit(failed > 0 ? 1 : 0);
 })();
 
 // ─── TEST S11: ws-origin-guard unit checks (Phase 1.D, N-S1) ────────────
 console.log('\n🔒 Test S11: ws-origin-guard unit checks (Phase 1.D, N-S1)');
-(async () => {
+await (async () => {
   // Dynamically import the compiled helper from @docmd/core.
   const helperPath = path.resolve(import.meta.dirname, '../packages/core/dist/utils/ws-origin-guard.js');
   const { createOriginVerify } = await import(helperPath);
@@ -509,7 +500,7 @@ console.log('\n🔒 Test S11: ws-origin-guard unit checks (Phase 1.D, N-S1)');
 
 // ─── TEST S12: init makes NO network calls and writes no SKILL.md (Phase 1.D revised, T-S5) ─
 console.log('\n🔒 Test S12: init makes no network calls (Phase 1.D revised, T-S5)');
-(async () => {
+await (async () => {
   // Snapshot network calls by intercepting global fetch.
   const dir = setup('s12-init-no-network');
   writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'Init No Net' }));
@@ -604,7 +595,7 @@ console.log('\n🔒 Test S14: link scheme validation rejects javascript:/data: (
 
 // ─── TEST S15: sanitizeHeadInjection helper unit checks (Phase 1.B T-S7, helper-only) ─
 console.log('\n🔒 Test S15: sanitizeHeadInjection helper (Phase 1.B T-S7 helper-only)');
-(async () => {
+await (async () => {
   // Phase 1.B T-S7 was revised: the framework no longer auto-sanitises plugin
   // output (would break legitimate analytics <script> tags). The
   // sanitizeHeadInjection helper is still exported from @docmd/utils so
@@ -717,3 +708,13 @@ console.log('\n🔒 Test S17: PWA plugin validates themeColor (Phase 1.C, S-5)')
     assert('default theme color used as fallback', html && /<meta name="theme-color" content="#1e293b">/.test(html));
   }
 }
+
+// Final summary run after all tests complete
+console.log('\n' + '═'.repeat(50));
+console.log(`  ${passed} passed, ${failed} failed out of ${passed + failed} assertions`);
+if (failures.length > 0) {
+  console.log(`\n  Failures:`);
+  failures.forEach(f => console.log(`    ${FAIL} ${f}`));
+}
+console.log('═'.repeat(50) + '\n');
+process.exit(failed > 0 ? 1 : 0);

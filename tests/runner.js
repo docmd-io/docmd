@@ -450,7 +450,9 @@ console.log('');
     for (const f of allFailures) {
       console.log(RED(`  - ${f.name}`));
       if (f.output) {
-        const snippet = f.output.split('\n').slice(0, 8).join('\n');
+        const lines = f.output.split('\n').filter(Boolean);
+        const failLines = lines.filter(l => l.includes('❌') || l.includes('FAIL') || l.includes('Error'));
+        const snippet = (failLines.length > 0 ? failLines : lines.slice(-15)).join('\n');
         console.log(DIM(snippet));
       }
     }
