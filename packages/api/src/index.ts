@@ -99,6 +99,8 @@ export type {
   PageContext,
   PostBuildContext,
   // Action/Event system
+  ActionCaller,
+  ServerHandle,
   ActionContext,
   ActionHandler,
   EventHandler,

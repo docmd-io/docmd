@@ -136,6 +136,11 @@ addInProcess(
   await import('./cli-contracts/plugin-contract.test.js')
 );
 addInProcess(
+  'action-dispatcher',
+  'Action dispatcher context + onServerReady',
+  await import('./cli-contracts/action-dispatcher.test.js')
+);
+addInProcess(
   'source-tools',
   'Source tools + page shape consistency (Slice C.3)',
   await import('./cli-contracts/source-tools.test.js')
