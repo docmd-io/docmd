@@ -105,6 +105,16 @@ async function start() {
 
     } catch (err: any) {
       if (err.code === 'ENOENT') {
+        // SPA Fallback: for clean routes without file extension, serve index.html
+        if (!path.extname(safePathStr) && !safePathStr.startsWith('assets/')) {
+          try {
+            const fallbackPath = canonicalSafePath(publicDir, 'index.html');
+            const fallbackContent = await fs.readFile(fallbackPath);
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(fallbackContent);
+            return;
+          } catch { /* proceed to 404 */ }
+        }
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('404 Not Found');
       } else {

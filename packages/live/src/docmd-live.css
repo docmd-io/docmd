@@ -58,7 +58,7 @@ body {
 }
 
 .back-link {
-    display: flex;
+    display: none !important;
     width: 24px;
     height: 24px;
     background-color: #f0f0f0;

@@ -44,13 +44,6 @@
     <!-- Top Bar -->
     <div class="top-bar">
         <div class="logo">
-            <a href="https://docmd.io" class="back-link" id="back-btn" title="Back to docmd.io" aria-label="Back to docmd.io">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m12 19-7-7 7-7" />
-                    <path d="M19 12H5" />
-                </svg>
-            </a>
             <a href="https://docmd.io" class="docmd-logo" title="Back to docmd.io" aria-label="Back to docmd.io"><svg width="24" height="24" id="icon-feather" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15" x2="9" y2="15"></line></svg></a> docmd <span>Live</span>
         </div>
 
@@ -69,12 +62,13 @@
             <div class="pane-header">
                 <span>Markdown</span>
                 <div class="presets-bar">
-                    <button class="active" onclick="loadPreset('basics', this)">Basics</button>
-                    <button onclick="loadPreset('containers', this)">Callouts & Cards</button>
-                    <button onclick="loadPreset('tabs', this)">Tabs</button>
-                    <button onclick="loadPreset('steps', this)">Steps</button>
-                    <button onclick="loadPreset('mermaid', this)">Diagrams</button>
-                    <button onclick="loadPreset('math', this)">Math</button>
+                    <button class="active" data-preset="basics" onclick="loadPreset('basics', this)">Basics</button>
+                    <button data-preset="containers" onclick="loadPreset('containers', this)">Callouts & Cards</button>
+                    <button data-preset="tabs" onclick="loadPreset('tabs', this)">Tabs</button>
+                    <button data-preset="steps" onclick="loadPreset('steps', this)">Steps</button>
+                    <button data-preset="mermaid" onclick="loadPreset('mermaid', this)">Diagrams</button>
+                    <button data-preset="math" onclick="loadPreset('math', this)">Math</button>
+                    <button data-preset="playground" onclick="loadPreset('playground', this)">Playground</button>
                 </div>
             </div>
             <div class="editor-container">
@@ -129,21 +123,88 @@
             highlightBg.scrollLeft = input.scrollLeft;
         });
 
-        // Initialize with Basics
-        if (!input.value) input.value = SNIPPETS.basics;
-        updateEditorHighlight();
+        const PRESET_METADATA = {
+            basics: { title: 'Basics', desc: 'The zero-config documentation engine' },
+            containers: { title: 'Callouts & Cards', desc: 'Interactive callouts, cards, and buttons' },
+            tabs: { title: 'Tabs', desc: 'Tabbed interfaces for code and languages' },
+            steps: { title: 'Steps', desc: 'Sequential walkthroughs and numbered steps' },
+            mermaid: { title: 'Diagrams', desc: 'Flowcharts and diagrams with Mermaid.js' },
+            math: { title: 'KaTeX Math', desc: 'Scientific math typesetting with KaTeX' },
+            playground: { title: 'Interactive Playground', desc: 'Interactive live code runner and component sandbox' }
+        };
 
-        function loadPreset(key, btn) {
+        function getPresetFromUrl() {
+            const path = window.location.pathname.replace(/^\/+|\/+$/g, '');
+            const segments = path.split('/');
+            const last = segments[segments.length - 1];
+            if (last && SNIPPETS[last]) return last;
+            const hash = window.location.hash.replace(/^#\/?/, '').trim();
+            if (hash && SNIPPETS[hash]) return hash;
+            return null;
+        }
+
+        function updatePageMetadata(key) {
+            const meta = PRESET_METADATA[key] || { title: key.charAt(0).toUpperCase() + key.slice(1), desc: 'docmd Live Editor' };
+            const pageTitle = `docmd Live Editor — ${meta.title}`;
+            document.title = pageTitle;
+            const canonicalPath = key === 'basics' ? '' : `${key}/`;
+            const canonicalUrl = `https://live.docmd.io/${canonicalPath}`;
+
+            const canonical = document.querySelector('link[rel="canonical"]');
+            if (canonical) canonical.setAttribute('href', canonicalUrl);
+
+            const descEl = document.querySelector('meta[name="description"]');
+            if (descEl && meta.desc) descEl.setAttribute('content', meta.desc);
+
+            const ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) ogTitle.setAttribute('content', pageTitle);
+
+            const ogDesc = document.querySelector('meta[property="og:description"]');
+            if (ogDesc && meta.desc) ogDesc.setAttribute('content', meta.desc);
+
+            const ogUrl = document.querySelector('meta[property="og:url"]');
+            if (ogUrl) ogUrl.setAttribute('content', canonicalUrl);
+
+            const twTitle = document.querySelector('meta[name="twitter:title"]');
+            if (twTitle) twTitle.setAttribute('content', pageTitle);
+
+            const twDesc = document.querySelector('meta[name="twitter:description"]');
+            if (twDesc && meta.desc) twDesc.setAttribute('content', meta.desc);
+        }
+
+        function loadPreset(key, btn, updateUrl = true) {
             if (SNIPPETS[key]) {
                 input.value = SNIPPETS[key];
                 updateEditorHighlight();
-                if (btn) {
-                    document.querySelectorAll('.presets-bar button').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
+                document.querySelectorAll('.presets-bar button').forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-preset') === key);
+                });
+                if (updateUrl) {
+                    const targetPath = key === 'basics' ? '/' : `/${key}`;
+                    if (window.location.pathname !== targetPath && window.location.pathname !== `/${key}/`) {
+                        history.pushState({ preset: key }, '', targetPath);
+                    }
+                    updatePageMetadata(key);
                 }
                 render();
             }
         }
+
+        window.addEventListener('popstate', (e) => {
+            const key = e.state?.preset || getPresetFromUrl() || 'basics';
+            loadPreset(key, null, false);
+        });
+
+        // Initialize with URL preset or Basics
+        const initialPreset = getPresetFromUrl() || 'basics';
+        if (!input.value || input.value === SNIPPETS.basics) {
+            input.value = SNIPPETS[initialPreset] || SNIPPETS.basics;
+        }
+        document.querySelectorAll('.presets-bar button').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-preset') === initialPreset);
+        });
+        updatePageMetadata(initialPreset);
+        updateEditorHighlight();
 
         let currentRenderId = 0;
 
@@ -171,11 +232,14 @@
                 `;
                 html = html.replace('</body>', `${scrollScript}</body>`);
 
-                const doc = preview.contentWindow.document;
-                doc.open();
-                doc.write(html);
-                doc.close();
-
+                if ('srcdoc' in preview) {
+                    preview.srcdoc = html;
+                } else if (preview.contentWindow && preview.contentWindow.document) {
+                    const doc = preview.contentWindow.document;
+                    doc.open();
+                    doc.write(html);
+                    doc.close();
+                }
             } catch (e) { console.error(e); }
         }
 

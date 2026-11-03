@@ -4,16 +4,16 @@
  */
 
 .docmd-playground {
-  --pg-bg: var(--docmd-bg-secondary, #f8fafc);
-  --pg-header-bg: var(--docmd-bg-tertiary, #f1f5f9);
-  --pg-border: var(--docmd-border-color, #e2e8f0);
-  --pg-text: var(--docmd-text-primary, #0f172a);
-  --pg-text-muted: var(--docmd-text-muted, #64748b);
-  --pg-editor-bg: #ffffff;
+  --pg-bg: var(--docmd-bg-secondary, var(--summer-surface-2, var(--sidebar-bg, #f8fafc)));
+  --pg-header-bg: var(--docmd-bg-tertiary, var(--summer-surface, var(--sidebar-bg, #f1f5f9)));
+  --pg-border: var(--docmd-border-color, var(--docmd-border, var(--summer-border, var(--border-color, #e2e8f0))));
+  --pg-text: var(--docmd-text-primary, var(--summer-fg, var(--text-color, #0f172a)));
+  --pg-text-muted: var(--docmd-text-muted, var(--summer-fg-muted, var(--text-muted, #64748b)));
+  --pg-editor-bg: var(--summer-surface-sunken, var(--code-bg, #ffffff));
   --pg-console-bg: #0f172a;
   --pg-console-text: #f8fafc;
-  --pg-accent: var(--docmd-accent-color, #3b82f6);
-  --pg-accent-hover: var(--docmd-accent-hover, #2563eb);
+  --pg-accent: var(--docmd-accent-color, var(--summer-accent, var(--link-color, #3b82f6)));
+  --pg-accent-hover: var(--docmd-accent-hover, var(--summer-accent-hover, var(--link-color-hover, #2563eb)));
   --pg-radius: 10px;
 
   border: 1px solid var(--pg-border);
@@ -26,16 +26,27 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-html[data-theme="dark"] .docmd-playground {
-  --pg-bg: var(--docmd-bg-secondary, #0f172a);
-  --pg-header-bg: var(--docmd-bg-tertiary, #1e293b);
-  --pg-border: var(--docmd-border-color, #334155);
-  --pg-text: var(--docmd-text-primary, #f8fafc);
-  --pg-text-muted: var(--docmd-text-muted, #94a3b8);
-  --pg-editor-bg: #0b1120;
+html[data-theme="dark"] .docmd-playground,
+:root[data-theme="dark"] .docmd-playground,
+[data-theme="dark"] .docmd-playground,
+body[data-theme="dark"] .docmd-playground {
+  --pg-bg: var(--docmd-bg-secondary, var(--summer-surface-2, var(--sidebar-bg, #0f172a)));
+  --pg-header-bg: var(--docmd-bg-tertiary, var(--summer-surface, var(--sidebar-bg, #1e293b)));
+  --pg-border: var(--docmd-border-color, var(--docmd-border, var(--summer-border, var(--border-color, #334155))));
+  --pg-text: var(--docmd-text-primary, var(--summer-fg, var(--text-color, #f8fafc)));
+  --pg-text-muted: var(--docmd-text-muted, var(--summer-fg-muted, var(--text-muted, #94a3b8)));
+  --pg-editor-bg: var(--summer-surface-sunken, var(--code-bg, #0b1120));
   --pg-console-bg: #030712;
   --pg-console-text: #f3f4f6;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="dark"] .docmd-playground-preview,
+:root[data-theme="dark"] .docmd-playground-preview,
+[data-theme="dark"] .docmd-playground-preview,
+body[data-theme="dark"] .docmd-playground-preview {
+  background: var(--pg-editor-bg);
+  color: var(--pg-text);
 }
 
 /* Header Toolbar */
@@ -464,4 +475,3 @@ html[data-theme="dark"] .docmd-pg-error-notice {
   background: var(--pg-header-bg);
   opacity: 0.95;
 }
-

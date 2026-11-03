@@ -96,7 +96,7 @@ export class VariableRegistry {
   private version: string;
 
   constructor(options: VariableRegistryOptions = {}) {
-    this.cwd = options.cwd || process.cwd();
+    this.cwd = options.cwd || (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '/');
     this.version = options.version || '0.9.9';
     this.initBaseVariables(options);
     this.loadConfigVariables(options.configVariables);

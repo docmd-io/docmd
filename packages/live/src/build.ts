@@ -54,7 +54,7 @@ async function build(outputPath?: string) {
         // 2. Generate Shims
         const assetsDir = await SOURCE_ASSETS_DIR;
         const shimPath = path.join(__dirname, 'shims.js');
-        await fs.writeFile(shimPath, `import { Buffer } from 'buffer'; globalThis.Buffer = Buffer;`);
+        await fs.writeFile(shimPath, `import { Buffer } from 'buffer'; globalThis.Buffer = Buffer; globalThis.process = globalThis.process || { env: { NODE_ENV: 'production' }, cwd: () => '/' };`);
 
         // 3. Template Plugin
         const templatePlugin = {
@@ -166,6 +166,48 @@ async function build(outputPath?: string) {
         }
 
         await fs.writeFile(path.join(finalOutputDir, 'index.html'), indexHtml);
+
+        // 6b. Generate Static SSG Pages for Each Preset Route (/basics, /math, /playground, etc.)
+        const PRESET_METADATA: Record<string, { title: string; desc: string }> = {
+            basics: { title: 'Basics', desc: 'The zero-config documentation engine' },
+            containers: { title: 'Callouts & Cards', desc: 'Interactive callouts, cards, and buttons in docmd.' },
+            tabs: { title: 'Tabs', desc: 'Tabbed interfaces for code and multi-language examples.' },
+            steps: { title: 'Steps', desc: 'Sequential walkthroughs and numbered installation steps.' },
+            mermaid: { title: 'Diagrams', desc: 'Render flowcharts and architecture diagrams with Mermaid.js.' },
+            math: { title: 'KaTeX Math', desc: 'Typeset scientific and mathematical formulas with KaTeX.' },
+            playground: { title: 'Interactive Playground', desc: 'Interactive live code runner and component sandbox in docmd.' }
+        };
+
+        for (const [key, code] of Object.entries(snippets)) {
+            const meta = PRESET_METADATA[key] || {
+                title: key.charAt(0).toUpperCase() + key.slice(1),
+                desc: `docmd Live Editor playground for ${key}.`
+            };
+
+            const presetDir = path.join(finalOutputDir, key);
+            await fs.mkdir(presetDir, { recursive: true });
+
+            let presetHtml = indexHtml;
+            presetHtml = presetHtml.replace(/<title>.*?<\/title>/, `<title>docmd Live Editor — ${meta.title}</title>`);
+            presetHtml = presetHtml.replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${meta.desc}">`);
+            presetHtml = presetHtml.replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="https://live.docmd.io/${key === 'basics' ? '' : key + '/'}">`);
+            presetHtml = presetHtml.replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="docmd Live Editor — ${meta.title}">`);
+            presetHtml = presetHtml.replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${meta.desc}">`);
+            presetHtml = presetHtml.replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="https://live.docmd.io/${key === 'basics' ? '' : key + '/'}">`);
+            presetHtml = presetHtml.replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="docmd Live Editor — ${meta.title}">`);
+            presetHtml = presetHtml.replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${meta.desc}">`);
+
+            presetHtml = presetHtml.replace(/class="active" data-preset="basics"/, 'data-preset="basics"');
+            presetHtml = presetHtml.replace(new RegExp(`data-preset="${key}"`), `class="active" data-preset="${key}"`);
+
+            const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            presetHtml = presetHtml.replace(/<textarea id="input" spellcheck="false"><\/textarea>/, `<textarea id="input" spellcheck="false">${escapedCode}</textarea>`);
+            presetHtml = presetHtml.replace('href="docmd-live.css"', 'href="../docmd-live.css"');
+            presetHtml = presetHtml.replace('src="docmd-live.js"', 'src="../docmd-live.js"');
+
+            await fs.writeFile(path.join(presetDir, 'index.html'), presetHtml);
+        }
+
         await fs.copyFile(path.join(assetsDir, 'docmd-live.css'), path.join(finalOutputDir, 'docmd-live.css'));
 
         const cssDest = path.join(finalOutputDir, 'assets/css');
@@ -191,6 +233,11 @@ async function build(outputPath?: string) {
         const mermaidDir = path.dirname(mermaidPkgPath);
         const mermaidSrc = path.join(mermaidDir, 'dist', 'init-mermaid.js');
         await fs.copyFile(mermaidSrc, path.join(jsDest, 'init-mermaid.js'));
+
+        const playgroundPkgPath = require.resolve('@docmd/plugin-playground/package.json');
+        const playgroundDir = path.dirname(playgroundPkgPath);
+        await copy(path.join(playgroundDir, 'assets/css/playground.css'), 'docmd-playground.css');
+        await copy(path.join(playgroundDir, 'assets/js/playground.js'), 'docmd-playground.js');
 
         const themesDir = themes.getThemesDir();
         const themeFiles = await fs.readdir(themesDir);

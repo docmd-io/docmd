@@ -21,11 +21,11 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "chalk": "^4.1.2"
+    "chalk": "^6.0.1"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "typescript": "^5.9.3"
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
   },
   "keywords": [
     "docmd",

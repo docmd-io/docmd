@@ -30,7 +30,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "markdown-it": "^14.3.3",
+    "markdown-it": "^15.0.3",
     "minisearch": "^7.2.0"
   },
   "peerDependencies": {
@@ -44,7 +44,7 @@
   "devDependencies": {
     "@docmd/api": "workspace:*",
     "@types/markdown-it": "^14.2.0",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "esbuild": "^0.28.2"
   },
   "keywords": [

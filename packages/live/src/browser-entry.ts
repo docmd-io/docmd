@@ -15,6 +15,7 @@
 import { createMarkdownProcessor, processContent } from '@docmd/parser/dist/markdown-processor.js';
 import { markdownSetup as mathMarkdownSetup } from '@docmd/plugin-math';
 import { markdownSetup as mermaidMarkdownSetup } from '@docmd/plugin-mermaid';
+import { markdownSetup as playgroundMarkdownSetup } from '@docmd/plugin-playground';
 // @ts-expect-error virtual module
 import templates from 'virtual:docmd-templates';
 
@@ -34,13 +35,17 @@ async function compile(markdown: string, config: any = {}) {
 
         // Mermaid (container ::: mermaid and fence ```mermaid)
         mermaidMarkdownSetup(parser);
+
+        // Playground (container ::: playground and fence ```* playground)
+        playgroundMarkdownSetup(parser);
     });
     const result = processContent(markdown, md, defaults);
 
     if (!result) return '<p>Error parsing markdown</p>';
 
-    // Since we are in the browser, we assume assets are served at ./assets/
-    const assetsRoot = './assets';
+    // Dynamic assets root based on route depth (works on root domain and subpaths)
+    const hasSubpath = typeof window !== 'undefined' && window.location.pathname.replace(/^\/+|\/+$/g, '').length > 0;
+    const assetsRoot = hasSubpath ? '../assets' : './assets';
     const appearance = defaults.theme.appearance || 'light';
 
     // Theme init script for live preview — defaults to light, honors explicit 'docmd-live-theme' toggle
@@ -112,6 +117,10 @@ async function compile(markdown: string, config: any = {}) {
     <\/script>
     `;
 
+    const hasPlayground = result.htmlContent.includes('docmd-playground');
+    const playgroundCss = hasPlayground ? `<link rel="stylesheet" href="${assetsRoot}/css/docmd-playground.css">` : '';
+    const playgroundScript = hasPlayground ? `<script src="${assetsRoot}/js/docmd-playground.js"></script>` : '';
+
     return `<!DOCTYPE html>
 <html lang="en" data-theme="${appearance}">
 <head>
@@ -123,6 +132,7 @@ async function compile(markdown: string, config: any = {}) {
     <link rel="stylesheet" href="${assetsRoot}/css/docmd-main.css?v=live">
     <link rel="stylesheet" href="${assetsRoot}/css/docmd-live-preview.css">
     ${katexCss}
+    ${playgroundCss}
     <style>
         body { max-width: 880px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
         body > :first-child { margin-top: 0; }
@@ -132,6 +142,7 @@ async function compile(markdown: string, config: any = {}) {
 ${result.htmlContent}
 ${interactivityScript}
 ${mermaidScript}
+${playgroundScript}
 </body>
 </html>`;
 }

@@ -103,7 +103,8 @@ import footnote from 'markdown-it-footnote';
 import taskLists from 'markdown-it-task-lists';
 import abbr from 'markdown-it-abbr';
 import deflist from 'markdown-it-deflist';
-import emoji from 'markdown-it-emoji';
+import * as emojiPkg from 'markdown-it-emoji';
+const emoji = (emojiPkg as any).full || emojiPkg;
 
 // The Feature Registry
 import { registerFeatures } from './features/index.js';
@@ -281,6 +282,9 @@ function createMarkdownProcessor(config: any = {}, pluginsCallback: any) {
   // linkifyDefaultScheme controls what we replace http:// with for schemeless matches.
   // Industry default is 'https' — virtually all public sites support HTTPS.
   if (mdOptions.linkify && md.linkify) {
+    if (typeof md.linkify.set === 'function') {
+      md.linkify.set({ fuzzyLink: true });
+    }
     const linkifyScheme = (config.markdown?.linkifyDefaultScheme === 'http') ? 'http' : 'https';
     const defaultNormalize = md.linkify.normalize.bind(md.linkify);
     md.linkify.normalize = (match: any) => {
