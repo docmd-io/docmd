@@ -95,11 +95,13 @@ export const test = runTestFile({
     }
 
     // A valueless --host is rejected instead of being passed to listen().
-    for (const argv of [['dev', '--host'], ['dev', '--host', '--port', '4000']]) {
+    const novalueDir = setup('host-flag-novalue');
+    const anyPort = String(await freePort());
+    for (const argv of [['dev', '--host'], ['dev', '--host', '--port', anyPort]]) {
       let code = 0;
       let err = '';
       try {
-        execFileSync(process.execPath, [DOCMD, ...argv], { encoding: 'utf8', stdio: 'pipe' });
+        execFileSync(process.execPath, [DOCMD, ...argv], { encoding: 'utf8', stdio: 'pipe', cwd: novalueDir, timeout: 5000 });
       } catch (e) {
         code = e.status;
         err = String(e.stderr);
