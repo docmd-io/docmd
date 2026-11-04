@@ -284,6 +284,31 @@ export const test = runTestFile({
       assert(html.includes('href="../file2/"'), 'Subdirectory page-relative link resolved relative to the page');
       assert(!html.includes('href="/file2/"'), 'Subdirectory link does not resolve to the site root');
     }
+
+    // Container source validation (CI security & snippet integrity)
+    {
+      const dir = setup('validate-container-sources-ok');
+      writeFile(dir, 'docs/counter.js', 'console.log("hello");\n');
+      writeFile(dir, 'docs/index.md', '# Containers\n\n::: playground src="./counter.js" title="Counter" /:::\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 0, 'Container source validation passes (exit 0) when sourced script exists');
+    }
+
+    {
+      const dir = setup('validate-container-sources-missing');
+      writeFile(dir, 'docs/index.md', '# Containers\n\n::: playground src="./nonexistent/counter.js" title="Counter" /:::\n');
+      const code = exitCodeOf(`node ${DOCMD} validate`, dir);
+      assert(code === 1, 'Container source validation fails (exit 1) when container script is missing');
+
+      // Test JSON mode captures error entry
+      try {
+        execSync(`node ${DOCMD} validate --json`, { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+      } catch (err) {
+        const parsed = JSON.parse(err.stdout || '{}');
+        assert(parsed.errors && parsed.errors.length > 0, 'validate --json reports missing container source in errors array');
+        assert(parsed.errors.some(e => e.link.includes('counter.js') && e.error.includes('Missing container source')), 'Error mentions missing container source');
+      }
+    }
   }
 });
 

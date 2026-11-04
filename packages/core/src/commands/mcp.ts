@@ -27,7 +27,7 @@ const { version } = JSON.parse(fs.readFileSync(pkgUrl, 'utf-8'));
 // excludePatterns / projectRoot mirror the build-side semantics from config.exclude
 // (gitignore-style globs). The same patterns are passed to findFilesRecursive,
 // which already implements the full matching logic used by generator.ts and i18n.ts.
-function findMarkdownFiles(dir: string, excludePatterns: string[] = [], projectRoot?: string): string[] {
+export function findMarkdownFiles(dir: string, excludePatterns: string[] = [], projectRoot?: string): string[] {
   const results: string[] = [];
   try {
     const list = fs.readdirSync(dir);

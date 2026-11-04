@@ -36,6 +36,7 @@ const args = process.argv.slice(2);
 
 const options = {
   config: { type: 'string', short: 'c' },
+  strict: { type: 'boolean' },
   offline: { type: 'boolean' },
   port: { type: 'string', short: 'p' },
   'build-only': { type: 'boolean' },
@@ -99,6 +100,7 @@ if (!command || values.help) {
   TUI.section('Options');
   const optsList = [
     ['-c, --config', 'Path to config (default: docmd.config.js)'],
+    ['--strict', 'Fail build/validation if any referenced file or asset is missing'],
     ['-p, --port', 'Port to run server'],
     ['--offline', 'Optimise for file:// viewing'],
     ['--build-only', 'Generate dist/ without starting server'],
@@ -124,6 +126,7 @@ if (!command || values.help) {
 
 const opts = {
   config: values.config || 'docmd.config.js',
+  strict: values.strict,
   offline: values.offline,
   port: values.port,
   buildOnly: values['build-only'],
@@ -131,6 +134,12 @@ const opts = {
   force: values.force,
   json: values.json
 };
+
+// `--strict` is a global flag: any missing sourced snippets, broken containers,
+// or critical validation errors immediately fail CI with exit code 1.
+if (opts.strict) {
+  process.env.DOCMD_STRICT = 'true';
+}
 
 // `--verbose` is a global flag: it must be honoured by every command,
 // not just `add` / `remove`. Setting DOCMD_VERBOSE in the process
@@ -152,7 +161,7 @@ if (command !== 'stop' && command !== 'mcp' && !values.json) {
 if (command === 'init') {
   initProject({ force: values.force, yes: values.yes });
 } else if (command === 'build') {
-  buildSite(opts.config, { isDev: false, offline: opts.offline, verbose: opts.verbose })
+  buildSite(opts.config, { isDev: false, offline: opts.offline, verbose: opts.verbose, strict: opts.strict })
     .then(() => {
       process.exit(0);
     })
@@ -311,7 +320,7 @@ if (command === 'init') {
     process.exit(1);
   });
 } else if (command === 'validate') {
-  validateProject({ json: opts.json }).catch((e) => {
+  validateProject({ json: opts.json, strict: opts.strict }).catch((e) => {
     console.error(e);
     process.exit(1);
   });

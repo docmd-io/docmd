@@ -190,6 +190,86 @@ export const test = runTestFile({
       assert(indexHtml.includes('const sum = (a, b) =&gt; a + b;'), 'Includes active script source content from file');
       assert(indexHtml.includes('icon-cpu'), 'Renders custom icon:cpu in header');
     }
+
+    // Case 6: Missing source file without strict mode (soft warning + fallback comment)
+    {
+      const proj = setup('plugin-playground-missing-src-soft');
+      writeFile(proj, 'docs/index.md', [
+        '# Missing Script Demo',
+        '',
+        '::: playground src="./nonexistent/counter.js" title="Missing Counter" /:::',
+        ''
+      ].join('\n'));
+
+      writeFile(proj, 'docmd.config.json', JSON.stringify({
+        title: 'Playground Missing Src Test',
+        src: './docs',
+        out: './site'
+      }, null, 2) + '\n');
+
+      const result = build(proj);
+      assert(result.ok, 'Non-strict build succeeds even when playground src is missing');
+      const indexHtml = fs.readFileSync(path.join(proj, 'site/index.html'), 'utf-8');
+      assert(indexHtml.includes('Playground Notice: Source script &quot;./nonexistent/counter.js&quot; not found'), 'Renders fallback warning alert in HTML');
+      assert(indexHtml.includes('File not found: ./nonexistent/counter.js'), 'Displays fallback comment inside editor textarea');
+    }
+
+    // Case 7: Missing source file with --strict CLI flag
+    {
+      const proj = setup('plugin-playground-missing-src-strict-flag');
+      writeFile(proj, 'docs/index.md', [
+        '# Strict Mode Demo',
+        '',
+        '::: playground src="./nonexistent/counter.js" title="Missing Counter" /:::',
+        ''
+      ].join('\n'));
+
+      writeFile(proj, 'docmd.config.json', JSON.stringify({
+        title: 'Playground Strict Flag Test',
+        src: './docs',
+        out: './site'
+      }, null, 2) + '\n');
+
+      const result = build(proj, true, '--strict');
+      assert(result.ok, '--strict build fails when playground source is missing (exit code 1)');
+      const output = (result.output || '') + (result.stderr || '');
+      assert(output.includes('Strict mode violation') || output.includes('not found'), 'Error output describes strict mode violation or missing file');
+    }
+
+    // Case 8: Missing source file with strict: true in config
+    {
+      const proj = setup('plugin-playground-missing-src-strict-config');
+      writeFile(proj, 'docs/index.md', [
+        '# Strict Config Demo',
+        '',
+        '::: playground src="./nonexistent/counter.js" title="Missing Counter" /:::',
+        ''
+      ].join('\n'));
+
+      writeFile(proj, 'docmd.config.json', JSON.stringify({
+        title: 'Playground Strict Config Test',
+        strict: true,
+        src: './docs',
+        out: './site'
+      }, null, 2) + '\n');
+
+      const result = build(proj, true);
+      assert(result.ok, 'Build with strict: true in config fails on missing playground source (exit code 1)');
+    }
+
+    // Case 9: Web Worker runtime sandbox bundle contracts
+    {
+      const runtimeBundlePath = path.resolve(import.meta.dirname, '../../packages/plugins/playground/assets/js/playground.js');
+      assert(fs.existsSync(runtimeBundlePath), 'playground.js runtime exists');
+      const runtimeContent = fs.readFileSync(runtimeBundlePath, 'utf8');
+
+      assert(runtimeContent.includes('new Worker(') || runtimeContent.includes('Worker(workerUrl)'), 'Runtime leverages Web Worker for thread isolation');
+      assert(runtimeContent.includes('new Blob(') || runtimeContent.includes('Blob(['), 'Runtime creates worker via Blob URL');
+      assert(runtimeContent.includes('5000') && runtimeContent.includes('workerTimeout'), 'Runtime enforces 5000ms safety timeout guard');
+      assert(runtimeContent.includes('worker.terminate()'), 'Runtime terminates worker on timeout and cleanup');
+      assert(runtimeContent.includes('docmdSnapshot') || runtimeContent.includes('docmdData'), 'Runtime safely snapshots docmd state for worker');
+      assert(runtimeContent.includes('AsyncFunction'), 'Runtime preserves AsyncFunction fallback for restrictive CSPs');
+    }
   }
 });
 

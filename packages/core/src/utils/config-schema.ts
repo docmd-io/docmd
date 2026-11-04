@@ -132,6 +132,9 @@ export function normalizeConfig(userConfig: any, options: any = {}) {
     config.url = config.url || config.siteUrl || config.baseUrl || '';
     config.src = config.src || config.srcDir || config.source || 'docs';
     config.out = process.env.DOCMD_PROJECT_OUT || config.out || config.outDir || config.outputDir || 'site';
+    config.strict = userConfig.strict !== undefined
+      ? Boolean(userConfig.strict)
+      : (options.strict !== undefined ? Boolean(options.strict) : process.env.DOCMD_STRICT === 'true');
 
     // Determine the base workspace URL path (domain root subpath).
     let workspaceBase = '/';

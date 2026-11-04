@@ -308,6 +308,17 @@ export function markdownSetup(md: any) {
           title = fileInfo.filename;
         }
       } else {
+        const isStrict = Boolean(
+          state.env?.strict ||
+          state.env?.config?.strict ||
+          process.env.DOCMD_STRICT === 'true'
+        );
+        if (isStrict) {
+          const docFile = state.env?.filePath ? path.relative(process.cwd(), state.env.filePath) : 'unknown document';
+          throw new Error(
+            `[docmd:playground] Strict mode violation: source file "${srcPath}" referenced in "${docFile}" was not found.`
+          );
+        }
         warning = `Playground Notice: Source script "${srcPath}" not found. Displaying fallback code.`;
       }
     }
