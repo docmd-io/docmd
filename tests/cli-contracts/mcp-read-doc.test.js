@@ -59,7 +59,7 @@ function callMcp(cwd, messages) {
 }
 
 export const test = runTestFile({
-  name: 'MCP read_doc confines reads to markdown in the source dir (AC-27)',
+  name: 'MCP read_doc confines reads to markdown in the source dir',
   emoji: '📖',
   run: async () => {
     const dir = setup('mcp-read-doc');
