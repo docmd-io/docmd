@@ -195,6 +195,11 @@ addInProcess(
   'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
   await import('./cli-contracts/plugin-playground.test.js')
 );
+addInProcess(
+  'host-flag',
+  'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  await import('./cli-contracts/host-flag.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(
