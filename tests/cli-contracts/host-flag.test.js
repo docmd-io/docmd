@@ -85,13 +85,13 @@ function lanIPv4() {
 }
 
 export const test = runTestFile({
-  name: 'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  name: 'Dev --host flag binds the requested interface',
   emoji: '🌐',
   run: async () => {
-    // AC-2 (help): `--host` is listed.
+    // help: `--host` is listed.
     {
       const help = execFileSync(process.execPath, [DOCMD, '--help'], { encoding: 'utf8' });
-      assert(/--host/.test(help), 'AC-2: `docmd --help` lists --host');
+      assert(/--host/.test(help), '`docmd --help` lists --host');
     }
 
     // A valueless --host is rejected instead of being passed to listen().
@@ -109,7 +109,7 @@ export const test = runTestFile({
       assert(code === 1 && /--host requires a value/.test(err), `--host without a value exits 1 with a message (${argv.slice(1).join(' ')})`);
     }
 
-    // AC-2 (bind) + AC-15 (dev wrapper): one dev spawn, reused.
+    // bind + dev wrapper: one dev spawn, reused.
     {
       const dir = setup('host-flag-dev');
       writeFile(dir, 'docs/index.md', '# Hi\n');
@@ -131,16 +131,16 @@ export const test = runTestFile({
 
         const lan = lanIPv4();
         if (lan) {
-          assert(await canConnect(lan, port), `AC-2: dev --host 0.0.0.0 accepts a connection on ${lan}:${port}`);
+          assert(await canConnect(lan, port), `dev --host 0.0.0.0 accepts a connection on ${lan}:${port}`);
         } else {
-          assert(false, 'AC-2: no non-loopback IPv4 interface; cannot verify --host binding');
+          assert(false, 'no non-loopback IPv4 interface; cannot verify --host binding');
         }
 
-        assert(root.body.includes('window.__docmd_dev'), 'AC-15: GET / injects window.__docmd_dev');
-        assert(root.body.includes('/__dev/docmd-api.js'), 'AC-15: GET / references /__dev/docmd-api.js');
-        assert(/no-cache/.test(root.headers['cache-control'] || ''), 'AC-15: GET / carries Cache-Control: no-cache');
+        assert(root.body.includes('window.__docmd_dev'), 'GET / injects window.__docmd_dev');
+        assert(root.body.includes('/__dev/docmd-api.js'), 'GET / references /__dev/docmd-api.js');
+        assert(/no-cache/.test(root.headers['cache-control'] || ''), 'GET / carries Cache-Control: no-cache');
         const api = await get(port, '/__dev/docmd-api.js');
-        assert(api.status === 200, 'AC-15: GET /__dev/docmd-api.js is 200');
+        assert(api.status === 200, 'GET /__dev/docmd-api.js is 200');
       } finally {
         child.kill('SIGTERM');
         await exited;
