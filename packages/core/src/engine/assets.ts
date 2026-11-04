@@ -175,6 +175,27 @@ function isExcludedPath(fullPath: string, name: string, patterns: string[], proj
   return false;
 }
 
+/**
+ * The single "is this entry hidden from doc discovery" predicate shared by
+ * findFilesRecursive (list_docs/search_docs/build) and MCP read_doc.
+ * `dir` is the directory that contains the entry `name`.
+ */
+export function isDocEntryHidden(dir: string, name: string, extraExclude: string[], projectRoot: string): boolean {
+  // Explicitly ignore system files, git, node_modules, and standard build/temp dirs
+  if (
+    name === 'node_modules' ||
+    name.startsWith('.') ||
+    name === 'site' ||
+    name === 'dist' ||
+    name === '_docmd-search'
+  ) {
+    return true;
+  }
+  // Filter out items matching .gitignore or user-configured exclude patterns
+  const allExcludes = [...extraExclude, ...getGitignorePatterns(dir)];
+  return isExcludedPath(path.join(dir, name), name, allExcludes, projectRoot);
+}
+
 export async function findFilesRecursive(
   dir: string,
   extensions: string[],
@@ -187,26 +208,11 @@ export async function findFilesRecursive(
   let files: string[] = [];
   if (!await fs.exists(dir)) return [];
 
-  const gitignorePatterns = getGitignorePatterns(dir);
-  const allExcludes = [...extraExclude, ...gitignorePatterns];
-
   const items = await nativeFs.promises.readdir(dir, { withFileTypes: true });
   for (const item of items) {
-    // Explicitly ignore system files, git, node_modules, and standard build/temp dirs
-    if (
-      item.name === 'node_modules' ||
-      item.name.startsWith('.') ||
-      item.name === 'site' ||
-      item.name === 'dist' ||
-      item.name === '_docmd-search'
-    ) {
-      continue;
-    }
-
     const fullPath = path.join(dir, item.name);
 
-    // Filter out items matching .gitignore or user-configured exclude patterns
-    if (isExcludedPath(fullPath, item.name, allExcludes, projectRoot)) {
+    if (isDocEntryHidden(dir, item.name, extraExclude, projectRoot)) {
       continue;
     }
 
