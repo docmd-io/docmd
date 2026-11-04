@@ -13,11 +13,10 @@ import type { Page } from "@playwright/test";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Path to the playground index.md used by the dev server. */
-const PLAYGROUND_INDEX = path.resolve(
-  __dirname,
-  "../../../_playground/docs/index.md",
-);
+/** The index.md the dev server serves; serve-playground.mjs seeds it from the fixture. */
+const site = process.env["THREADS_E2E_SITE"];
+if (!site) throw new Error("e2e: THREADS_E2E_SITE is unset (run the suite with `pnpm test:e2e`)");
+const PLAYGROUND_INDEX = path.join(site, "docs/index.md");
 
 /** Path to the fixture copy of the original playground markdown. */
 const FIXTURE_INDEX = path.resolve(__dirname, "fixtures/playground-index.md");
