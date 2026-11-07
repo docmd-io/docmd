@@ -743,6 +743,13 @@
         asset.setAttribute('href', resolved);
       }
     });
+    // Same for body scripts, or the SPA script sync re-adds and re-runs them when the page depth changes.
+    document.querySelectorAll('body script[src]').forEach(script => {
+      const resolved = script.src;
+      if (resolved && resolved !== script.getAttribute('src')) {
+        script.setAttribute('src', resolved);
+      }
+    });
 
     let currentPath = window.location.pathname;
     const pageCache = new Map();
