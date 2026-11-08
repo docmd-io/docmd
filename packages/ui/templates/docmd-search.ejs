@@ -13,7 +13,6 @@
     <meta charset="UTF-8">
     <meta name="generator" content="docmd-search v<%= coreVersion %>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <%- themeInitScript %>
     <style>
       html { visibility: hidden; }
     </style>
@@ -32,6 +31,7 @@
     <link rel="stylesheet" href="<%= relativePathToRoot %>assets/css/docmd-highlight-light.css?v=<%= buildHash %>" id="hljs-light" <%= isDarkDefault ? 'disabled' : '' %>>
     <link rel="stylesheet" href="<%= relativePathToRoot %>assets/css/docmd-highlight-dark.css?v=<%= buildHash %>" id="hljs-dark" <%= isDarkDefault ? '' : 'disabled' %>>
     <% } %>
+    <%- themeInitScript %>
     <%- pluginHeadScriptsHtml || '' %>
     <% (customCssFiles || []).forEach(cssFile => { %>
       <link rel="stylesheet" href="<%= relativePathToRoot %><%= cssFile.startsWith('/') ? cssFile.substring(1) : cssFile %>?v=<%= buildHash %>">

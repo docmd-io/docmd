@@ -67,8 +67,6 @@
     }
   </script>
 
-  <%- themeInitScript %>
-
   <% if (emitBaseTag) { %>
   <base href="<%= siteRootAbs %>">
   <% } %>
@@ -78,8 +76,10 @@
   <%# ── Highlight.js themes — light + dark, toggled by theme-init ── %>
   <% if (config.theme?.codeHighlight !== false) { const isDarkDefault = appearance === 'dark'; %>
   <link rel="stylesheet" href="<%= assetBaseUrl %>assets/css/docmd-highlight-light.css?v=<%= buildHash %>" id="hljs-light" <%= isDarkDefault ? 'disabled' : '' %>>
-  <link rel="stylesheet" href="<%= assetBaseUrl %>assets/css/docmd-highlight-dark.css?v=<%= buildHash %>" id="hljs-dark" <%= isDarkDefault ? '' : 'disabled' %>">
+  <link rel="stylesheet" href="<%= assetBaseUrl %>assets/css/docmd-highlight-dark.css?v=<%= buildHash %>" id="hljs-dark" <%= isDarkDefault ? '' : 'disabled' %>>
   <% } %>
+
+  <%- themeInitScript %>
 
   <%- pluginHeadScriptsHtml || '' %>
   <% (customCssFiles || []).forEach(cssFile => { %>

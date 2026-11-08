@@ -36,7 +36,6 @@
       window.DOCMD_LOCALE = "<%= (locals.activeLocale && locals.activeLocale.id) ? locals.activeLocale.id : '' %>";
       window.DOCMD_DEFAULT_LOCALE = "<%= locals.defaultLocale || '' %>";
     </script>
-    <%- themeInitScript %>
     <style>
       html {
         visibility: hidden;
@@ -57,6 +56,7 @@
     <link rel="stylesheet" href="<%= assetBaseUrl %>assets/css/docmd-highlight-light.css?v=<%= buildHash %>" id="hljs-light" <%=isDarkDefault ? 'disabled' : '' %>>
     <link rel="stylesheet" href="<%= assetBaseUrl %>assets/css/docmd-highlight-dark.css?v=<%= buildHash %>" id="hljs-dark" <%=isDarkDefault ? '' : 'disabled' %>>
     <% } %>
+    <%- themeInitScript %>
     <%- pluginHeadScriptsHtml || '' %>
     <% (customCssFiles || []).forEach(cssFile=> { %>
       <link rel="stylesheet" href="<%= assetBaseUrl %><%= cssFile.startsWith('/') ? cssFile.substring(1) : cssFile %>?v=<%= buildHash %>">
