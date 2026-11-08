@@ -18,7 +18,7 @@ import path from 'path';
 import { buildSite } from './build.js';
 import { loadConfig } from '../utils/config-loader.js';
 import { safePath, asUserPath } from '@docmd/utils';
-import { findFilesRecursive } from '../engine/assets.js';
+import { findFilesRecursive, isDocEntryHidden } from '../engine/assets.js';
 
 const pkgUrl = new URL('../../package.json', import.meta.url);
 const { version } = JSON.parse(fs.readFileSync(pkgUrl, 'utf-8'));
@@ -107,6 +107,46 @@ function isExcludedByPatterns(fullPath: string, name: string, patterns: string[]
     }
   }
   return false;
+}
+
+type ReadDocRoute = { ok: true; path: string } | { ok: false; error: string };
+
+/**
+ * Pure rule for the `read_doc` tool. A route is the cwd-relative form that
+ * `list_docs` returns (e.g. `docs/intro.md`). It resolves only when it is
+ * inside the source dir (`docsDir`), has a markdown extension, and is not
+ * matched by `config.exclude` (checked on the file and each ancestor below
+ * docsDir, like the build-side walk does).
+ */
+export function resolveReadDocRoute(
+  route: string,
+  opts: { cwd: string; docsDir: string; exclude?: string[] }
+): ReadDocRoute {
+  if (path.isAbsolute(route)) return { ok: false, error: 'Error: Absolute paths are not allowed.' };
+  let resolved: string;
+  try {
+    resolved = safePath(opts.cwd, asUserPath(route));
+  } catch {
+    return { ok: false, error: `Error: Path "${route}" escapes project root.` };
+  }
+  const outside = { ok: false, error: `Error: Path "${route}" is outside the documentation source directory.` } as const;
+  const docsDir = path.resolve(opts.docsDir);
+  if (!resolved.startsWith(docsDir + path.sep)) return outside;
+  if (!['.md', '.markdown'].includes(path.extname(resolved))) return outside;
+  // Same hidden-entry rule as list_docs/search_docs, applied to each segment.
+  const exclude = opts.exclude || [];
+  let current = docsDir;
+  for (const segment of path.relative(docsDir, resolved).split(path.sep)) {
+    if (isDocEntryHidden(current, segment, exclude, docsDir)) return outside;
+    current = path.join(current, segment);
+  }
+  // Symlinks must not lead out of the source dir (list_docs never lists them).
+  if (fs.existsSync(resolved)) {
+    const realDocs = fs.realpathSync(docsDir);
+    const real = fs.realpathSync(resolved);
+    if (!real.startsWith(realDocs + path.sep)) return outside;
+  }
+  return { ok: true, path: resolved };
 }
 
 // excludePatterns is forwarded from config.exclude so that validate_docs
@@ -612,20 +652,13 @@ export async function runMcpServer() {
             sendResponse(id, { content: [{ type: "text", text: "Error: Route is required." }] });
             return;
           }
-          // Phase 1.A: CWE-22 fix (S-3, T-S1). Reject absolute paths outright and
-          // require relative paths to resolve inside the project root (cwd) via safePath().
-          // Preserves the pre-fix semantic where route was resolved against process.cwd().
-          if (path.isAbsolute(route)) {
-            sendResponse(id, { content: [{ type: "text", text: `Error: Absolute paths are not allowed.` }] });
+          // CWE-22 (S-3, T-S1) + source-dir confinement: see resolveReadDocRoute.
+          const decision = resolveReadDocRoute(route, { cwd: process.cwd(), docsDir, exclude: config.exclude || [] });
+          if (decision.ok === false) {
+            sendResponse(id, { content: [{ type: "text", text: decision.error }] });
             return;
           }
-          let resolvedFilePath: string;
-          try {
-            resolvedFilePath = safePath(process.cwd(), asUserPath(route));
-          } catch (_e: any) {
-            sendResponse(id, { content: [{ type: "text", text: `Error: Path "${route}" escapes project root.` }] });
-            return;
-          }
+          const resolvedFilePath = decision.path;
           if (!fs.existsSync(resolvedFilePath)) {
             sendResponse(id, { content: [{ type: "text", text: `Error: File not found at path "${route}".` }] });
             return;

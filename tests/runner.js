@@ -190,10 +190,16 @@ addInProcess(
   'Variables and Personalisation Engine (build-time & client-side runtime)',
   await import('./cli-contracts/variables-engine.test.js')
 );
+addInProcess('mcp-read-doc', 'MCP read_doc confines reads to markdown inside the source directory', await import('./cli-contracts/mcp-read-doc.test.js'));
 addInProcess(
   'plugin-playground',
   'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
   await import('./cli-contracts/plugin-playground.test.js')
+);
+addInProcess(
+  'host-flag',
+  'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  await import('./cli-contracts/host-flag.test.js')
 );
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------

@@ -546,7 +546,7 @@ async function buildWorkspaceProject(
  */
 export async function devWorkspace(
   workspaceConfig: WorkspaceRootConfig,
-  opts: { port?: string; preserve?: boolean } = {}
+  opts: { port?: string; host?: string; preserve?: boolean } = {}
 ): Promise<void> {
   try {
     await buildWorkspace(workspaceConfig, { isDev: true });
@@ -577,9 +577,9 @@ export async function devWorkspace(
     }
   }
 
-  // Phase 1.D: default to loopback. Set DOCMD_HOST=0.0.0.0 to expose on LAN
+  // Phase 1.D: default to loopback. Pass --host 0.0.0.0 to expose on LAN
   // (with the verifyClient callback below still guarding the Origin header).
-  const BIND_HOST = process.env.DOCMD_HOST || '127.0.0.1';
+  const BIND_HOST = opts.host || process.env.DOCMD_HOST || '127.0.0.1';
 
   server.listen(port, BIND_HOST, () => {
     if (BIND_HOST !== '127.0.0.1' && BIND_HOST !== '::1' && BIND_HOST !== 'localhost') {
