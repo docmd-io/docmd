@@ -38,6 +38,7 @@ const options = {
   config: { type: 'string', short: 'c' },
   offline: { type: 'boolean' },
   port: { type: 'string', short: 'p' },
+  host: { type: 'string' },
   'build-only': { type: 'boolean' },
   cwd: { type: 'string' },
   verbose: { type: 'boolean', short: 'V' },
@@ -100,6 +101,7 @@ if (!command || values.help) {
   const optsList = [
     ['-c, --config', 'Path to config (default: docmd.config.js)'],
     ['-p, --port', 'Port to run server'],
+    ['--host', 'Interface to bind (default 127.0.0.1; 0.0.0.0 for all)'],
     ['--offline', 'Optimise for file:// viewing'],
     ['--build-only', 'Generate dist/ without starting server'],
     ['-V, --verbose', 'Show detailed package manager logs'],
@@ -122,10 +124,19 @@ if (!command || values.help) {
   process.exit(0);
 }
 
+if (
+  values.host !== undefined &&
+  (typeof values.host !== 'string' || values.host === '' || values.host.startsWith('-'))
+) {
+  console.error('Error: --host requires a value, e.g. --host 0.0.0.0');
+  process.exit(1);
+}
+
 const opts = {
   config: values.config || 'docmd.config.js',
   offline: values.offline,
   port: values.port,
+  host: values.host,
   buildOnly: values['build-only'],
   verbose: values.verbose,
   force: values.force,
