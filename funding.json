@@ -1,0 +1,97 @@
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+  "entity": {
+    "type": "individual",
+    "role": "maintainer",
+    "name": "Ghazi (mgks)",
+    "email": "hi@docmd.io",
+    "phone": "",
+    "description": "Independent developer and maintainer of docmd, responsible for the project's development, architecture, maintenance, releases, and community support.",
+    "webpageUrl": {
+      "url": "https://github.com/mgks"
+    }
+  },
+  "projects": [
+    {
+      "guid": "docmd",
+      "name": "docmd",
+      "description": "docmd is a zero-config, open-source documentation compiler that turns Markdown into fast, production-ready documentation sites. It features offline semantic search, reactive variables runtime, an interactive playground code runner, versioning, internationalisation, monorepo workspaces, headless AI assistants, an embedded MCP server, and machine-readable context (llms.txt, OKF). Funding will support ongoing maintenance, security engineering, plugin development, release engineering, and community support.",
+      "webpageUrl": {
+        "url": "https://docmd.io"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/docmd-io/docmd"
+      },
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "tags": [
+        "documentation",
+        "markdown",
+        "developer-tools",
+        "zero-config",
+        "search",
+        "internationalisation",
+        "ai-assistant",
+        "offline-first",
+        "mcp",
+        "llms-txt"
+      ]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/mgks",
+        "description": "Community sponsorships through GitHub Sponsors."
+      },
+      {
+        "guid": "bank-transfer",
+        "type": "bank",
+        "address": "",
+        "description": "For approved grants and institutional contributions, bank transfer details and required documentation can be provided privately."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "docmd-maintenance-grant",
+        "status": "active",
+        "name": "docmd project sustainability (1 year)",
+        "description": "Support for one year of docmd maintenance and development, including security updates, dependency maintenance, compatibility improvements, releases, documentation, and community support. Funding will also help sustain offline search, reactive variables runtime, and AI/agent capabilities. Grants can be accepted via bank transfer in USD or INR. docmd's core compiler and open-source features will remain permanently free and open source.",
+        "amount": 10000,
+        "currency": "USD",
+        "frequency": "yearly",
+        "channels": [
+          "bank-transfer"
+        ]
+      },
+      {
+        "guid": "monthly-community-support",
+        "status": "active",
+        "name": "Monthly community support",
+        "description": "Recurring support for the ongoing maintenance and development of docmd.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": [
+          "github-sponsors"
+        ]
+      },
+      {
+        "guid": "one-time-community-support",
+        "status": "active",
+        "name": "One-time community support",
+        "description": "One-time contributions towards the maintenance and development of docmd.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": [
+          "github-sponsors"
+        ]
+      }
+    ]
+  }
+}
