@@ -315,7 +315,7 @@ If docmd is useful to you:
 * Give the repository a ⭐
 * Share it with someone building documentation
 * Open issues, contribute fixes, or build a plugin
-* [Sponsor development on GitHub](https://github.com/sponsors/mgks)
+* [Sponsor development on GitHub](https://github.com/sponsors/docmd-io)
 
 ## License
 

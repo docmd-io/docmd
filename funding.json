@@ -45,7 +45,7 @@
       {
         "guid": "github-sponsors",
         "type": "payment-provider",
-        "address": "https://github.com/sponsors/mgks",
+        "address": "https://github.com/sponsors/docmd-io",
         "description": "Community sponsorships through GitHub Sponsors."
       },
       {
