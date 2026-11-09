@@ -282,6 +282,7 @@ export interface DocConfigShape {
   i18n?: Record<string, any>;
   versions?: Record<string, any>;
   workspace?: Record<string, any>;
+  static?: string | string[] | boolean;
   plugins?: Record<string, any>;
   markdown?: {
     breaks?: boolean;

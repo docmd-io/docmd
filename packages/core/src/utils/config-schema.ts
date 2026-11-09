@@ -246,6 +246,23 @@ export function normalizeConfig(userConfig: any, options: any = {}) {
       ? config.exclude.filter((x: any) => typeof x === 'string' && x.trim().length > 0)
       : (typeof config.exclude === 'string' && config.exclude.trim() ? [config.exclude.trim()] : []);
 
+    // --- Static Root Assets ---
+    // Zero-config default: copies `public/` (from project root or `config.src/public`) directly to output root (`site/`).
+    // Can be disabled via `static: false` or explicitly configured with paths via `static: string | string[]`.
+    const rawStatic = userConfig.static;
+
+    if (rawStatic === false || rawStatic === 'false') {
+      config.static = false;
+    } else if (Array.isArray(rawStatic)) {
+      config.static = rawStatic
+        .filter((x: any) => typeof x === 'string' && x.trim().length > 0)
+        .map((x: string) => x.trim());
+    } else if (typeof rawStatic === 'string' && rawStatic.trim()) {
+      config.static = [rawStatic.trim()];
+    } else {
+      config.static = undefined; // Triggers zero-config auto-detection
+    }
+
     // --- Logo Normalization
     if (typeof config.logo === 'string') {
         config.logo = {

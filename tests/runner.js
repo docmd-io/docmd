@@ -201,6 +201,11 @@ addInProcess(
   'Dev --host flag binds the requested interface (AC-2, AC-15)',
   await import('./cli-contracts/host-flag.test.js')
 );
+addInProcess(
+  'public-assets',
+  'Public root assets contract (zero-config, configurable paths, nested preservation)',
+  await import('./cli-contracts/public-assets.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(

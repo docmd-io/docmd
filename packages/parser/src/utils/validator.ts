@@ -34,8 +34,8 @@ const KNOWN_KEYS = [
   'markdown', 'security', 'htmlPolicy', 'focusMode', 'print', 'copyWidgets',
   'cookie', 'tmp', 'titleSeparator', 'titleAppend',
 
-  // Workspace & Variables & CI
-  'workspace', 'variables', 'strict'
+  // Workspace & Variables & CI & Static Root Assets
+  'workspace', 'variables', 'strict', 'static'
 ];
 
 // Common typos mapping

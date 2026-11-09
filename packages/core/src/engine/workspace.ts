@@ -44,6 +44,7 @@ import nativeFs from 'fs';
 import { TUI } from '@docmd/tui';
 import { loadConfig } from '../utils/config-loader.js';
 import { buildSite } from '../commands/build.js';
+import { copyStaticAssets } from './assets.js';
 import { createOriginVerify } from '../utils/ws-origin-guard.js';
 import { preflightEnsureRuntimeDeps, type PreflightRequirements } from '@docmd/api';
 
@@ -294,6 +295,17 @@ export async function buildWorkspace(
     if (!opts.quiet) {
       TUI.item('Shared assets', path.relative(CWD, sharedAssetsDir), TUI.dim, TUI.cyan);
     }
+  }
+
+  // Copy workspace root static assets (if present)
+  const workspaceStatic = workspaceConfig.static;
+
+  if (workspaceStatic !== false) {
+    await copyStaticAssets(
+      { static: workspaceStatic, src: '' },
+      rootOutDir,
+      { cwd: CWD, quiet: opts.quiet }
+    );
   }
 
   if (!opts.quiet) {
