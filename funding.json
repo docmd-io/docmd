@@ -21,7 +21,8 @@
         "url": "https://docmd.io"
       },
       "repositoryUrl": {
-        "url": "https://github.com/docmd-io/docmd"
+        "url": "https://github.com/docmd-io/docmd",
+        "wellKnown": "https://github.com/docmd-io/docmd/blob/main/.well-known/funding-manifest-urls"
       },
       "licenses": [
         "spdx:MIT"
