@@ -10,6 +10,7 @@
  */
 
 import { setup, writeFile, runTestFile } from '../shared.js';
+import { safePath } from '../../packages/utils/dist/path.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -123,7 +124,7 @@ export const test = runTestFile({
         'ctx.writeFile path reported in writtenFiles');
       const s = await d.handleCall('srcWrite', {});
       assert(s.reload === true && s.writtenFiles.length === 1 && s.writtenFiles[0] === path.join(proj, 'docs/a.md')
-        && fs.readFileSync(path.join(proj, 'docs/a.md'), 'utf8').includes('Changed'),
+        && fs.readFileSync(safePath(proj, 'docs/a.md'), 'utf8').includes('Changed'),
         'ctx.source write path reported in writtenFiles');
       const n = await d.handleCall('noop', {});
       assert(Array.isArray(n.writtenFiles) && n.writtenFiles.length === 0 && n.reload === false,

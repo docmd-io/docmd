@@ -18,6 +18,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { setup, writeFile, runTestFile } from '../shared.js';
+import { safePath } from '../../packages/utils/dist/path.js';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const WebSocket = createRequire(path.join(ROOT, 'packages/core/package.json'))('ws');
@@ -134,9 +135,9 @@ export const test = runTestFile({
     // ── Project with the fixture plugin ──────────────────
     const proj = setup('action-host');
     writeFile(proj, 'docs/index.md', '# Hi\n');
-    const fixtureDir = path.join(import.meta.dirname, 'fixtures/serve-plugin');
+    const fixtureDir = safePath(import.meta.dirname, 'fixtures/serve-plugin');
     for (const f of fs.readdirSync(fixtureDir)) {
-      writeFile(proj, `plugins/serve-plugin/${f}`, fs.readFileSync(path.join(fixtureDir, f), 'utf8'));
+      writeFile(proj, `plugins/serve-plugin/${f}`, fs.readFileSync(safePath(fixtureDir, f), 'utf8'));
     }
     const config = { title: 'Host', src: './docs', out: './site', plugins: { './plugins/serve-plugin': {} } };
     // Local plugin paths resolve against the process cwd.

@@ -11,6 +11,7 @@
  */
 
 import { setup, writeFile, runTestFile, DOCMD } from '../shared.js';
+import { safePath } from '../../packages/utils/dist/path.js';
 import { spawn, execFileSync } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
@@ -136,9 +137,9 @@ export const test = runTestFile({
     {
       const dir = setup('host-flag-dev');
       writeFile(dir, 'docs/index.md', '# Hi\n');
-      const fixtureDir = path.join(import.meta.dirname, 'fixtures/serve-plugin');
+      const fixtureDir = safePath(import.meta.dirname, 'fixtures/serve-plugin');
       for (const f of fs.readdirSync(fixtureDir)) {
-        writeFile(dir, `plugins/serve-plugin/${f}`, fs.readFileSync(path.join(fixtureDir, f), 'utf8'));
+        writeFile(dir, `plugins/serve-plugin/${f}`, fs.readFileSync(safePath(fixtureDir, f), 'utf8'));
       }
       writeFile(dir, 'docmd.config.json', JSON.stringify({
         title: 'Host', src: './docs', out: './site', plugins: { './plugins/serve-plugin': {} }
