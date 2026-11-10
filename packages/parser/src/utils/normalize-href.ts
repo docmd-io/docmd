@@ -144,7 +144,11 @@ export function processHref(rawLink: string, state: any): { href: string; isExte
   const result = resolveHref(rawLink);
   let href = result.href;
 
-  if (!result.isRaw && !result.isExternal && !href.startsWith('#')) {
+  // `index.md#setup` resolves to `#setup`. That is a section of the folder
+  // index, not an anchor on the current page, so a non-index page still needs
+  // the depth shift. Only a link that was written as a hash skips it.
+  const rawIsHashOnly = typeof rawLink === 'string' && rawLink.startsWith('#');
+  if (!result.isRaw && !result.isExternal && !rawIsHashOnly) {
     let hashPart = '';
     let pathPart = href;
     const hashIdx = href.indexOf('#');
@@ -157,7 +161,10 @@ export function processHref(rawLink: string, state: any): { href: string; isExte
     if (!isProtocol && !pathPart.startsWith('/') && state && state.env && state.env.isIndex === false) {
       if (pathPart.startsWith('./')) {
         pathPart = '../' + pathPart.substring(2);
-      } else if (pathPart !== '') {
+      } else {
+        // `index.md` / `README.md` normalise to '' (the current directory).
+        // A non-index page is emitted one folder deeper, so that directory
+        // is `../`, the same shift every other relative link gets.
         pathPart = '../' + pathPart;
       }
     }
