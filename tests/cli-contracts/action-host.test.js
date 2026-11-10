@@ -110,24 +110,24 @@ export const test = runTestFile({
     const { createOriginVerify, createOriginAllowlist } = await import(coreDist('utils/ws-origin-guard.js'));
     const { loadPlugins, hooks, TUI } = await import(apiDist('index.js'));
 
-    // ── AC-17: allowlist rule ────────────────────────────
+    // ── allowlist rule ────────────────────────────
     {
       const guard = createOriginAllowlist(['http://127.0.0.1:4100', 'https://Docs.Example.com']);
       const verdict = (origin) => new Promise((resolve) => {
         guard({ origin: origin ?? undefined, req: { headers: {} }, secure: false }, (allowed, code, message) => resolve({ allowed, code, message }));
       });
       for (const o of ['http://127.0.0.1:4100', 'https://docs.example.com']) {
-        assert((await verdict(o)).allowed === true, `AC-17: allowlist accepts ${o}`);
+        assert((await verdict(o)).allowed === true, `allowlist accepts ${o}`);
       }
       for (const o of ['http://127.0.0.1:4101', 'https://docs.example.com:444', 'http://evil.example', 'null', 'not a url']) {
-        assert((await verdict(o)).allowed === false, `AC-17: allowlist rejects ${o}`);
+        assert((await verdict(o)).allowed === false, `allowlist rejects ${o}`);
       }
       const missing = await verdict(null);
-      assert(!missing.allowed && missing.code === 403 && missing.message === 'Origin header required', 'AC-17: allowlist rejects a missing Origin with 403 "Origin header required"');
+      assert(!missing.allowed && missing.code === 403 && missing.message === 'Origin header required', 'allowlist rejects a missing Origin with 403 "Origin header required"');
       for (const bad of [['*'], ['not a url']]) {
         let threw = false;
         try { createOriginAllowlist(bad); } catch { threw = true; }
-        assert(threw, `AC-17: createOriginAllowlist(${JSON.stringify(bad)}) throws`);
+        assert(threw, `createOriginAllowlist(${JSON.stringify(bad)}) throws`);
       }
     }
 
@@ -169,7 +169,7 @@ export const test = runTestFile({
     let dev;
     let serve;
     try {
-      // ── AC-25 / D9 (dev): slow + throwing onServerReady ─
+      // ── slow + throwing onServerReady ─
       const gate = deferred();
       globalThis.__serveFixtureGate = gate.promise;
       globalThis.__serveFixtureThrow = true;
@@ -186,21 +186,21 @@ export const test = runTestFile({
       early.opened.then(() => { earlyOpen = true; }).catch(() => {});
       await upgraded.promise;
       await tick();
-      assert(!earlyOpen && seen.connections === 0, 'AC-25: a client connecting during a slow onServerReady is not accepted yet');
+      assert(!earlyOpen && seen.connections === 0, 'a client connecting during a slow onServerReady is not accepted yet');
       gate.resolve();
       dev = await devCreation;
       delete globalThis.__serveFixtureGate;
       globalThis.__serveFixtureThrow = false;
       await early.opened;
-      assert(earlyOpen && (await early.call('test:whoami')).identity === 'early', 'AC-25: the early client is served once onServerReady resolved');
-      assert(errors.some((e) => /fixture onServerReady failed/.test(e)), 'AC-25: in dev a throwing onServerReady is logged and the host still accepts connections');
-      assert(errors.some((e) => /fixture onDevServerReady failed/.test(e)), 'AC-25: in dev a throwing onDevServerReady is logged and the host keeps serving');
-      assert(seen.ready[0] === 'dev' && dev.handle.mode === 'dev', 'AC-25: onServerReady receives a handle whose mode equals opts.mode (dev)');
-      assert(dev.handle.rebuild === dev.rebuild, 'AC-25: handle.rebuild is host.rebuild');
+      assert(earlyOpen && (await early.call('test:whoami')).identity === 'early', 'the early client is served once onServerReady resolved');
+      assert(errors.some((e) => /fixture onServerReady failed/.test(e)), 'in dev a throwing onServerReady is logged and the host still accepts connections');
+      assert(errors.some((e) => /fixture onDevServerReady failed/.test(e)), 'in dev a throwing onDevServerReady is logged and the host keeps serving');
+      assert(seen.ready[0] === 'dev' && dev.handle.mode === 'dev', 'onServerReady receives a handle whose mode equals opts.mode (dev)');
+      assert(dev.handle.rebuild === dev.rebuild, 'handle.rebuild is host.rebuild');
       assert(seen.devReady.length === 1 && seen.devReady[0] === dev.wss, 'onDevServerReady runs in dev with the host wss');
       early.ws.close();
 
-      // ── AC-19: caller headers (dev) ──────────────────────
+      // ── caller headers (dev) ──────────────────────
       const alice = connect(devPort, {
         headers: { 'x-test-identity': 'alice', 'X-Multi': ['a', 'b'], cookie: 's=1' },
         origin: `http://127.0.0.1:${devPort}`,
@@ -209,35 +209,35 @@ export const test = runTestFile({
       const who = await alice.call('test:whoami');
       assert(
         who.identity === 'alice' && who.mode === 'dev' && who.origin === `http://127.0.0.1:${devPort}` && Object.keys(who).length === 3,
-        'AC-19: test:whoami returns { identity, mode, origin }'
+        'test:whoami returns { identity, mode, origin }'
       );
       const dump = await alice.call('test:whoami', { dump: true });
       const names = Object.keys(dump.headers);
-      assert(names.every((n) => n === n.toLowerCase()) && names.includes('x-test-identity'), 'AC-19: caller header names are lower-case');
-      assert(dump.headers['x-multi'] === 'a, b', 'AC-19: a multi-value header is joined with ", "');
-      assert(!names.includes('cookie') && !names.includes('set-cookie'), 'AC-19: cookie and set-cookie never reach the caller');
-      assert(dump.transport === 'websocket', 'AC-19: caller.transport is "websocket"');
+      assert(names.every((n) => n === n.toLowerCase()) && names.includes('x-test-identity'), 'caller header names are lower-case');
+      assert(dump.headers['x-multi'] === 'a, b', 'a multi-value header is joined with ", "');
+      assert(!names.includes('cookie') && !names.includes('set-cookie'), 'cookie and set-cookie never reach the caller');
+      assert(dump.transport === 'websocket', 'caller.transport is "websocket"');
       const dump2 = await alice.call('test:whoami', { dump: true });
       const bob = connect(devPort);
       await bob.opened;
       const bobDump = await bob.call('test:whoami', { dump: true });
-      assert(typeof dump.connectionId === 'string' && dump.connectionId.length > 0 && dump.connectionId === dump2.connectionId, 'AC-19: connectionId is stable across calls on one socket');
-      assert(bobDump.connectionId !== dump.connectionId, 'AC-19: connectionId differs between sockets');
+      assert(typeof dump.connectionId === 'string' && dump.connectionId.length > 0 && dump.connectionId === dump2.connectionId, 'connectionId is stable across calls on one socket');
+      assert(bobDump.connectionId !== dump.connectionId, 'connectionId differs between sockets');
       bob.ws.close();
 
-      // ── AC-26: coalescing ────────────────────────────────
+      // ── coalescing ────────────────────────────────
       const abs = (f) => path.join(proj, f);
       {
         const files = Array.from({ length: 10 }, (_, i) => `docs/f${i}.md`);
         const all = Promise.all(files.map((f) => dev.rebuild([f])));
-        assert(devBuild.calls.length === 1, 'AC-26: the first rebuild starts at once');
+        assert(devBuild.calls.length === 1, 'the first rebuild starts at once');
         devBuild.calls[0].resolve();
         await tick();
-        assert(devBuild.calls.length === 2, 'AC-26: overlapping requests coalesce into one follow-up build');
+        assert(devBuild.calls.length === 2, 'overlapping requests coalesce into one follow-up build');
         const follow = devBuild.calls[1].files;
         assert(
           JSON.stringify([...follow].sort()) === JSON.stringify(files.slice(1).map(abs).sort()),
-          'AC-26: the follow-up contains every file the first build did not cover'
+          'the follow-up contains every file the first build did not cover'
         );
         await alice.call('system:ping'); // the first build's frame has arrived
         const rebuiltBefore = alice.frames.filter(isRebuilt).length;
@@ -247,7 +247,7 @@ export const test = runTestFile({
         const newRebuilt = alice.frames.filter(isRebuilt).slice(rebuiltBefore);
         assert(
           newRebuilt.length === 1 && JSON.stringify([...newRebuilt[0].json.data.files].sort()) === JSON.stringify(files.slice(1).sort()),
-          'AC-24: the follow-up build broadcasts system:rebuilt with its nine project-relative paths'
+          'the follow-up build broadcasts system:rebuilt with its nine project-relative paths'
         );
       }
       {
@@ -258,13 +258,13 @@ export const test = runTestFile({
         const c = dev.rebuild();
         devBuild.calls[before].resolve();
         await tick();
-        assert(devBuild.calls.length === before + 2 && devBuild.calls[before + 1].files === undefined, 'AC-26: a full rebuild subsumes the pending set');
+        assert(devBuild.calls.length === before + 2 && devBuild.calls[before + 1].files === undefined, 'a full rebuild subsumes the pending set');
         devBuild.calls[before + 1].resolve();
         await Promise.all([a, b, c]);
         await alice.call('system:ping'); // frames arrive in order
         const fullFrames = alice.frames.filter(isRebuilt).slice(rebuiltBefore);
         const last = fullFrames[fullFrames.length - 1];
-        assert(last && last.json.data.files === null, 'AC-24: a full rebuild broadcasts system:rebuilt { files: null }');
+        assert(last && last.json.data.files === null, 'a full rebuild broadcasts system:rebuilt { files: null }');
       }
       {
         const before = devBuild.calls.length;
@@ -272,25 +272,25 @@ export const test = runTestFile({
         devBuild.calls[before].reject(new Error('boom'));
         let msg = null;
         try { await failing; } catch (e) { msg = e.message; }
-        assert(msg === 'boom', 'AC-26: a rejected build rejects its callers');
+        assert(msg === 'boom', 'a rejected build rejects its callers');
         const next = dev.rebuild(['docs/y.md']);
-        assert(devBuild.calls.length === before + 2, 'AC-26: the next request after a failure starts a fresh build');
+        assert(devBuild.calls.length === before + 2, 'the next request after a failure starts a fresh build');
         devBuild.calls[before + 1].resolve();
         await next;
       }
 
-      // ── AC-24 (dev): no automatic rebuild, reload frame ──
+      // ── no automatic rebuild, reload frame ──
       {
         const before = devBuild.calls.length;
         await alice.call('test:write', { file: 'docs/dev-written.md', content: 'x\n' });
         await tick();
-        assert(devBuild.calls.length === before, 'AC-24: in dev a call that writes files triggers no automatic rebuild');
+        assert(devBuild.calls.length === before, 'in dev a call that writes files triggers no automatic rebuild');
         dev.broadcastReload();
         await alice.call('system:ping');
-        assert(alice.frames.some((f) => f.text === 'reload'), 'AC-24: broadcastReload sends the text frame "reload" in dev');
+        assert(alice.frames.some((f) => f.text === 'reload'), 'broadcastReload sends the text frame "reload" in dev');
       }
 
-      // ── AC-25 / D9 (serve): throw rejects, then a working host ─
+      // ── throw rejects, then a working host ─
       globalThis.__serveFixtureThrow = true;
       const serveOpts = {
         server: serveServer, mode: 'serve', projectRoot: proj, config,
@@ -300,28 +300,28 @@ export const test = runTestFile({
       let serveErr = null;
       const shutdownsBeforeReject = shutdowns;
       try { await createActionHost(serveOpts); } catch (e) { serveErr = e; }
-      assert(shutdowns === shutdownsBeforeReject + 1, 'AC-25: a rejected createActionHost runs the onShutdown callbacks plugins already registered');
-      assert(serveErr && /fixture onServerReady failed/.test(serveErr.message), 'AC-25: in serve a throwing onServerReady rejects createActionHost');
+      assert(shutdowns === shutdownsBeforeReject + 1, 'a rejected createActionHost runs the onShutdown callbacks plugins already registered');
+      assert(serveErr && /fixture onServerReady failed/.test(serveErr.message), 'in serve a throwing onServerReady rejects createActionHost');
       globalThis.__serveFixtureThrow = false;
       serve = await createActionHost(serveOpts);
-      assert(seen.ready[seen.ready.length - 1] === 'serve' && serve.handle.mode === 'serve', 'AC-25: onServerReady receives mode "serve" in serve');
+      assert(seen.ready[seen.ready.length - 1] === 'serve' && serve.handle.mode === 'serve', 'onServerReady receives mode "serve" in serve');
       assert(seen.devReady.length === 1, 'onDevServerReady is never called in serve');
 
-      // ── AC-24 (serve): auto-rebuild, system:rebuilt, no reload ─
+      // ── auto-rebuild, system:rebuilt, no reload ─
       {
         const client = connect(servePort);
         await client.opened;
         await client.call('test:write', { file: 'docs/written.md', content: 'hello\n' });
         const rebuilt = await client.waitFor(isRebuilt);
-        assert(serveBuild.calls.length === 1 && serveBuild.calls[0].files.length === 1 && serveBuild.calls[0].files[0] === abs('docs/written.md'), 'AC-24: in serve a call with writtenFiles triggers host.rebuild(writtenFiles)');
-        assert(JSON.stringify(rebuilt.json.data) === JSON.stringify({ files: ['docs/written.md'] }), 'AC-24: system:rebuilt carries project-relative files');
+        assert(serveBuild.calls.length === 1 && serveBuild.calls[0].files.length === 1 && serveBuild.calls[0].files[0] === abs('docs/written.md'), 'in serve a call with writtenFiles triggers host.rebuild(writtenFiles)');
+        assert(JSON.stringify(rebuilt.json.data) === JSON.stringify({ files: ['docs/written.md'] }), 'system:rebuilt carries project-relative files');
         await client.call('test:rebuild', { files: ['docs/other.md'] });
-        assert(serveBuild.calls.length === 2 && serveBuild.calls[1].files[0] === abs('docs/other.md'), 'AC-24: ctx.requestRebuild reaches opts.rebuild');
+        assert(serveBuild.calls.length === 2 && serveBuild.calls[1].files[0] === abs('docs/other.md'), 'ctx.requestRebuild reaches opts.rebuild');
         await client.call('test:handle-rebuild');
-        assert(serveBuild.calls.length === 3, 'AC-25: handle.rebuild reaches opts.rebuild');
+        assert(serveBuild.calls.length === 3, 'handle.rebuild reaches opts.rebuild');
         serve.broadcastReload();
         await client.call('system:ping'); // frames arrive in order: a reload frame would precede this reply
-        assert(!client.frames.some((f) => f.text === 'reload'), 'AC-24: serve mode never sends the reload frame');
+        assert(!client.frames.some((f) => f.text === 'reload'), 'serve mode never sends the reload frame');
         client.ws.close();
       }
 

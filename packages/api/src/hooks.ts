@@ -988,7 +988,7 @@ function registerPlugin(
   }
 
   // onServerReady - unlike onDevServerReady, a throw propagates so the host
-  // can fail serve (D9) or log in dev. The error is also recorded.
+  // can fail serve or log in dev. The error is also recorded.
   if (typeof plugin.onServerReady === 'function') {
     if (hasCapabilityForHook(descriptor, 'onServerReady')) {
       const fn = plugin.onServerReady;

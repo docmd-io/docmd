@@ -63,7 +63,7 @@ export const test = runTestFile({
     const rebuilds = [];
     const base = { projectRoot: proj, config: {}, broadcast() {} };
 
-    // AC-20: runWorkerTask uses getWorkerPool()
+    // runWorkerTask uses getWorkerPool()
     {
       const d = createActionDispatcher(actionHooks, { ...base, getWorkerPool: () => fakePool });
       const r = await d.handleCall('worker', {});
@@ -79,7 +79,7 @@ export const test = runTestFile({
       assert(msg === 'WorkerPool is not initialized', 'undefined pool rejects; config._workerPool ignored');
     }
 
-    // C-10/D8 + mode
+    // optional caller defaults to a local caller; mode
     {
       const d = createActionDispatcher(actionHooks, { ...base, mode: 'serve' });
       await d.handleCall('rec', {});
@@ -115,7 +115,7 @@ export const test = runTestFile({
       assert(msg === 'build failed', 'requestRebuild propagates host rejection');
     }
 
-    // AC-24 writtenFiles
+    // writtenFiles
     {
       const d = createActionDispatcher(actionHooks, base);
       const w = await d.handleCall('write', {});
@@ -138,7 +138,7 @@ export const test = runTestFile({
         'system:ping unchanged');
     }
 
-    // AC-25: onServerReady registration
+    // onServerReady registration
     {
       const mk = (dir, caps, body, extra = '') => {
         writeFile(proj, `plugins/${dir}/package.json`, JSON.stringify({ name: dir, version: '1.0.0', type: 'module', main: 'index.js' }));

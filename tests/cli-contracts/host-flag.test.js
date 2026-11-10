@@ -169,13 +169,13 @@ export const test = runTestFile({
         assert(root.body.includes('/__dev/docmd-api.js'), 'GET / references /__dev/docmd-api.js');
         assert(/no-cache/.test(root.headers['cache-control'] || ''), 'GET / carries Cache-Control: no-cache');
         const api = await get(port, '/__dev/docmd-api.js');
-        assert(api.status === 200, 'AC-15: GET /__dev/docmd-api.js is 200');
+        assert(api.status === 200, 'GET /__dev/docmd-api.js is 200');
 
-        // AC-19 / AC-20 (dev wiring): the shared action host serves plugin actions.
+        // the shared action host serves plugin actions.
         const who = await wsCall(port, 'test:whoami', undefined, { 'x-test-identity': 'alice' });
-        assert(who.identity === 'alice' && who.mode === 'dev', 'AC-19: docmd dev passes the caller and mode to plugin actions');
+        assert(who.identity === 'alice' && who.mode === 'dev', 'docmd dev passes the caller and mode to plugin actions');
         const worker = await wsCall(port, 'test:worker', { n: 6 });
-        assert(worker === 36, 'AC-20: test:worker returns the worker task result through docmd dev');
+        assert(worker === 36, 'test:worker returns the worker task result through docmd dev');
       } finally {
         child.kill('SIGTERM');
         await exited;
