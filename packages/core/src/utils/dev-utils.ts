@@ -17,28 +17,13 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync, spawn } from 'child_process';
-import { fileURLToPath } from 'url';
-import { fsUtils as fs, safePath, asUserPath } from '@docmd/utils';
+import { fsUtils as fs } from '@docmd/utils';
+import { createStaticHandler, MIME_TYPES } from '../server/static.js';
+import { resolveUiAsset } from '../server/ui-assets.js';
 
 
 
-// MIME types for static file serving
-export const MIME_TYPES: Record<string, string> = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpg',
-  '.jpeg': 'image/jpg',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff': 'application/font-woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'application/font-ttf',
-  '.txt': 'text/plain',
-};
+export { MIME_TYPES };
 
 /**
  * Format an absolute path for display relative to CWD.
@@ -90,128 +75,30 @@ export function getDevInfoScript(): string {
 
 /**
  * Serve static files from rootDir with live-reload injection.
+ * Thin dev wrapper over the production static handler.
  */
 export async function serveStatic(req: any, res: any, rootDir: string) {
-  // Serve dev-only API script
-  if (req.url === '/__dev/docmd-api.js') {
-    try {
-      const apiScriptPath = path.resolve(
-        fileURLToPath(import.meta.url),
-        '../../../../ui/assets/js/docmd-api.js'
-      );
-      const apiScript = await fs.readFile(apiScriptPath, 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'text/javascript' });
-      res.end(apiScript);
-    } catch {
-      res.writeHead(404);
-      res.end('Not found');
-    }
-    return;
-  }
+  const inject = (html: string) =>
+    html.replace('</body>', `${getDevInfoScript()}<script src="/__dev/docmd-api.js"></script></body>`);
 
-  const url = new URL(req.url || '/', 'http://localhost');
-  const pathname = decodeURIComponent(url.pathname);
-  const rootAbs = path.resolve(rootDir);
-  // Security (Phase 1.A: CWE-22 fix). Use safePath() to enforce the boundary.
-  //
-  // The previous `filePath.startsWith(rootAbs)` check was the outlier in the
-  // repo: it did not append `path.sep`, so a sibling directory whose name
-  // started with rootDir's name (e.g. rootDir=`/x/site`, sibling=`/x/site-private`)
-  // passed the check, and a URL like `/..%2fsite-private/secret.txt` resolved
-  // to the sibling. safePath() enforces the strict `root + path.sep` boundary
-  // and throws on escape.
-  //
-  // Note: URL pathnames always start with `/` (e.g. `/index.html`). We
-  // strip the leading slash before passing to safePath() so the second
-  // argument is treated as a *relative* path. `path.resolve` (which
-  // safePath uses internally) treats `/index.html` as absolute and would
-  // bypass the boundary check; `path.join`-style resolution is the
-  // correct semantic for "join this to the root".
-  let filePath: string;
-  try {
-    const safeRelative = pathname.replace(/^\/+/, '') || '.';
-    filePath = safePath(rootAbs, asUserPath(safeRelative));
-  } catch (_e: any) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  try {
-    let stats;
-    try {
-      stats = await fs.stat(filePath);
-    } catch (e) {
-      if (path.extname(filePath) === '') {
-        filePath += '.html';
-        stats = await fs.stat(filePath);
-      } else {
-        throw e;
-      }
-    }
-
-    if (stats.isDirectory()) {
-      const urlParts = (req.url || '/').split('?');
-      if (!urlParts[0].endsWith('/')) {
-        const safeRedirect = `${urlParts[0]}/${urlParts[1] ? `?${urlParts[1]}` : ''}`;
-        if (safeRedirect.startsWith('/') && !safeRedirect.startsWith('//')) {
-          res.writeHead(301, { 'Location': safeRedirect });
-          res.end();
-          return;
+  return createStaticHandler({
+    rootDir: () => rootDir,
+    transformHtml: inject,
+    notFoundFooter: '(docmd dev server)',
+    extraRoutes: {
+      // Dev-only API script
+      '/__dev/docmd-api.js': async (_req, r) => {
+        try {
+          const apiScript = await fs.readFile(resolveUiAsset('js/docmd-api.js'), 'utf-8');
+          r.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' });
+          r.end(apiScript);
+        } catch {
+          r.writeHead(404);
+          r.end('Not found');
         }
-      }
-      filePath = path.join(filePath, 'index.html');
-      await fs.stat(filePath);
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const content = await fs.readFile(filePath);
-
-    if (contentType === 'text/html') {
-      res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
-      const htmlStr = content.toString('utf-8');
-      const liveReloadScript = `${getDevInfoScript()}<script src="/__dev/docmd-api.js"></script></body>`;
-      res.end(htmlStr.replace('</body>', liveReloadScript));
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
-    }
-
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      const custom404Path = path.join(rootDir, '404.html');
-      try {
-        const content = await fs.readFile(custom404Path);
-        res.writeHead(404, { 'Content-Type': 'text/html' });
-        const htmlStr = content.toString('utf-8');
-        const liveReloadScript = `${getDevInfoScript()}<script src="/__dev/docmd-api.js"></script></body>`;
-        res.end(htmlStr.replace('</body>', liveReloadScript));
-      } catch {
-        res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-        const safeUrl = (req.url || '').replace(/[<>&"']/g, (c) => {
-          switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '"': return '&quot;';
-            case "'": return '&#39;';
-            default: return c;
-          }
-        });
-        res.end(`
-          <div style="font-family:system-ui;text-align:center;padding:50px;">
-            <h1>404 Not Found</h1>
-            <p>The requested URL <code>${safeUrl}</code> was not found.</p>
-            <p style="color:#666;font-size:0.9em;">(docmd dev server)</p>
-          </div>
-        `);
-      }
-    } else {
-      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('500 Server Error');
-    }
-  }
+      },
+    },
+  })(req, res);
 }
 
 /**

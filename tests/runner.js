@@ -115,6 +115,7 @@ addInProcess(
   'Deploy --force honours overwrite (N-2)',
   await import('./cli-contracts/deploy.test.js')
 );
+addInProcess('static-server', 'Static handler: production serving, path safety, dev wrapper', await import('./cli-contracts/static-server.test.js'));
 addInProcess(
   'stop',
   'Stop sends SIGTERM and waits for graceful exit (M-11)',
