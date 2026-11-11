@@ -117,6 +117,7 @@ addInProcess(
 );
 addInProcess('serve', 'Serve: production command, config, router, graceful shutdown', await import('./cli-contracts/serve.test.js'));
 addInProcess('serve-startup', 'Serve startup failures exit 1; SIGINT stops cleanly', await import('./cli-contracts/serve-startup.test.js'));
+addInProcess('serve-actions', 'Serve actions: config, origin allowlist, trusted identity for writes', await import('./cli-contracts/serve-actions.test.js'));
 addInProcess('static-server', 'Static handler: production serving, path safety, dev wrapper', await import('./cli-contracts/static-server.test.js'));
 addInProcess(
   'stop',

@@ -73,7 +73,7 @@ export const test = runTestFile({
     // Config defaults.
     {
       const defaults = normalizeServeConfig(undefined);
-      assert(JSON.stringify(defaults) === JSON.stringify({ host: '127.0.0.1', port: 3000 }),
+      assert(JSON.stringify(defaults) === JSON.stringify({ host: '127.0.0.1', port: 3000, actions: { enabled: false, origins: [], identityHeader: null } }),
         'normalizeServeConfig(undefined) returns the documented defaults');
       const partial = normalizeServeConfig({ port: '4100' });
       assert(partial.port === 4100 && partial.host === '127.0.0.1',
@@ -173,6 +173,7 @@ export const test = runTestFile({
       assert(/Production Server Running/i.test(handle.output.text) &&
         /Serving from\s+\S*site/i.test(handle.output.text), 'banner shows Production Server Running and the output dir');
 
+      assert(/Actions\s+off/.test(handle.output.text), 'banner shows Actions off when serve.actions is not configured');
       assert(await upgradeStatus(cliPort) === 404, 'WebSocket upgrade gets HTTP 404');
 
       // SIGTERM -> exit 0 within 5 s, port closed.

@@ -6,6 +6,8 @@
  *   __serveFixtureGate     promise `onServerReady` awaits before resolving
  *   __serveFixtureThrow    when truthy, `onServerReady` throws
  *   __serveFixtureShutdown called from the handle's onShutdown callback
+ * Spawned commands:
+ *   DOCMD_TEST_ONSERVERREADY_THROW=1 (env) makes `onServerReady` throw
  */
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +28,7 @@ export const actions = {
         headers: ctx.caller.headers,
         transport: ctx.caller.transport,
         connectionId: ctx.caller.connectionId,
+        trustedIdentity: ctx.caller.identity,
       };
     }
     return {
@@ -53,5 +56,7 @@ export async function onServerReady(handle) {
   savedHandle = handle;
   handle.onShutdown(() => globalThis.__serveFixtureShutdown?.());
   if (globalThis.__serveFixtureGate) await globalThis.__serveFixtureGate;
-  if (globalThis.__serveFixtureThrow) throw new Error('fixture onServerReady failed');
+  if (globalThis.__serveFixtureThrow || process.env.DOCMD_TEST_ONSERVERREADY_THROW === '1') {
+    throw new Error('fixture onServerReady failed');
+  }
 }
