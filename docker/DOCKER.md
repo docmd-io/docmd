@@ -18,6 +18,8 @@ docker pull ghcr.io/docmd-io/docmd:latest
 
 The image ships with a demo template in `/template`. When you run the container with no volume mount, the entrypoint copies `/template` into `/docs` on first start, so the demo site comes up immediately.
 
+The default command is `docmd serve --host 0.0.0.0`: it builds the site once and serves it in production mode, with no file watcher and no live reload. To work on your docs with live reload, run `dev` instead (see [Development Server](#development-server)).
+
 ```bash
 # Start with built-in demo site — works out of the box
 docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest
@@ -32,8 +34,8 @@ docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest
 mkdir my-docs && cd my-docs
 docker run -v $(pwd):/workspace ghcr.io/docmd-io/docmd:latest init
 
-# Start dev server
-docker run -v $(pwd):/workspace -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev
+# Serve it (default command)
+docker run -v $(pwd):/docs -p 3000:3000 ghcr.io/docmd-io/docmd:latest
 ```
 
 ### Use Existing Docs
@@ -41,7 +43,7 @@ docker run -v $(pwd):/workspace -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev
 Mounting your own docs into `/docs` always wins — the entrypoint only seeds the demo template when `/docs` is completely empty, so your content is never overwritten.
 
 ```bash
-# Mount your docs and start dev server
+# Mount your docs and serve them (default command: `serve --host 0.0.0.0`)
 docker run -v $(pwd)/docs:/docs -p 3000:3000 ghcr.io/docmd-io/docmd:latest
 
 # Build static site
@@ -82,10 +84,9 @@ services:
       - "3000:3000"
     volumes:
       - ./docs:/docs
-      - ./site:/site
-    # The dev server defaults to 127.0.0.1 (loopback). For LAN access from
-    # other devices, set DOCMD_HOST=0.0.0.0 or pass --host 0.0.0.0 explicitly.
-    command: dev
+    # The image's default command, shown for clarity. Use
+    # `["dev", "--host", "0.0.0.0"]` for live reload while writing.
+    command: ["serve", "--host", "0.0.0.0"]
 ```
 
 ### GitHub Actions CI/CD
@@ -146,13 +147,24 @@ spec:
         volumeMounts:
         - name: docs
           mountPath: /docs
-        # The dev server defaults to 127.0.0.1. For LAN access, set
-        # DOCMD_HOST=0.0.0.0 or pass --host 0.0.0.0 explicitly.
-        command: ["docmd", "dev"]
+        # No `command:`: the image runs `serve --host 0.0.0.0`.
+        # /healthz answers 503 until the first build is done.
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          periodSeconds: 2
+          failureThreshold: 150
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
       volumes:
+      # `serve` writes the built site under /docs, so the volume must be
+      # writable (a configMap mount is read-only).
       - name: docs
-        configMap:
-          name: docs-content
+        persistentVolumeClaim:
+          claimName: docs-content
 ```
 
 ## Environment Variables
@@ -161,6 +173,12 @@ spec:
 |----------|-------------|---------|
 | `NODE_ENV` | Node environment | `production` |
 | `DOCMD_CONTAINER` | Container mode flag | `true` |
+| `PORT` | Port `serve` listens on (`--port` wins); the health check uses it too | `3000` |
+| `DOCMD_HOST` | Bind address when the command has no `--host` (the default command passes `--host 0.0.0.0`) | `127.0.0.1` |
+
+### Configuring `serve`
+
+`docmd serve` reads an optional `serve` block from your `docmd.config.*`: plugin actions over WebSocket (`serve.actions`) and MCP over HTTP (`serve.mcp`) are both off by default. See [docmd serve](https://docs.docmd.io/deployment/docmd-serve/) for the options, and for how to run it behind an authenticating reverse proxy.
 
 ## Building Locally
 
@@ -186,12 +204,25 @@ docker run --rm -v $(pwd)/docs:/docs docmd:local --version
 
 ## Health Check
 
-The image includes a health check that verifies the dev server is running:
+The image includes a health check that requests `GET /healthz` on `${PORT:-3000}`. `docmd serve` answers `200` with `{"status":"ok","version":"<docmd version>"}` once the site is built, and `503` while the first build runs. If you override the command with `dev`, the check falls back to probing ports 3000-3005.
 
 ```bash
 # Check container health
 docker inspect --format='{{.State.Health.Status}}' <container-id>
+
+# Probe it directly
+curl -f http://localhost:3000/healthz
 ```
+
+## Development Server
+
+`dev` rebuilds on every change and live-reloads the browser. Use it while writing, not in production.
+
+```bash
+docker run -v $(pwd)/docs:/docs -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev --host 0.0.0.0
+```
+
+Earlier images ran `dev --host 0.0.0.0` by default. If you relied on live reload without passing a command, pass `dev --host 0.0.0.0` explicitly.
 
 ## Troubleshooting
 
@@ -199,24 +230,21 @@ docker inspect --format='{{.State.Health.Status}}' <container-id>
 
 The entrypoint automatically remaps to the uid:gid of the mounted directory, so files are always owned by the correct host user. If you hit permission issues, verify the mounted path exists and is writable on the host.
 
-The dev server defaults to 127.0.0.1 (loopback only). To expose it to the LAN
-from inside a container, pass the host flag explicitly:
+### Cannot reach the server from the host
+
+Inside the container the server must bind `0.0.0.0` for a published port to reach it. The default command does. `serve` and `dev` both default to `127.0.0.1` (loopback only), so when you override the command, pass the host explicitly:
 
 ```bash
-# Loopback only (default) — access via http://localhost:3000 from the host
-docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev
-
-# LAN access — the dev server binds to 0.0.0.0 inside the container, and
-# the port mapping makes it reachable from other devices on the host's network.
+docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest serve --host 0.0.0.0
 docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev --host 0.0.0.0
 ```
 
 > **Security**: when you bind to 0.0.0.0, every host that can reach the
-> container's port can connect. Only do this on trusted networks. The dev
-> server's WebSocket requires an Origin that matches the bind host
-> (defence against CSWSH, CWE-1385), but loopback-only is the safer default.nsure you're binding to 0.0.0.0
-docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest dev --host 0.0.0.0
-```
+> container's port can connect. Publish the port only on trusted networks,
+> or put a reverse proxy in front. `dev`'s WebSocket requires an Origin that
+> matches the bind host (defence against CSWSH, CWE-1385). Under `serve`,
+> plugin actions and MCP are off unless you enable them, and then only the
+> origins you list are accepted.
 
 ### Memory Issues
 
