@@ -201,6 +201,11 @@ addInProcess(
   'Dev --host flag binds the requested interface (AC-2, AC-15)',
   await import('./cli-contracts/host-flag.test.js')
 );
+addInProcess(
+  'build-clean-tree',
+  'Build leaves the git tree clean (reproducible registry, ignored platform binaries)',
+  await import('./cli-contracts/build-clean-tree.test.js')
+);
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------
 addExternal(
