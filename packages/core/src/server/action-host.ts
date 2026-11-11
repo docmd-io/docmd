@@ -53,7 +53,7 @@ export interface ActionHostOptions {
   getWorkerPool: () => WorkerPool | undefined;
   /** Provided by the command; serialised and coalesced inside the host. */
   rebuild: (files?: string[]) => Promise<void>;
-  /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev' }). */
+  /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev', liveServer: mode === 'serve' }). */
   loadPlugins?: boolean;
   /** Extra plugin resolution roots handed to loadPlugins (dev: the CLI dir; workspace dev: the project root). */
   resolvePaths?: string[];
@@ -250,7 +250,7 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
   try {
     if (opts.loadPlugins !== false) {
       try {
-        await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev' });
+        await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev', liveServer: mode === 'serve' });
       } catch (e) {
         await fail(e, 'Plugin loading failed');
       }
