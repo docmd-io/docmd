@@ -475,12 +475,15 @@ function customHtmlBlock(state: any, startLine: number, endLine: number, silent:
             pathPart = pathPart.substring(0, hi);
           }
 
-          // Depth adjustment for clean URLs (non-index pages are shifted into subfolders)
+          // Depth adjustment for clean URLs (non-index pages are shifted into subfolders).
+          // `index.md` and `README.md` normalise to '' (the current directory). That
+          // still has to move up one level; otherwise `[Overview](index.md)` and
+          // `[Setup](index.md#setup)` point at the page itself.
           const isProtocol = pathPart.match(/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i);
           if (!isProtocol && !pathPart.startsWith('/') && env && env.isIndex === false) {
             if (pathPart.startsWith('./')) {
               pathPart = '../' + pathPart.substring(2);
-            } else if (pathPart !== '') {
+            } else {
               pathPart = '../' + pathPart;
             }
           }
