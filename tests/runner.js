@@ -115,6 +115,8 @@ addInProcess(
   'Deploy --force honours overwrite (N-2)',
   await import('./cli-contracts/deploy.test.js')
 );
+addInProcess('serve', 'Serve: production command, config, router, graceful shutdown', await import('./cli-contracts/serve.test.js'));
+addInProcess('serve-startup', 'Serve startup failures exit 1; SIGINT stops cleanly', await import('./cli-contracts/serve-startup.test.js'));
 addInProcess('static-server', 'Static handler: production serving, path safety, dev wrapper', await import('./cli-contracts/static-server.test.js'));
 addInProcess(
   'stop',

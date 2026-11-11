@@ -11,6 +11,7 @@
  */
 
 import { setup, writeFile, runTestFile, DOCMD } from '../shared.js';
+import { spawnServe, waitForHealthz, stopServe } from '../_lib/serve-harness.js';
 import { spawn, execFileSync } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
@@ -92,6 +93,7 @@ export const test = runTestFile({
     {
       const help = execFileSync(process.execPath, [DOCMD, '--help'], { encoding: 'utf8' });
       assert(/--host/.test(help), '`docmd --help` lists --host');
+      assert(/^\s*serve\b/m.test(help) && /dev\/serve/.test(help), '`docmd --help` lists serve and the stop line mentions dev/serve');
     }
 
     // A valueless --host is rejected instead of being passed to listen().
@@ -144,6 +146,26 @@ export const test = runTestFile({
       } finally {
         child.kill('SIGTERM');
         await exited;
+      }
+    }
+
+    // `serve --host 0.0.0.0` binds all interfaces.
+    {
+      const dir = setup('host-flag-serve');
+      writeFile(dir, 'docs/index.md', '# Hi\n');
+      writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'Host', src: './docs', out: './site' }, null, 2) + '\n');
+      const port = await freePort();
+      const handle = spawnServe(dir, ['--host', '0.0.0.0', '--port', String(port)]);
+      try {
+        await waitForHealthz(port, handle);
+        const lan = lanIPv4();
+        if (lan) {
+          assert(await canConnect(lan, port), `serve --host 0.0.0.0 accepts a connection on ${lan}:${port}`);
+        } else {
+          assert(false, 'no non-loopback IPv4 interface; cannot verify serve --host binding');
+        }
+      } finally {
+        await stopServe(handle);
       }
     }
   }

@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { initProject } from '../commands/init.js';
 import { buildSite } from '../commands/build.js';
 import { startDevServer } from '../commands/dev.js';
+import { startServe } from '../commands/serve.js';
 import { buildLive } from '../commands/live.js';
 import { migrateProject } from '../commands/migrate.js';
 import { stopServer } from '../commands/stop.js';
@@ -85,10 +86,11 @@ if (!command || values.help) {
     ['init', 'Initialize a new documentation project'],
     ['build', 'Build the static site for production'],
     ['dev', 'Start the development server'],
+    ['serve', 'Build once and serve the site in production'],
     ['live', 'Launch the Live Editor'],
     ['migrate', 'Migrate from Docusaurus, MkDocs, VitePress, etc.'],
     ['deploy', 'Generate production deployment configurations'],
-    ['stop', 'Kill all running background docmd dev servers'],
+    ['stop', 'Kill all running background docmd dev/serve servers'],
     ['mcp', 'Run docmd as a Model Context Protocol (MCP) server'],
     ['validate', 'Validate documentation files and check for broken relative links'],
     ['add', 'Install and configure a docmd plugin'],
@@ -173,6 +175,11 @@ if (command === 'init') {
     });
 } else if (command === 'dev') {
   startDevServer(opts.config, opts);
+} else if (command === 'serve') {
+  startServe(opts.config, { host: values.host, port: values.port }).catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
 } else if (command === 'live') {
   buildLive({ serve: !opts.buildOnly, verbose: opts.verbose }).catch((e) => {
     console.error(e);

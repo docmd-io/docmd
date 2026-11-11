@@ -13,6 +13,7 @@
  */
 
 import path from 'path';
+import { normalizeServeConfig } from '../server/serve-config.js';
 import { normalizeNavPaths, normalizeMenubarPaths } from '@docmd/parser';
 
 /**
@@ -588,6 +589,9 @@ export function normalizeConfig(userConfig: any, options: any = {}) {
     // --- 5. Plugins ---
     config.hasExplicitPlugins = 'plugins' in userConfig;
     config.plugins = config.plugins || {};
+
+    // --- 5b. Serve (production server) ---
+    config.serve = normalizeServeConfig(userConfig.serve);
 
     // --- 6. Versioning Engine ---
     // M-6: accept `config.versions.list` as an alias for `config.versions.all`.
