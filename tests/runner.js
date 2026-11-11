@@ -115,6 +115,9 @@ addInProcess(
   'Deploy --force honours overwrite (N-2)',
   await import('./cli-contracts/deploy.test.js')
 );
+addInProcess('serve', 'Serve: production command, config, router, graceful shutdown', await import('./cli-contracts/serve.test.js'));
+addInProcess('serve-startup', 'Serve startup failures exit 1; SIGINT stops cleanly', await import('./cli-contracts/serve-startup.test.js'));
+addInProcess('static-server', 'Static handler: production serving, path safety, dev wrapper', await import('./cli-contracts/static-server.test.js'));
 addInProcess(
   'stop',
   'Stop sends SIGTERM and waits for graceful exit (M-11)',
@@ -134,6 +137,11 @@ addInProcess(
   'plugin-contract',
   'Plugin contract + public API fixes (Slice C.1 + C.2)',
   await import('./cli-contracts/plugin-contract.test.js')
+);
+addInProcess(
+  'action-dispatcher',
+  'Action dispatcher context + onServerReady',
+  await import('./cli-contracts/action-dispatcher.test.js')
 );
 addInProcess(
   'source-tools',
@@ -191,6 +199,7 @@ addInProcess(
   await import('./cli-contracts/variables-engine.test.js')
 );
 addInProcess('mcp-read-doc', 'MCP read_doc confines reads to markdown inside the source directory', await import('./cli-contracts/mcp-read-doc.test.js'));
+addInProcess('gitignore-scope', 'Gitignore and exclude patterns match only below their own directory', await import('./cli-contracts/gitignore-scope.test.js'));
 addInProcess(
   'plugin-playground',
   'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
@@ -198,13 +207,28 @@ addInProcess(
 );
 addInProcess(
   'host-flag',
-  'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  'Dev --host flag binds the requested interface',
   await import('./cli-contracts/host-flag.test.js')
 );
 addInProcess(
   'public-assets',
   'Public root assets contract (zero-config, configurable paths, nested preservation)',
   await import('./cli-contracts/public-assets.test.js')
+);
+addInProcess(
+  'build-clean-tree',
+  'Build leaves the git tree clean (reproducible registry, ignored platform binaries)',
+  await import('./cli-contracts/build-clean-tree.test.js')
+);
+addInProcess(
+  'test-root',
+  'Test fixture root is unique per run',
+  await import('./cli-contracts/test-root.test.js')
+);
+addInProcess(
+  'action-host',
+  'Action host: caller, origin allowlist, rebuild, onServerReady, close',
+  await import('./cli-contracts/action-host.test.js')
 );
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------

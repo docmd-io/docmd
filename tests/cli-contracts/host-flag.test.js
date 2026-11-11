@@ -11,10 +11,17 @@
  */
 
 import { setup, writeFile, runTestFile, DOCMD } from '../shared.js';
+import { safePath } from '../../packages/utils/dist/path.js';
+import { spawnServe, waitForHealthz, stopServe } from '../_lib/serve-harness.js';
 import { spawn, execFileSync } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const WebSocket = createRequire(path.resolve(import.meta.dirname, '../../packages/core/package.json'))('ws');
 
 let passed = 0;
 let failed = 0;
@@ -67,6 +74,24 @@ async function waitForHttp(port, child, output, timeoutMs = 10000) {
   throw new Error(`dev server did not answer GET / on port ${port} in time; output: ${output.text}`);
 }
 
+// One WebSocket call against the dev server's action host.
+function wsCall(port, action, payload, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, { origin: `http://127.0.0.1:${port}`, headers });
+    let answered = false;
+    ws.on('error', reject);
+    ws.once('close', () => { if (!answered) reject(new Error(`socket closed before ${action} was answered`)); });
+    ws.once('open', () => ws.send(JSON.stringify({ id: 1, type: 'call', action, payload })));
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString());
+      if (msg.id !== 1) return;
+      answered = true;
+      ws.close();
+      if (msg.error) reject(new Error(msg.error)); else resolve(msg.result);
+    });
+  });
+}
+
 function canConnect(host, port) {
   return new Promise((resolve) => {
     const sock = net.connect({ host, port });
@@ -92,6 +117,7 @@ export const test = runTestFile({
     {
       const help = execFileSync(process.execPath, [DOCMD, '--help'], { encoding: 'utf8' });
       assert(/--host/.test(help), '`docmd --help` lists --host');
+      assert(/^\s*serve\b/m.test(help) && /dev\/serve/.test(help), '`docmd --help` lists serve and the stop line mentions dev/serve');
     }
 
     // A valueless --host is rejected instead of being passed to listen().
@@ -113,7 +139,13 @@ export const test = runTestFile({
     {
       const dir = setup('host-flag-dev');
       writeFile(dir, 'docs/index.md', '# Hi\n');
-      writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'Host', src: './docs', out: './site' }, null, 2) + '\n');
+      const fixtureDir = safePath(import.meta.dirname, 'fixtures/serve-plugin');
+      for (const f of fs.readdirSync(fixtureDir)) {
+        writeFile(dir, `plugins/serve-plugin/${f}`, fs.readFileSync(safePath(fixtureDir, f), 'utf8'));
+      }
+      writeFile(dir, 'docmd.config.json', JSON.stringify({
+        title: 'Host', src: './docs', out: './site', plugins: { './plugins/serve-plugin': {} }
+      }, null, 2) + '\n');
 
       const port = await freePort();
       const env = { ...process.env };
@@ -141,9 +173,35 @@ export const test = runTestFile({
         assert(/no-cache/.test(root.headers['cache-control'] || ''), 'GET / carries Cache-Control: no-cache');
         const api = await get(port, '/__dev/docmd-api.js');
         assert(api.status === 200, 'GET /__dev/docmd-api.js is 200');
+
+        // the shared action host serves plugin actions.
+        const who = await wsCall(port, 'test:whoami', undefined, { 'x-test-identity': 'alice' });
+        assert(who.identity === 'alice' && who.mode === 'dev', 'docmd dev passes the caller and mode to plugin actions');
+        const worker = await wsCall(port, 'test:worker', { n: 6 });
+        assert(worker === 36, 'test:worker returns the worker task result through docmd dev');
       } finally {
         child.kill('SIGTERM');
         await exited;
+      }
+    }
+
+    // `serve --host 0.0.0.0` binds all interfaces.
+    {
+      const dir = setup('host-flag-serve');
+      writeFile(dir, 'docs/index.md', '# Hi\n');
+      writeFile(dir, 'docmd.config.json', JSON.stringify({ title: 'Host', src: './docs', out: './site' }, null, 2) + '\n');
+      const port = await freePort();
+      const handle = spawnServe(dir, ['--host', '0.0.0.0', '--port', String(port)]);
+      try {
+        await waitForHealthz(port, handle);
+        const lan = lanIPv4();
+        if (lan) {
+          assert(await canConnect(lan, port), `serve --host 0.0.0.0 accepts a connection on ${lan}:${port}`);
+        } else {
+          assert(false, 'no non-loopback IPv4 interface; cannot verify serve --host binding');
+        }
+      } finally {
+        await stopServe(handle);
       }
     }
   }

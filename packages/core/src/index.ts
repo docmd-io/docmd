@@ -18,6 +18,7 @@ export function defineConfig(config: any): any {
 
 export { buildSite as build } from './commands/build.js';
 export { startDevServer as dev } from './commands/dev.js';
+export { startServe as serve } from './commands/serve.js';
 export { buildLive } from './commands/live.js';
 
 // D-H2: re-export the workspace helpers under their documented names.
@@ -35,6 +36,8 @@ export { createActionDispatcher, safePath, createSourceTools } from '@docmd/api'
 
 // Plugin API types (re-exported from @docmd/api)
 export type {
+  ActionCaller,
+  ServerHandle,
   ActionContext,
   ActionHandler,
   EventHandler,

@@ -46,6 +46,22 @@ export async function waitForExit(pid: number, timeoutMs: number): Promise<boole
 }
 
 /**
+ * Whether a `ps` command line belongs to a docmd dev, serve or live process.
+ * Matches `docmd dev|live|serve`, direct `bin/docmd.js` invocations and the
+ * dev-script forms.
+ */
+export function isDocmdCommand(command: string): boolean {
+    return command.includes('docmd dev') ||
+        command.includes('docmd serve') ||
+        command.includes('docmd live') ||
+        command.includes('docmd-live') ||
+        command.includes('bin/docmd.js') ||
+        command.includes('bin/docmd-live.js') ||
+        command.includes('dev.js live') ||
+        command.includes('dev.js dev');
+}
+
+/**
  * find and kill running docmd processes
  * If port is provided, only kill the process listening on that port.
  * If force is true, also kill serve processes on common docmd ports.
@@ -128,13 +144,7 @@ export async function stopServer(port: any, force: boolean = false) {
 
             // Check if it's a docmd process (dev or live) but not the current one
             // We look for 'docmd dev', 'docmd live', or direct bin/docmd.js execution
-            const isDocmd = command.includes('docmd dev') ||
-                command.includes('docmd live') ||
-                command.includes('docmd-live') ||
-                command.includes('bin/docmd.js') ||
-                command.includes('bin/docmd-live.js') ||
-                command.includes('dev.js live') ||
-                command.includes('dev.js dev');
+            const isDocmd = isDocmdCommand(command);
 
             // With --force, also detect 'serve' processes on common docmd ports
             let isServe = false;

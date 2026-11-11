@@ -46,8 +46,9 @@ const EXCLUDE = new Set(['@docmd/plugin-installer', '@docmd/engine-rust-binaries
 
 const errors = [];
 const registry = {
+  // No timestamp here: the file is committed, so its bytes must depend only
+  // on the package.json files it reads, or every build dirties the tree.
   $meta: {
-    generatedAt: new Date().toISOString(),
     generator: 'scripts/build-plugin-registry.mjs',
     packageCount: 0,
   },
@@ -102,7 +103,8 @@ let count = 0;
 for (const { dir, kind } of SCAN_DIRS) {
   if (!existsSync(dir)) continue;
   if (!statSync(dir).isDirectory()) continue;
-  for (const name of readdirSync(dir)) {
+  // Sorted so key order does not depend on the filesystem's readdir order.
+  for (const name of readdirSync(dir).sort()) {
     const pkgPath = join(dir, name, 'package.json');
     if (!existsSync(pkgPath)) continue;
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));

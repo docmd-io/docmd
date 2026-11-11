@@ -60,3 +60,49 @@ export function createOriginVerify(extraAllowedHosts: string[] = []) {
     callback(false, 403, `Origin ${host} not in allowlist`);
   };
 }
+/**
+ * Build a verifyClient callback for production hosting (`docmd serve`).
+ * Each configured origin is a full origin (`https://docs.example.com`),
+ * normalised with `new URL(o).origin` and matched exactly against the
+ * request's Origin: scheme, host and port all count, no wildcards.
+ * Throws on a value that is not a URL or that names a wildcard, so a bad
+ * config fails at startup instead of silently refusing every client.
+ */
+export function createOriginAllowlist(origins: string[]) {
+  const allowed = new Set<string>();
+  for (const o of origins) {
+    let normalised: string;
+    try {
+      normalised = new URL(o).origin;
+    } catch {
+      throw new Error(`Invalid origin in allowlist: ${JSON.stringify(o)} (expected a full origin such as https://docs.example.com)`);
+    }
+    if (normalised === 'null') {
+      throw new Error(`Invalid origin in allowlist: ${JSON.stringify(o)} (expected a full origin such as https://docs.example.com)`);
+    }
+    allowed.add(normalised);
+  }
+
+  return function verifyClient(
+    info: VerifyClientInfo,
+    callback: (allowed: boolean, code?: number, message?: string) => void
+  ): void {
+    const originHeader = info.origin || (info.req.headers.origin as string | undefined);
+    if (!originHeader) {
+      callback(false, 403, 'Origin header required');
+      return;
+    }
+    let origin: string;
+    try {
+      origin = new URL(originHeader).origin;
+    } catch {
+      callback(false, 403, 'Origin not in allowlist');
+      return;
+    }
+    if (allowed.has(origin)) {
+      callback(true);
+      return;
+    }
+    callback(false, 403, `Origin ${origin} not in allowlist`);
+  };
+}

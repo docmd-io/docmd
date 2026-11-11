@@ -27,7 +27,7 @@ import process from 'node:process';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { safePath, asUserPath } from '@docmd/utils';
-import type { PluginDescriptor, PluginHooks, PluginModule, Capability, TemplateHook, TemplateAssetHook } from './types.js';
+import type { PluginDescriptor, PluginHooks, PluginModule, Capability, ServerHandle, TemplateHook, TemplateAssetHook } from './types.js';
 import {
   loadRuntimeRegistry,
   installRuntimeDep,
@@ -57,6 +57,7 @@ const CAPABILITY_HOOKS: Record<Capability, string[]> = {
   init:         ['onConfigResolved'],
   build:        ['onBeforeParse', 'onAfterParse', 'onBeforeBuild', 'onBeforeRender', 'onPageReady'],
   dev:          ['onDevServerReady'],
+  server:       ['onServerReady'],
   template:     ['templates', 'templateAssets'],
 };
 
@@ -77,6 +78,7 @@ export const hooks: PluginHooks = {
   events: {},
   onConfigResolved: [],
   onDevServerReady: [],
+  onServerReady: [],
   onBeforeParse: [],
   onAfterParse: [],
   onBeforeBuild: [],
@@ -403,6 +405,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
   hooks.events = {};
   hooks.onConfigResolved = [];
   hooks.onDevServerReady = [];
+  hooks.onServerReady = [];
   hooks.onBeforeParse = [];
   hooks.onAfterParse = [];
   hooks.onBeforeBuild = [];
@@ -703,6 +706,7 @@ function checkManifestCapabilityDrift(
     ['actions', 'actions'],
     ['events', 'events'],
     ['translations', 'translations'],
+    ['server', 'onServerReady'],
   ];
   for (const [cap, hook] of KNOWN_HOOKS_BY_CAP) {
     if (typeof plugin[hook] === 'function' && !descCaps.has(cap) && !manifestCaps.includes(cap)) {
@@ -980,6 +984,24 @@ function registerPlugin(
       });
     } else {
       TUI.warn(`Plugin "${shortName}" exports onDevServerReady but didn't declare "dev" capability - skipped`);
+    }
+  }
+
+  // onServerReady - unlike onDevServerReady, a throw propagates so the host
+  // can fail serve or log in dev. The error is also recorded.
+  if (typeof plugin.onServerReady === 'function') {
+    if (hasCapabilityForHook(descriptor, 'onServerReady')) {
+      const fn = plugin.onServerReady;
+      hooks.onServerReady.push(async (handle: ServerHandle) => {
+        try {
+          await fn(handle);
+        } catch (err: unknown) {
+          pluginErrors.push({ plugin: name, hook: 'onServerReady', message: err instanceof Error ? err.message : String(err) });
+          throw err;
+        }
+      });
+    } else {
+      TUI.warn(`Plugin "${shortName}" exports onServerReady but didn't declare "server" capability - skipped`);
     }
   }
 

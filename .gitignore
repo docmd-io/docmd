@@ -34,6 +34,10 @@ temp-live-test.mjs
 # Rust Engine
 packages/engines/rust/bin/*.node
 packages/engines/rust-binaries/native/target/
+# `node build.js` writes the binary for the host platform. Release binaries
+# are built by CI (npm-publish.yml); only darwin-arm64 is committed.
+packages/engines/rust-binaries/bin/*.node
+!packages/engines/rust-binaries/bin/docmd-engine-darwin-arm64.node
 
 # Docmd Cache
 .docmd/
