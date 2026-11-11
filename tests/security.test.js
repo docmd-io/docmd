@@ -14,9 +14,10 @@ import { execSync, spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { tryHit, store as cacheStore } from './_lib/build-cache.mjs';
+import { TEST_ROOT as RUN_ROOT } from './shared.js';
 
 const DOCMD = path.resolve(import.meta.dirname, '../packages/core/dist/bin/docmd.js');
-const TEST_ROOT = '/tmp/docmd-brute-security';
+const TEST_ROOT = path.join(RUN_ROOT, 'security');
 const PASS = '✅';
 const FAIL = '❌';
 
