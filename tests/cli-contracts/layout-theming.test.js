@@ -205,7 +205,18 @@ export const test = runTestFile({
       // Guide: uses layout.titleSeparator: '|'
       assert(guideHtml.includes('<title>User Guide | Title Docs</title>'), 'Title & SEO: layout.titleSeparator: "|" formatted as " | " in <title>');
       assert(guideHtml.includes('<meta property="og:title" content="User Guide | Title Docs">'), 'Title & SEO: og:title uses layout separator');
+      assert(guideHtml.includes('<meta property="og:site_name" content="Title Docs">'), 'Title & SEO: og:site_name matches site title');
       assert(guideHtml.includes('"@type":"BreadcrumbList"'), 'Title & SEO: BreadcrumbList schema generated for guide page');
+      const breadcrumbMatch = guideHtml.match(/<script type="application\/ld\+json">\s*({[\s\S]*?"@type":"BreadcrumbList"[\s\S]*?})\s*<\/script>/);
+      assert(breadcrumbMatch, 'Title & SEO: breadcrumbs JSON-LD script block found');
+      const breadcrumbData = JSON.parse(breadcrumbMatch[1]);
+      assert(Array.isArray(breadcrumbData.itemListElement), 'Title & SEO: itemListElement is an array');
+      assert(breadcrumbData.itemListElement.length >= 2, 'Title & SEO: BreadcrumbList contains at least 2 items');
+      breadcrumbData.itemListElement.forEach((item, i) => {
+        assert(item['@type'] === 'ListItem', `Title & SEO: item ${i + 1} has @type ListItem`);
+        assert(item.position === i + 1, `Title & SEO: item ${i + 1} has contiguous position`);
+        assert(typeof item.item === 'string' && item.item.length > 0, `Title & SEO: item ${i + 1} has required 'item' URL`);
+      });
 
       // Custom Sep: frontmatter titleSeparator: "/"
       assert(customSepHtml.includes('<title>Custom Sep Page / Title Docs</title>'), 'Title & SEO: page frontmatter titleSeparator: "/" overrides layout');
