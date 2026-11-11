@@ -198,7 +198,7 @@ addInProcess(
 );
 addInProcess(
   'host-flag',
-  'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  'Dev --host flag binds the requested interface',
   await import('./cli-contracts/host-flag.test.js')
 );
 addInProcess(
