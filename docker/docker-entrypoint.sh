@@ -3,7 +3,7 @@
 #
 # Handles two cases:
 #
-#   1. No volume / empty /docs  → seeds the demo template so `docmd dev`
+#   1. No volume / empty /docs  → seeds the demo template so `docmd serve`
 #      works out of the box with no arguments.
 #
 #   2. Host-mounted volume      → detects the uid:gid that owns /docs and
@@ -35,10 +35,11 @@ if [ "$(id -u)" = "0" ] && [ -d /docs ]; then
   # ── writability check (N-18) ───────────────────────────────────────────
   # Catch read-only volume mounts early with a clear message instead of
   # letting docmd crash mid-build with a cryptic EROFS / EACCES error.
-  # Only applies to write commands — `dev`, `build`, `init`.
+  # Only applies to write commands — `serve`, `dev`, `build`, `init`
+  # (`serve` writes the built site under /docs).
   # Read-only mounts are valid for `validate`, `mcp`, etc.
   case "$FIRST_ARG" in
-    dev|build|init)
+    serve|dev|build|init)
       if ! touch /docs/.docmd_write_test 2>/dev/null; then
         printf '\n[docmd] ERROR: /docs is read-only (or not writable by uid %s).\n' "$DOCS_UID" >&2
         printf '[docmd] Mount a writable directory:\n' >&2

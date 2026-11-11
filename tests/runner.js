@@ -119,6 +119,7 @@ addInProcess('serve', 'Serve: production command, config, router, graceful shutd
 addInProcess('serve-startup', 'Serve startup failures exit 1; SIGINT stops cleanly', await import('./cli-contracts/serve-startup.test.js'));
 addInProcess('serve-actions', 'Serve actions: config, origin allowlist, trusted identity for writes', await import('./cli-contracts/serve-actions.test.js'));
 addInProcess('serve-mcp', 'Serve MCP: opt-in read-only MCP over HTTP at POST /mcp', await import('./cli-contracts/serve-mcp.test.js'));
+addInProcess('docker-serve', 'Docker image: serve by default, /healthz health check', await import('./cli-contracts/docker-serve.test.js'));
 addInProcess('static-server', 'Static handler: production serving, path safety, dev wrapper', await import('./cli-contracts/static-server.test.js'));
 addInProcess(
   'stop',
