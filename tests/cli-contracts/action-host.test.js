@@ -107,7 +107,7 @@ export const test = runTestFile({
   name: 'Action host: caller, origin allowlist, rebuild, onServerReady, close',
   emoji: '🛰️',
   run: async () => {
-    const { createActionHost } = await import(coreDist('server/action-host.js'));
+    const { createActionHost, buildCaller } = await import(coreDist('server/action-host.js'));
     const { createOriginVerify, createOriginAllowlist } = await import(coreDist('utils/ws-origin-guard.js'));
     const { loadPlugins, hooks, TUI } = await import(apiDist('index.js'));
 
@@ -291,11 +291,22 @@ export const test = runTestFile({
         assert(alice.frames.some((f) => f.text === 'reload'), 'broadcastReload sends the text frame "reload" in dev');
       }
 
+      // ── identity header: own headers only ─
+      {
+        const req = (headers) => ({ headers, socket: { remoteAddress: '127.0.0.1' } });
+        for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+          assert(buildCaller(req({}), name).identity === null, `an identityHeader named ${name} without that header gives no identity`);
+        }
+        assert(buildCaller(req({ constructor: 'dana' }), 'constructor').identity === 'dana', 'an identityHeader named constructor reads the request header of that name');
+        assert(buildCaller(req({ 'x-user': '' }), 'x-user').identity === null, 'an empty identity header gives no identity');
+      }
+
       // ── throw rejects, then a working host ─
       globalThis.__serveFixtureThrow = true;
       const serveOpts = {
         server: serveServer, mode: 'serve', projectRoot: proj, config,
         verifyClient: createOriginAllowlist([`http://127.0.0.1:${servePort}`]),
+        identityHeader: 'X-Test-Identity',
         getWorkerPool: () => undefined, rebuild: serveBuild.fn, loadPlugins: false,
       };
       let serveErr = null;
@@ -310,7 +321,7 @@ export const test = runTestFile({
 
       // ── auto-rebuild, system:rebuilt, no reload ─
       {
-        const client = connect(servePort);
+        const client = connect(servePort, { headers: { 'x-test-identity': 'carol' } });
         await client.opened;
         await client.call('test:write', { file: 'docs/written.md', content: 'hello\n' });
         const rebuilt = await client.waitFor(isRebuilt);
