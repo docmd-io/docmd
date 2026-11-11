@@ -191,6 +191,7 @@ addInProcess(
   await import('./cli-contracts/variables-engine.test.js')
 );
 addInProcess('mcp-read-doc', 'MCP read_doc confines reads to markdown inside the source directory', await import('./cli-contracts/mcp-read-doc.test.js'));
+addInProcess('gitignore-scope', 'Gitignore and exclude patterns match only below their own directory', await import('./cli-contracts/gitignore-scope.test.js'));
 addInProcess(
   'plugin-playground',
   'Plugin Playground contracts (core auto-load, rendering, zero-overhead)',
