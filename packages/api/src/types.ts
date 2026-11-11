@@ -29,6 +29,7 @@ export type Capability =
   | 'init'
   | 'build'
   | 'dev'
+  | 'server'
   | 'template';
 
 /**
@@ -77,6 +78,48 @@ export interface ActionContext {
   source: SourceTools;
   /** Execute a generic function inside the multi-threaded worker pool. */
   runWorkerTask<T = any>(modulePath: string, functionName: string, args: any[]): Promise<T>;
+  /** Which command hosts this call. Handlers that write production data check `mode === 'serve'` before trusting `caller.headers`. */
+  mode: 'dev' | 'serve';
+  /** The caller of this action/event. Always present when dispatched by an action host. */
+  caller: ActionCaller;
+  /** Same as `ServerHandle.rebuild`, for rebuilds the handler needs beyond its own writes (which the host rebuilds automatically in serve mode). */
+  requestRebuild(files?: string[]): Promise<void>;
+}
+
+/**
+ * Who is calling an action or event. Built by the action host from the
+ * WebSocket upgrade request, once per connection. The host passes headers
+ * through unmodified except for lower-casing (Node does this) and removing
+ * `cookie`/`set-cookie`. It does not validate them: a plugin that reads an
+ * identity header must document that only a trusted reverse proxy may set it,
+ * and must refuse writes when its configured header is absent.
+ */
+export interface ActionCaller {
+  /** Transport the call arrived on; 'local' when a host called the dispatcher without a caller. */
+  transport: 'websocket' | 'local';
+  /** Lower-cased header names → values of the upgrade request; multi-value headers joined with ", ". Never contains `cookie` or `set-cookie`. */
+  headers: Readonly<Record<string, string>>;
+  /** `Origin` header of the upgrade request, already accepted by the host's allowlist; null if the host did not require one (never null in serve). */
+  origin: string | null;
+  /** `req.socket.remoteAddress` as seen by this process; behind a proxy this is the proxy. */
+  remoteAddress: string | null;
+  /** Opaque id, stable for the life of the socket; lets a plugin correlate calls from one tab. */
+  connectionId: string;
+  /** Epoch ms when the connection was accepted. */
+  connectedAt: number;
+}
+
+/** Handle given to `onServerReady`. Lives as long as the server; `rebuild` is serialised and coalesced by the host. */
+export interface ServerHandle {
+  mode: 'dev' | 'serve';
+  projectRoot: string;
+  config: ActionContext['config'];
+  /** Rebuild the given source files (absolute or project-relative); no argument = full rebuild. Resolves after the build containing them finishes; rejects if that build failed. */
+  rebuild(files?: string[]): Promise<void>;
+  /** Push `{type:'event', name, data}` to every open client. */
+  broadcast(event: string, data: unknown): void;
+  /** Register a callback the host awaits during graceful shutdown (stop timers, flush). */
+  onShutdown(fn: () => void | Promise<void>): void;
 }
 
 /**
@@ -92,6 +135,8 @@ export type EventHandler = (data: any, ctx: ActionContext) => void;
 export interface DispatchResult {
   result: any;
   reload: boolean;
+  /** Absolute paths written through ctx.writeFile / ctx.source during this call. */
+  writtenFiles: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +244,8 @@ export interface PluginModule {
   onConfigResolved?(config: any): void | Promise<void>;
   /** Access the dev server instance. */
   onDevServerReady?(server: any, wss: any): void | Promise<void>;
+  /** Server handle, called by the shared host in both dev and serve. Requires the `server` capability. */
+  onServerReady?(handle: ServerHandle): void | Promise<void>;
   /** Modify raw markdown before parsing. Called per page. */
   onBeforeParse?(src: string, frontmatter: any, filePath?: string): string | Promise<string>;
   onAfterParse?(html: string, frontmatter: any, filePath?: string): string | Promise<string>;
@@ -360,6 +407,8 @@ export interface PluginHooks {
   // Lifecycle Hooks
   onConfigResolved: ((config: any) => void | Promise<void>)[];
   onDevServerReady: ((server: any, wss: any) => void | Promise<void>)[];
+  /** Rejects when a plugin's hook throws; the host decides to log (dev) or fail (serve). */
+  onServerReady: ((handle: ServerHandle) => void | Promise<void>)[];
   onBeforeParse: ((src: string, frontmatter: any, filePath?: string) => string | Promise<string>)[];
   onAfterParse: ((html: string, frontmatter: any, filePath?: string) => string | Promise<string>)[];
   /** Called before template rendering. Receives full PageContext. */

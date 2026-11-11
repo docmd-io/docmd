@@ -559,7 +559,7 @@ export async function devWorkspace(
 
   const { serveStatic, findAvailablePort, formatPathForDisplay, getNetworkIp, openBrowser } = await import('../utils/dev-utils.js');
   const http = await import('http');
-  const { WebSocketServer, WebSocket } = await import('ws');
+  const { createActionHost } = await import('../server/action-host.js');
 
   const state = { outputDir: rootOutDir };
   const server = http.createServer((req: any, res: any) => serveStatic(req, res, state.outputDir));
@@ -567,14 +567,10 @@ export async function devWorkspace(
   const PORT = parseInt(opts.port || process.env.PORT || '3000', 10);
   const port = await findAvailablePort(PORT);
 
-  let wss: any;
+  let host: import('../server/action-host.js').ActionHost | undefined;
 
   function broadcastReload() {
-    if (wss) {
-      wss.clients.forEach((client: any) => {
-        if (client.readyState === WebSocket.OPEN) client.send('reload');
-      });
-    }
+    host?.broadcastReload();
   }
 
   // Phase 1.D: default to loopback. Pass --host 0.0.0.0 to expose on LAN
@@ -588,52 +584,23 @@ export async function devWorkspace(
     const networkIp = getNetworkIp();
     // Phase 1.D: CWE-1385 CSWSH fix (N-S1). Even when bound to LAN, the
     // verifyClient callback rejects any Origin that isn't loopback or the
-    // LAN IP returned by getNetworkIp().
-    wss = new WebSocketServer({
-      server,
-      verifyClient: createOriginVerify(networkIp ? [networkIp] : []),
-    });
-    wss.on('error', (e: any) => TUI.error('WebSocket Error', e.message));
-
-    // Action dispatcher for workspace plugin actions/events
+    // LAN IP returned by getNetworkIp(). The shared action host owns the
+    // WebSocket server and the plugin dispatcher.
     (async () => {
       try {
-        const { createActionDispatcher, loadPlugins, hooks } = await import('@docmd/api');
-        await loadPlugins(workspaceConfig as any, { resolvePaths: [CWD] });
-        const dispatcher = createActionDispatcher(hooks, {
+        host = await createActionHost({
+          server,
+          mode: 'dev',
           projectRoot: CWD,
           config: workspaceConfig as any,
-          broadcast: (event: string, data: any) => {
-            if (wss) {
-              wss.clients.forEach((client: any) => {
-                if (client.readyState === WebSocket.OPEN) {
-                  client.send(JSON.stringify({ type: 'event', name: event, data }));
-                }
-              });
-            }
-          }
-        });
-
-        for (const fn of hooks.onDevServerReady) {
-          await fn(server, wss);
-        }
-
-        wss.on('connection', (ws: any) => {
-          ws.on('message', async (raw: any) => {
-            let msg: any;
-            try { msg = JSON.parse(raw.toString()); } catch { return; }
-
-            if (msg.type === 'call') {
-              try {
-                const { result } = await dispatcher.handleCall(msg.action, msg.payload);
-                ws.send(JSON.stringify({ id: msg.id, type: 'response', result, reload: false }));
-              } catch (e: any) {
-                ws.send(JSON.stringify({ id: msg.id, type: 'response', error: e.message }));
-              }
-            } else if (msg.type === 'event') {
-              dispatcher.handleEvent(msg.name, msg.data);
-            }
-          });
+          verifyClient: createOriginVerify(networkIp ? [networkIp] : []),
+          getWorkerPool: () => undefined,
+          resolvePaths: [CWD],
+          // Workspace dev has no per-project rebuild entry point: its watcher
+          // rebuilds and reloads. Plugins calling requestRebuild get this error.
+          rebuild: async () => {
+            throw new Error('Rebuild is not available in workspace dev');
+          },
         });
       } catch (err: any) {
         TUI.warn(`Workspace plugin dispatcher setup: ${err.message}`);
@@ -852,8 +819,9 @@ export async function devWorkspace(
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     TUI.success('Shutting down workspace dev server...\n');
     server.close();
-    if (wss) wss.close();
-    process.exit(0);
+    // A plugin's onShutdown callback must not be able to hang Ctrl+C.
+    setTimeout(() => process.exit(0), 3000).unref();
+    void (host ? host.close() : Promise.resolve()).finally(() => process.exit(0));
   });
 }
 

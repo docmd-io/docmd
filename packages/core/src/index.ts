@@ -35,6 +35,8 @@ export { createActionDispatcher, safePath, createSourceTools } from '@docmd/api'
 
 // Plugin API types (re-exported from @docmd/api)
 export type {
+  ActionCaller,
+  ServerHandle,
   ActionContext,
   ActionHandler,
   EventHandler,
