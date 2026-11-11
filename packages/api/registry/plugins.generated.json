@@ -1,6 +1,5 @@
 {
   "$meta": {
-    "generatedAt": "2026-11-03T15:44:53.269Z",
     "generator": "scripts/build-plugin-registry.mjs",
     "packageCount": 18
   },
