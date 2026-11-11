@@ -37,9 +37,9 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { tryHit, store as cacheStore } from './_lib/build-cache.mjs';
+import { TEST_ROOT } from './shared.js';
 
 const DOCMD = path.resolve(import.meta.dirname, '../packages/core/dist/bin/docmd.js');
-const TEST_ROOT = '/tmp/docmd-brute-tests';
 const PASS = '✅';
 const FAIL = '❌';
 

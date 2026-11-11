@@ -199,13 +199,18 @@ addInProcess(
 );
 addInProcess(
   'host-flag',
-  'Dev --host flag binds the requested interface (AC-2, AC-15)',
+  'Dev --host flag binds the requested interface',
   await import('./cli-contracts/host-flag.test.js')
 );
 addInProcess(
   'build-clean-tree',
   'Build leaves the git tree clean (reproducible registry, ignored platform binaries)',
   await import('./cli-contracts/build-clean-tree.test.js')
+);
+addInProcess(
+  'test-root',
+  'Test fixture root is unique per run',
+  await import('./cli-contracts/test-root.test.js')
 );
 
 // --- Section 2: Container parser (Phase 2 PR 1+2+3) ----------------------

@@ -28,6 +28,7 @@
 
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { tryHit, store as cacheStore } from './_lib/build-cache.mjs';
 
@@ -37,7 +38,28 @@ export const DOCMD = path.resolve(
   'packages/core/dist/bin/docmd.js'
 );
 
-export const TEST_ROOT = '/tmp/docmd-brute-tests';
+/**
+ * Root for every fixture dir of this test run. Each run gets its own
+ * dir under os.tmpdir(), so two runs on one host never share fixtures.
+ * The first process to load this file creates the dir, exports it as
+ * DOCMD_TEST_ROOT so child test processes reuse it, and removes it on
+ * exit.
+ */
+export const TEST_ROOT = process.env.DOCMD_TEST_ROOT || createTestRoot();
+
+function createTestRoot() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docmd-tests-'));
+  process.env.DOCMD_TEST_ROOT = dir;
+  const cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
+  process.on('exit', cleanup);
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.once(signal, () => {
+      cleanup();
+      process.kill(process.pid, signal);
+    });
+  }
+  return dir;
+}
 export const PASS = '✅';
 export const FAIL = '❌';
 
