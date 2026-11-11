@@ -90,9 +90,16 @@ export const test = runTestFile({
     writeFile(bare, 'index.html', '<html><body>bare</body></html>');
 
     // Two servers; the `x-root: bare` test header picks the root without a second server.
-    const handlers = { site: createStaticHandler({ rootDir: () => site }), bare: createStaticHandler({ rootDir: () => bare }),
-      boom: createStaticHandler({ rootDir: () => site, extraRoutes: { '/boom': () => { throw new Error('boom'); } } }) };
-    const prod = await listen((req, res) => handlers[req.headers['x-root'] || 'site'](req, res));
+    const handlers = {
+      site: createStaticHandler({ rootDir: () => site }),
+      bare: createStaticHandler({ rootDir: () => bare }),
+      boom: createStaticHandler({ rootDir: () => site, extraRoutes: { '/boom': () => { throw new Error('boom'); } } })
+    };
+    const prod = await listen((req, res) => {
+      const root = req.headers['x-root'];
+      const handler = root === 'bare' ? handlers.bare : root === 'boom' ? handlers.boom : handlers.site;
+      return handler(req, res);
+    });
     const dev = await listen((req, res) => serveStatic(req, res, req.headers['x-root'] === 'bare' ? bare : site));
     const BARE = { 'x-root': 'bare' };
 
