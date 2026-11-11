@@ -24,7 +24,9 @@ import { loadConfig } from '../utils/config-loader.js';
 import { exitWithError, exitCodeFor, failWith } from '../utils/exit.js';
 import { formatPathForDisplay, getNetworkIp } from '../utils/dev-utils.js';
 import { createStaticHandler } from '../server/static.js';
-import { resolveServeBind, validateServeConfig, type ServeActionsConfig } from '../server/serve-config.js';
+import { resolveServeBind, validateServeConfig, type ServeActionsConfig, type ServeMcpConfig } from '../server/serve-config.js';
+import { createMcpHandler } from './mcp.js';
+import { createMcpHttpHandler } from '../server/mcp-http.js';
 import { createActionHost, type ActionHost } from '../server/action-host.js';
 import { createOriginAllowlist } from '../utils/ws-origin-guard.js';
 
@@ -61,14 +63,23 @@ export function actionsBanner(actions: ServeActionsConfig): string {
   return `on (origins: ${actions.origins.join(', ')}; ${writes})`;
 }
 
+/** The banner's MCP line: off, or on with the browser origins it accepts. */
+export function mcpBanner(mcp: ServeMcpConfig): string {
+  if (!mcp.enabled) return 'off';
+  const browsers = mcp.origins.length > 0 ? `browser origins: ${mcp.origins.join(', ')}` : 'no browser origins';
+  return `on at POST /mcp (read-only; ${browsers})`;
+}
+
 export interface ServeRouterOptions {
   outputDir: () => string;
   version: string;
+  /** Serves `/mcp`; absent means MCP is off and `/mcp` falls through to the static handler. */
+  mcp?: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
 }
 
 /**
- * The request router: `/healthz`, and everything else through the
- * production static handler.
+ * The request router: `/healthz`, `/mcp` when MCP is on, and everything
+ * else through the production static handler.
  */
 export function createServeRouter(opts: ServeRouterOptions) {
   const staticHandler = createStaticHandler({ rootDir: opts.outputDir });
@@ -90,6 +101,11 @@ export function createServeRouter(opts: ServeRouterOptions) {
         'Cache-Control': 'no-store',
       });
       res.end(health);
+      return;
+    }
+
+    if (opts.mcp && pathname === '/mcp') {
+      await opts.mcp(req, res);
       return;
     }
 
@@ -152,7 +168,15 @@ export async function startServe(
   // 5. Bind first, so a port already in use fails fast and never touches a
   // live instance's output. Until the build finishes every request is 503.
   let ready = false;
-  const route = createServeRouter({ outputDir: () => outputDir, version: readVersion() });
+  // MCP over HTTP: the same tools as `docmd mcp`, reading the same config
+  // file as this server, and read-only (no tool rebuilds the live site).
+  const mcp = config.serve.mcp.enabled
+    ? createMcpHttpHandler({
+        handler: createMcpHandler({ configPath: configPathOption, readOnly: true }),
+        origins: config.serve.mcp.origins,
+      })
+    : undefined;
+  const route = createServeRouter({ outputDir: () => outputDir, version: readVersion(), mcp });
   const server = http.createServer((req, res) => {
     if (!ready) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '1' });
@@ -244,6 +268,7 @@ export async function startServe(
   if (networkIp) TUI.item('Network Access', `http://${networkIp}:${boundPort}`, TUI.bold, TUI.green);
   TUI.item('Serving from', formatPathForDisplay(outputDir, CWD), TUI.dim, TUI.green);
   TUI.item('Actions', actionsBanner(actions), TUI.dim, TUI.green);
+  TUI.item('MCP', mcpBanner(config.serve.mcp), TUI.dim, TUI.green);
   TUI.item('', '', TUI.dim, TUI.green);
   TUI.footer(TUI.green);
 
