@@ -35,7 +35,10 @@ const KNOWN_KEYS = [
   'cookie', 'tmp', 'titleSeparator', 'titleAppend',
 
   // Workspace & Variables
-  'workspace', 'variables'
+  'workspace', 'variables',
+
+  // Production server (`docmd serve`)
+  'serve'
 ];
 
 // Common typos mapping
