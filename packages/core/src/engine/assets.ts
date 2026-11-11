@@ -33,20 +33,31 @@ const COPYRIGHT_BANNER = `/*!
  */`;
 
 /**
+ * An exclude pattern and the directory it is relative to: the directory of
+ * the .gitignore it came from, or the project directory for `config.exclude`.
+ * Unanchored patterns are matched against the path below `base` only, never
+ * against the directories above it.
+ */
+interface ExcludePattern {
+  pattern: string;
+  base: string;
+}
+
+/**
  * Cache for parsed .gitignore patterns per root directory.
  */
-const _gitignoreCache = new Map<string, string[]>();
+const _gitignoreCache = new Map<string, ExcludePattern[]>();
 
 /**
  * Read and parse .gitignore files up the directory tree from startDir.
  */
-function getGitignorePatterns(startDir: string): string[] {
+function getGitignorePatterns(startDir: string): ExcludePattern[] {
   const root = path.resolve(startDir);
   if (_gitignoreCache.has(root)) {
     return _gitignoreCache.get(root)!;
   }
 
-  const patterns: string[] = [];
+  const patterns: ExcludePattern[] = [];
   const seenFiles = new Set<string>();
   let current: string | null = root;
   while (current) {
@@ -59,7 +70,7 @@ function getGitignorePatterns(startDir: string): string[] {
           for (const line of content.split(/\r?\n/)) {
             const trimmed = line.trim();
             if (!trimmed || trimmed.startsWith('#')) continue;
-            patterns.push(trimmed);
+            patterns.push({ pattern: trimmed, base: current });
           }
         }
       } catch {
@@ -79,7 +90,7 @@ function getGitignorePatterns(startDir: string): string[] {
       for (const line of content.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
-        patterns.push(trimmed);
+        patterns.push({ pattern: trimmed, base: process.cwd() });
       }
     } catch {
       // Ignore read errors
@@ -93,12 +104,12 @@ function getGitignorePatterns(startDir: string): string[] {
 /**
  * Check if a file or directory matches gitignore / exclude patterns.
  */
-function isExcludedPath(fullPath: string, name: string, patterns: string[], projectRoot?: string): boolean {
+function isExcludedPath(fullPath: string, name: string, patterns: ExcludePattern[], projectRoot?: string): boolean {
   if (patterns.length === 0) return false;
   const normalizedPath = fullPath.replace(/\\/g, '/');
   const normalizedRoot = projectRoot ? path.resolve(projectRoot).replace(/\\/g, '/') : null;
 
-  for (const pat of patterns) {
+  for (const { pattern: pat, base } of patterns) {
     // Detect anchored patterns (leading '/') — in gitignore, '/' means relative to the
     // directory containing the .gitignore, not the absolute filesystem path.
     const isAnchored = pat.startsWith('/');
@@ -136,7 +147,13 @@ function isExcludedPath(fullPath: string, name: string, patterns: string[], proj
       continue;
     }
 
-    // Non-anchored pattern checks (match anywhere in relative or absolute path):
+    // Non-anchored pattern checks (match anywhere below the pattern's base).
+    // The directories above the base are not part of the match: with the
+    // project at /srv/site, the pattern `site/` must not hide every page.
+    const normalizedBase = path.resolve(base).replace(/\\/g, '/');
+    const scopedPath = normalizedPath.startsWith(normalizedBase + '/')
+      ? normalizedPath.slice(normalizedBase.length)
+      : null;
 
     // Exact name match (e.g. 'drafts' or 'secret.md')
     if (name === cleanPat) return true;
@@ -153,8 +170,8 @@ function isExcludedPath(fullPath: string, name: string, patterns: string[], proj
       if (name.startsWith(prefix)) return true;
     }
 
-    // Directory segment match (e.g. 'drafts' anywhere in path)
-    if (normalizedPath.includes(`/${cleanPat}/`) || normalizedPath.endsWith(`/${cleanPat}`)) {
+    // Directory segment match (e.g. 'drafts' anywhere below the base)
+    if (scopedPath !== null && (scopedPath.includes(`/${cleanPat}/`) || scopedPath.endsWith(`/${cleanPat}`))) {
       return true;
     }
 
@@ -166,7 +183,7 @@ function isExcludedPath(fullPath: string, name: string, patterns: string[], proj
           .replace(/\*\*/g, '.*')
           .replace(/\*/g, '[^/]*');
         const re = new RegExp(`(^|/)${regexStr}(/|$)`);
-        if (re.test(normalizedPath) || re.test(name)) return true;
+        if ((scopedPath !== null && re.test(scopedPath)) || re.test(name)) return true;
       } catch {
         // Ignore regex failure
       }
@@ -192,7 +209,15 @@ export function isDocEntryHidden(dir: string, name: string, extraExclude: string
     return true;
   }
   // Filter out items matching .gitignore or user-configured exclude patterns
-  const allExcludes = [...extraExclude, ...getGitignorePatterns(dir)];
+  // config.exclude is relative to the project directory; a source dir
+  // outside it falls back to the scan root.
+  const cwd = path.resolve(process.cwd());
+  const inCwd = path.resolve(dir) === cwd || path.resolve(dir).startsWith(cwd + path.sep);
+  const excludeBase = inCwd ? cwd : path.resolve(projectRoot);
+  const allExcludes: ExcludePattern[] = [
+    ...extraExclude.map((pattern) => ({ pattern, base: excludeBase })),
+    ...getGitignorePatterns(dir),
+  ];
   return isExcludedPath(path.join(dir, name), name, allExcludes, projectRoot);
 }
 
