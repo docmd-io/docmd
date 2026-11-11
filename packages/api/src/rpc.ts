@@ -41,7 +41,7 @@ interface DispatcherHooks {
 
 /** Minimal pool surface the dispatcher needs; the host owns the real pool. */
 interface WorkerPoolLike {
-  runTask(task: any): Promise<any>;
+  runTask(task: unknown): Promise<unknown>;
 }
 
 interface DispatcherOptions {
@@ -116,7 +116,7 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
     let modified = false;
 
     // Source write operations record their target in the per-call collector.
-    const track = <A extends [string, ...any[]]>(fn: (...a: A) => Promise<void>) =>
+    const track = <A extends [string, ...unknown[]]>(fn: (...a: A) => Promise<void>) =>
       async (...a: A): Promise<void> => {
         await fn(...a);
         written.add(safePath(projectRoot, a[0]));
@@ -157,10 +157,10 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
         const content = await ctx.readFile(relativePath);
         return content.split('\n');
       },
-      runWorkerTask(modulePath: string, functionName: string, args: any[]) {
+      runWorkerTask<T>(modulePath: string, functionName: string, args: any[]): Promise<T> {
         const pool = getWorkerPool?.();
         if (!pool) return Promise.reject(new Error('WorkerPool is not initialized'));
-        return pool.runTask({ type: 'plugin-task', modulePath, functionName, args });
+        return pool.runTask({ type: 'plugin-task', modulePath, functionName, args }) as Promise<T>;
       },
       requestRebuild(files?: string[]): Promise<void> {
         if (!requestRebuild) return Promise.reject(new Error('Rebuild is not available'));

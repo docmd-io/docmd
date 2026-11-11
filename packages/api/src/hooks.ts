@@ -995,8 +995,8 @@ function registerPlugin(
       hooks.onServerReady.push(async (handle: ServerHandle) => {
         try {
           await fn(handle);
-        } catch (err: any) {
-          pluginErrors.push({ plugin: name, hook: 'onServerReady', message: err.message });
+        } catch (err: unknown) {
+          pluginErrors.push({ plugin: name, hook: 'onServerReady', message: err instanceof Error ? err.message : String(err) });
           throw err;
         }
       });

@@ -113,11 +113,11 @@ export interface ActionCaller {
 export interface ServerHandle {
   mode: 'dev' | 'serve';
   projectRoot: string;
-  config: any;
+  config: ActionContext['config'];
   /** Rebuild the given source files (absolute or project-relative); no argument = full rebuild. Resolves after the build containing them finishes; rejects if that build failed. */
   rebuild(files?: string[]): Promise<void>;
   /** Push `{type:'event', name, data}` to every open client. */
-  broadcast(event: string, data: any): void;
+  broadcast(event: string, data: unknown): void;
   /** Register a callback the host awaits during graceful shutdown (stop timers, flush). */
   onShutdown(fn: () => void | Promise<void>): void;
 }
