@@ -27,7 +27,7 @@ importers:
         version: 6.0.1
       docmd-search:
         specifier: ^0.1.7
-        version: 0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
+        version: 0.1.7(@docmd/engine-js@0.9.9)(@docmd/engine-python@0.9.9)(@docmd/engine-rust@0.9.9)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -314,6 +314,21 @@ importers:
         specifier: ^26.6.6
         version: 26.6.6
 
+  packages/plugins/iconify:
+    devDependencies:
+      '@docmd/api':
+        specifier: workspace:*
+        version: link:../../api
+      '@docmd/parser':
+        specifier: workspace:*
+        version: link:../../parser
+      '@docmd/tui':
+        specifier: workspace:*
+        version: link:../../tui
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/plugins/installer:
     dependencies:
       '@docmd/api':
@@ -438,7 +453,7 @@ importers:
     dependencies:
       docmd-search:
         specifier: '>=0.1.6'
-        version: 0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
+        version: 0.1.7(@docmd/engine-js@0.9.9)(@docmd/engine-python@0.9.9)(@docmd/engine-rust@0.9.9)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
       markdown-it:
         specifier: ^15.0.3
         version: 15.0.3
@@ -594,6 +609,18 @@ packages:
   '@ctrl/tinycolor@4.2.2':
     resolution: {integrity: sha512-9rQHijqB2Rq6qOEC/xHaA6aPlsKGi5kmCQW50O1asn9g63XFeD5NmBwysriistW5Xx0JPafyD/TA7yk2S3pXGQ==}
     engines: {node: '>=14'}
+
+  '@docmd/engine-js@0.9.9':
+    resolution: {integrity: sha512-PVm/nh6UdnF1dP0VEFJsOF4yUQBzOtrbZE7IyBYcdOkqTdpk7NOKpPhdk02liIb3o9j95HvCB56lAfJL+B4hfQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@docmd/engine-python@0.9.9':
+    resolution: {integrity: sha512-lfpTU1A8SN9r6RnPePWsJJjAQQZWYHTYEpSWbkD/iq2vr2YLZZ1rVPo0PHhJp63YJagxAuNdI794zynM4XoAMg==}
+    engines: {node: '>=20.0.0'}
+
+  '@docmd/engine-rust@0.9.9':
+    resolution: {integrity: sha512-u30XXEPeSsK94/zJjVFZtRkylJBxLWx4fW9Mkx8bk5MSULNUejvnqzb5kWa76OEz2uiLYNkoZqLh3fJ/wteDBg==}
+    engines: {node: '>=20.0.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -2009,6 +2036,11 @@ packages:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
 
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
@@ -2090,6 +2122,15 @@ snapshots:
   '@chevrotain/utils@13.2.0': {}
 
   '@ctrl/tinycolor@4.2.2': {}
+
+  '@docmd/engine-js@0.9.9':
+    optional: true
+
+  '@docmd/engine-python@0.9.9':
+    optional: true
+
+  '@docmd/engine-rust@0.9.9':
+    optional: true
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -2948,8 +2989,11 @@ snapshots:
     dependencies:
       aiplug: 0.2.0
 
-  docmd-search@0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6)):
+  docmd-search@0.1.7(@docmd/engine-js@0.9.9)(@docmd/engine-python@0.9.9)(@docmd/engine-rust@0.9.9)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6)):
     optionalDependencies:
+      '@docmd/engine-js': 0.9.9
+      '@docmd/engine-python': 0.9.9
+      '@docmd/engine-rust': 0.9.9
       '@huggingface/transformers': 4.2.0(@types/node@26.6.6)
       adm-zip: 0.6.1
       onnxruntime-node: 1.29.0
@@ -3492,6 +3536,8 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  typescript@5.9.3: {}
 
   typescript@6.0.3: {}
 

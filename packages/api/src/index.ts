@@ -13,7 +13,7 @@
  */
 
 // Plugin loader & hook registry
-export { loadPlugins, hooks, resolvePluginName, resolveTemplateName, getPluginErrors, getPluginLoadErrors, CORE_PLUGINS, isCorePlugin } from './hooks.js';
+export { loadPlugins, hooks, resolvePluginName, resolveTemplateName, getPluginErrors, getPluginLoadErrors, CORE_PLUGINS, isCorePlugin, runPluginDoctorChecks } from './hooks.js';
 
 // Runtime dependency bootstrap (auto-install pipeline shared by hooks + engines)
 export {
@@ -45,7 +45,8 @@ export type { UserPath } from '@docmd/utils';
 export { createSourceTools } from './source.js';
 
 // TUI tools
-export { TUI } from '@docmd/tui';
+export { TUI, createLogger } from '@docmd/tui';
+export type { ScopedLogger } from '@docmd/tui';
 
 // ─── Centralised URL Utilities ─────────────────────────────────────────────
 // Re-exported from @docmd/parser for plugin consumption.
@@ -133,4 +134,8 @@ export type {
   TemplateAssetHook,
   TemplateResolutionContext,
   ResolvedTemplate,
+  // Doctor & diagnostic checks
+  DoctorCheckResult,
+  DoctorCheckStatus,
+  DoctorContext,
 } from './types.js';

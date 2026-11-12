@@ -12,7 +12,8 @@
     "tagline": "SEO meta tag generator for docmd.",
     "capabilities": [
       "head",
-      "post-build"
+      "post-build",
+      "doctor"
     ]
   },
   "scripts": {

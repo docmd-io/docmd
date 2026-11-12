@@ -32,9 +32,52 @@ function escapeHtml(str: any): string {
   })[m] as string);
 }
 
+export type IconResolver = (name: string, options: any) => string | null;
+
+const customResolvers: IconResolver[] = [];
+
+export function registerIconResolver(resolver: IconResolver): void {
+  customResolvers.push(resolver);
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any).__DOCMD_ICON_RESOLVERS__ = (globalThis as any).__DOCMD_ICON_RESOLVERS__ || [];
+    if (!(globalThis as any).__DOCMD_ICON_RESOLVERS__.includes(resolver)) {
+      (globalThis as any).__DOCMD_ICON_RESOLVERS__.push(resolver);
+    }
+  }
+}
+
+export function clearIconResolvers(): void {
+  customResolvers.length = 0;
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any).__DOCMD_ICON_RESOLVERS__ = [];
+  }
+}
+
 function renderIcon(name: string, options: any = {}) {
   if (!name) return '';
 
+  // 1. Local custom resolvers (e.g., @docmd/plugin-iconify)
+  for (const resolver of customResolvers) {
+    try {
+      const res = resolver(name, options);
+      if (res) return res;
+    } catch { /* ignore */ }
+  }
+
+  // 2. Global resolvers (cross-bundle / worker pool)
+  const globals = typeof globalThis !== 'undefined' ? (globalThis as any).__DOCMD_ICON_RESOLVERS__ : null;
+  if (Array.isArray(globals)) {
+    for (const resolver of globals) {
+      if (typeof resolver === 'function') {
+        try {
+          const res = resolver(name, options);
+          if (res) return res;
+        } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // 3. Built-in Lucide icons (default zero-dependency)
   const key = exceptions[name] || kebabToPascal(name);
   const svgData = (lucideStatic as any)[key];
 

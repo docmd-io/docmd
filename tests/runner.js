@@ -182,6 +182,16 @@ addInProcess(
   await import('./cli-contracts/runtime-deps.test.js')
 );
 addInProcess(
+  'doctor',
+  'Doctor pre-flight diagnostics & health check contract',
+  await import('./cli-contracts/doctor.test.js')
+);
+addInProcess(
+  'plugin-iconify',
+  'Iconify plugin & simplified syntax contract',
+  await import('./cli-contracts/plugin-iconify.test.js')
+);
+addInProcess(
   'plugin-ai',
   'Plugin AI contracts (flags, tools, streaming)',
   await import('./cli-contracts/plugin-ai.test.js')

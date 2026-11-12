@@ -15,14 +15,14 @@
 import path from 'path';
 import fs from 'fs/promises';
 import nativeFs from 'fs';
-import type { PluginDescriptor } from '@docmd/api';
+import type { PluginDescriptor, DoctorCheckResult, DoctorContext } from '@docmd/api';
 import { outputPathToPathname, sanitizeUrl } from '@docmd/api';
 import { attrEsc, jsonInject, resolveTitle } from '@docmd/utils';
 
 export const plugin: PluginDescriptor = {
   name: 'seo',
   version: '0.9.9',
-  capabilities: ['head', 'post-build']
+  capabilities: ['head', 'post-build', 'doctor']
 };
 
 /**
@@ -397,4 +397,44 @@ export async function onPostBuild({ config, outputDir, log }: any) {
     await fs.writeFile(nojekyllPath, '');
     if (log) log('Generated .nojekyll (disables Jekyll on GitHub Pages)');
   }
+}
+
+/**
+ * Diagnostic health checks for `docmd doctor`.
+ */
+export function onDoctorCheck(ctx: DoctorContext): DoctorCheckResult[] {
+  const results: DoctorCheckResult[] = [];
+  const siteUrl = ctx.config?.url || ctx.config?.siteUrl;
+  if (!siteUrl) {
+    results.push({
+      name: 'SEO Site URL',
+      status: 'warn',
+      message: 'No "url" configured in docmd.config. Absolute canonical URLs and OpenGraph tags will be omitted.',
+      hint: 'Add `"url": "https://example.com/docs"` to your docmd.config.json'
+    });
+  } else {
+    results.push({
+      name: 'SEO Site URL',
+      status: 'ok',
+      message: `Canonical site URL configured (${siteUrl})`
+    });
+  }
+
+  const title = ctx.config?.title || ctx.config?.siteTitle;
+  if (!title) {
+    results.push({
+      name: 'Site Title',
+      status: 'warn',
+      message: 'No "title" declared in docmd.config. Pages will use filename fallbacks for HTML titles.',
+      hint: 'Add `"title": "My Documentation"` to your docmd.config.json'
+    });
+  } else {
+    results.push({
+      name: 'Site Title',
+      status: 'ok',
+      message: `Site title configured: "${title}"`
+    });
+  }
+
+  return results;
 }

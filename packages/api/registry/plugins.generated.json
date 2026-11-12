@@ -1,7 +1,7 @@
 {
   "$meta": {
     "generator": "scripts/build-plugin-registry.mjs",
-    "packageCount": 18
+    "packageCount": 19
   },
   "ai": {
     "package": "@docmd/plugin-ai",
@@ -48,6 +48,20 @@
       "assets",
       "post-build",
       "translations"
+    ]
+  },
+  "iconify": {
+    "package": "@docmd/plugin-iconify",
+    "description": "Optional Iconify icon integration for docmd documentation containers.",
+    "configKey": "iconify",
+    "defaultConfig": "{}",
+    "kind": "plugin",
+    "displayName": "Iconify Icons",
+    "tagline": "Use 200,000+ open-source icons from Iconify in docmd containers.",
+    "capabilities": [
+      "markdown",
+      "init",
+      "doctor"
     ]
   },
   "llms": {
@@ -167,7 +181,8 @@
     "tagline": "SEO meta tag generator for docmd.",
     "capabilities": [
       "head",
-      "post-build"
+      "post-build",
+      "doctor"
     ]
   },
   "sitemap": {
