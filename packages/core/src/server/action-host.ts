@@ -53,10 +53,16 @@ export interface ActionHostOptions {
   getWorkerPool: () => WorkerPool | undefined;
   /** Provided by the command; serialised and coalesced inside the host. */
   rebuild: (files?: string[]) => Promise<void>;
-  /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev' }). */
+  /** Default true: the host calls loadPlugins(config, { resolvePaths, isDev: mode === 'dev', liveServer: mode === 'serve' }). */
   loadPlugins?: boolean;
   /** Extra plugin resolution roots handed to loadPlugins (dev: the CLI dir; workspace dev: the project root). */
   resolvePaths?: string[];
+  /**
+   * serve: the header a trusted reverse proxy sets to the authenticated
+   * user (`serve.actions.identityHeader`). Its value becomes
+   * `caller.identity`; without it every write through the context is refused.
+   */
+  identityHeader?: string | null;
 }
 
 export interface ActionHost {
@@ -88,8 +94,8 @@ function defer(): Deferred {
   return { promise, resolve, reject };
 }
 
-/** Build the per-socket caller from the upgrade request (cookies never reach plugins). */
-function buildCaller(req: http.IncomingMessage): ActionCaller {
+/** Build the per-socket caller from the upgrade request (cookies never reach plugins). Exported for tests. */
+export function buildCaller(req: http.IncomingMessage, identityHeader: string | null): ActionCaller {
   const headers: Record<string, string> = {};
   for (const [name, value] of Object.entries(req.headers)) {
     const key = name.toLowerCase();
@@ -103,11 +109,14 @@ function buildCaller(req: http.IncomingMessage): ActionCaller {
     remoteAddress: req.socket.remoteAddress ?? null,
     connectionId: crypto.randomUUID(),
     connectedAt: Date.now(),
+    // Own headers only: a header name such as `constructor` must not read Object.prototype.
+    identity: (identityHeader && Object.hasOwn(headers, identityHeader) && headers[identityHeader]) || null,
   };
 }
 
 export async function createActionHost(opts: ActionHostOptions): Promise<ActionHost> {
   const { server, mode, projectRoot, config } = opts;
+  const identityHeader = opts.identityHeader ? opts.identityHeader.toLowerCase() : null;
   const shutdownCallbacks: Array<() => void | Promise<void>> = [];
 
   // ── WebSocket server ─────────────────────────────────
@@ -194,10 +203,11 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
     mode,
     getWorkerPool: opts.getWorkerPool,
     requestRebuild: rebuild,
+    identityHeader,
   });
 
   wss.on('connection', (ws, req: http.IncomingMessage) => {
-    const caller = buildCaller(req);
+    const caller = buildCaller(req, identityHeader);
     ws.on('message', async (raw: { toString(): string }) => {
       let msg: ClientFrame;
       try { msg = JSON.parse(raw.toString()) as ClientFrame; } catch { return; }
@@ -250,7 +260,7 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
   try {
     if (opts.loadPlugins !== false) {
       try {
-        await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev' });
+        await loadPlugins(config, { resolvePaths: opts.resolvePaths ?? [], isDev: mode === 'dev', liveServer: mode === 'serve' });
       } catch (e) {
         await fail(e, 'Plugin loading failed');
       }
