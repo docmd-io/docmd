@@ -54,6 +54,12 @@ interface DispatcherOptions {
   mode?: 'dev' | 'serve';
   /** Host rebuild entry point, forwarded by `ctx.requestRebuild`. */
   requestRebuild?: (files?: string[]) => Promise<void>;
+  /**
+   * serve only: the trusted identity header the host reads `caller.identity`
+   * from. Without one every write is refused; with one, writes from callers
+   * whose `identity` is null are refused. Ignored in dev.
+   */
+  identityHeader?: string | null;
 }
 
 const rpcWrittenFiles = new Map<string, number>();
@@ -91,6 +97,21 @@ export function wasWrittenByRpc(filePath: string): boolean {
 export function createActionDispatcher(hooks: DispatcherHooks, options: DispatcherOptions) {
   const { projectRoot, config, broadcast, getWorkerPool, requestRebuild } = options;
   const mode: 'dev' | 'serve' = options.mode ?? 'dev';
+  const identityHeader = options.identityHeader || null;
+
+  /**
+   * Fail safe for production: under serve, writes through the context need a
+   * trusted identity. Dev is loopback-only and keeps writing freely.
+   */
+  const assertCanWrite = (caller: ActionCaller): void => {
+    if (mode !== 'serve') return;
+    if (!identityHeader) {
+      throw new Error('Writes are refused: no trusted identity source is configured (set serve.actions.identityHeader)');
+    }
+    if (!caller.identity) {
+      throw new Error(`Writes are refused: the request has no trusted identity (missing ${identityHeader} header)`);
+    }
+  };
 
   const resolveProjectFile = (relativePath: string): string => {
     const direct = safePath(projectRoot, relativePath);
@@ -114,10 +135,20 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
     const sourceTools = createSourceTools({ projectRoot });
     const written = new Set<string>();
     let modified = false;
+    const callerOrLocal: ActionCaller = caller ?? {
+      transport: 'local',
+      headers: {},
+      origin: null,
+      remoteAddress: null,
+      connectionId: 'local',
+      connectedAt: Date.now(),
+      identity: null,
+    };
 
-    // Source write operations record their target in the per-call collector.
+    // Source write operations are guarded and record their target in the per-call collector.
     const track = <A extends [string, ...unknown[]]>(fn: (...a: A) => Promise<void>) =>
       async (...a: A): Promise<void> => {
+        assertCanWrite(callerOrLocal);
         await fn(...a);
         written.add(safePath(projectRoot, a[0]));
       };
@@ -135,18 +166,12 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
       broadcast,
       source,
       mode,
-      caller: caller ?? {
-        transport: 'local',
-        headers: {},
-        origin: null,
-        remoteAddress: null,
-        connectionId: 'local',
-        connectedAt: Date.now(),
-      },
+      caller: callerOrLocal,
       async readFile(relativePath: string): Promise<string> {
         return fs.promises.readFile(resolveProjectFile(relativePath), 'utf8');
       },
       async writeFile(relativePath: string, content: string): Promise<void> {
+        assertCanWrite(callerOrLocal);
         const resolved = resolveProjectFile(relativePath);
         await fs.promises.writeFile(resolved, content);
         markFileWrittenByRpc(resolved);

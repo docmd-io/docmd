@@ -93,6 +93,10 @@ export interface ActionContext {
  * `cookie`/`set-cookie`. It does not validate them: a plugin that reads an
  * identity header must document that only a trusted reverse proxy may set it,
  * and must refuse writes when its configured header is absent.
+ *
+ * Under `docmd serve` the host has one trusted identity source of its own,
+ * `serve.actions.identityHeader`; its value is `identity`, and the host
+ * refuses `ctx.writeFile` / `ctx.source` writes from callers without one.
  */
 export interface ActionCaller {
   /** Transport the call arrived on; 'local' when a host called the dispatcher without a caller. */
@@ -107,6 +111,12 @@ export interface ActionCaller {
   connectionId: string;
   /** Epoch ms when the connection was accepted. */
   connectedAt: number;
+  /**
+   * Value of the host's trusted identity header (`serve.actions.identityHeader`)
+   * on the upgrade request; null when the host has none configured (always
+   * in dev) or the request did not carry it or sent it empty.
+   */
+  identity: string | null;
 }
 
 /** Handle given to `onServerReady`. Lives as long as the server; `rebuild` is serialised and coalesced by the host. */

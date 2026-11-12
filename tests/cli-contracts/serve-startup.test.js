@@ -11,7 +11,7 @@
  */
 
 import { setup, writeFile, runTestFile } from '../shared.js';
-import { freePort, canConnect, spawnServe, waitForHealthz, exitWithin } from '../_lib/serve-harness.js';
+import { freePort, canConnect, spawnServe, waitForHealthz, exitWithin, copyServePlugin } from '../_lib/serve-harness.js';
 import net from 'node:net';
 
 let passed = 0;
@@ -36,8 +36,8 @@ function project(name, config) {
   return dir;
 }
 
-async function expectExit1(dir, args, timeoutMs = 15000) {
-  const handle = spawnServe(dir, args);
+async function expectExit1(dir, args, timeoutMs = 15000, env = {}) {
+  const handle = spawnServe(dir, args, env);
   try {
     const r = await exitWithin(handle, timeoutMs);
     return { ...r, text: handle.output.text };
@@ -82,6 +82,46 @@ export const test = runTestFile({
       });
       const r = await expectExit1(dir, ['--port', String(await freePort())]);
       assert(r.code === 1 && r.text.includes('docmd serve does not support workspaces yet'), 'workspace root exits 1 with the message');
+    }
+
+    // Invalid serve.actions -> exit 1 listing every problem, nothing listening.
+    {
+      const dir = project('serve-startup-bad-actions', {
+        serve: { actions: { enabled: true, origins: ['*', 'docs.example.com'], identityHeader: 'cookie' } },
+      });
+      const port = await freePort();
+      const r = await expectExit1(dir, ['--port', String(port)]);
+      assert(r.code === 1 && !r.timedOut, 'invalid serve.actions exits 1');
+      assert(r.text.includes('"*"') && r.text.includes('"docs.example.com"') && r.text.includes('serve.actions.identityHeader'),
+        'the error names each invalid origin and the unusable identityHeader');
+      assert(!(await canConnect('127.0.0.1', port)), 'nothing listens after an invalid serve.actions');
+      const none = project('serve-startup-no-origins', { serve: { actions: { enabled: true } } });
+      const r2 = await expectExit1(none, ['--port', String(await freePort())]);
+      assert(r2.code === 1 && r2.text.includes('serve.actions.origins must list at least one origin'), 'actions on without origins exits 1');
+    }
+
+    // Invalid serve.mcp origins -> exit 1 naming them, nothing listening.
+    {
+      const dir = project('serve-startup-bad-mcp', { serve: { mcp: { enabled: true, origins: ['*', 'docs.example.com'] } } });
+      const port = await freePort();
+      const r = await expectExit1(dir, ['--port', String(port)]);
+      assert(r.code === 1 && r.text.includes('serve.mcp.origins contains an invalid origin: "*"') && r.text.includes('"docs.example.com"'),
+        'invalid serve.mcp origins exit 1 and name each origin');
+      assert(!(await canConnect('127.0.0.1', port)), 'nothing listens after an invalid serve.mcp');
+    }
+
+    // A throwing onServerReady with actions on -> exit 1, port closed.
+    {
+      const port = await freePort();
+      const dir = project('serve-startup-onready', {
+        plugins: { './plugins/serve-plugin': {} },
+        serve: { actions: { enabled: true, origins: [`http://127.0.0.1:${port}`] } },
+      });
+      copyServePlugin(dir);
+      const r = await expectExit1(dir, ['--port', String(port)], 30000, { DOCMD_TEST_ONSERVERREADY_THROW: '1' });
+      assert(r.code === 1 && !r.timedOut, 'a throwing onServerReady makes serve exit 1');
+      assert(r.text.includes('fixture onServerReady failed'), 'the output carries the onServerReady error');
+      assert(!(await canConnect('127.0.0.1', port)), 'nothing listens after onServerReady failed');
     }
 
     // SIGINT -> exit 0, port closed.

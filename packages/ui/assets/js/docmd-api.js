@@ -74,7 +74,7 @@
     if (socket && (socket.readyState === 0 || socket.readyState === 1)) return;
     if (retryCount >= maxRetries) return; // give up — not a dev server
 
-    socket = new WebSocket('ws://' + window.location.host);
+    socket = new WebSocket((window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host);
 
     socket.onopen = () => {
       console.log('⚡ docmd connected');

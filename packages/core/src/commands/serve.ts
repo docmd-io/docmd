@@ -13,6 +13,7 @@
  */
 
 import http from 'http';
+import type { Duplex } from 'stream';
 import path from 'path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +24,11 @@ import { loadConfig } from '../utils/config-loader.js';
 import { exitWithError, exitCodeFor, failWith } from '../utils/exit.js';
 import { formatPathForDisplay, getNetworkIp } from '../utils/dev-utils.js';
 import { createStaticHandler } from '../server/static.js';
-import { resolveServeBind } from '../server/serve-config.js';
+import { resolveServeBind, validateServeConfig, type ServeActionsConfig, type ServeMcpConfig } from '../server/serve-config.js';
+import { createMcpHandler } from './mcp.js';
+import { createMcpHttpHandler } from '../server/mcp-http.js';
+import { createActionHost, type ActionHost } from '../server/action-host.js';
+import { createOriginAllowlist } from '../utils/ws-origin-guard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,14 +56,30 @@ export function outputDirConflict(outputDir: string, cwd: string, srcDir: string
   return contains(outputDir, cwd) || contains(outputDir, srcDir);
 }
 
+/** The banner's Actions line: off, or on with the origins and who may write. */
+export function actionsBanner(actions: ServeActionsConfig): string {
+  if (!actions.enabled) return 'off';
+  const writes = actions.identityHeader ? `writes need ${actions.identityHeader}` : 'writes refused (no identityHeader)';
+  return `on (origins: ${actions.origins.join(', ')}; ${writes})`;
+}
+
+/** The banner's MCP line: off, or on with the browser origins it accepts. */
+export function mcpBanner(mcp: ServeMcpConfig): string {
+  if (!mcp.enabled) return 'off';
+  const browsers = mcp.origins.length > 0 ? `browser origins: ${mcp.origins.join(', ')}` : 'no browser origins';
+  return `on at POST /mcp (read-only; ${browsers})`;
+}
+
 export interface ServeRouterOptions {
   outputDir: () => string;
   version: string;
+  /** Serves `/mcp`; absent means MCP is off and `/mcp` falls through to the static handler. */
+  mcp?: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
 }
 
 /**
- * The request router: `/healthz`, and everything else through the
- * production static handler.
+ * The request router: `/healthz`, `/mcp` when MCP is on, and everything
+ * else through the production static handler.
  */
 export function createServeRouter(opts: ServeRouterOptions) {
   const staticHandler = createStaticHandler({ rootDir: opts.outputDir });
@@ -80,6 +101,11 @@ export function createServeRouter(opts: ServeRouterOptions) {
         'Cache-Control': 'no-store',
       });
       res.end(health);
+      return;
+    }
+
+    if (opts.mcp && pathname === '/mcp') {
+      await opts.mcp(req, res);
       return;
     }
 
@@ -126,6 +152,12 @@ export async function startServe(
     failWith(`Invalid port: ${String(raw)}. Expected an integer between 0 and 65535.`);
   }
 
+  const serveErrors = validateServeConfig(config.serve);
+  if (serveErrors.length > 0) {
+    failWith(`Invalid serve config:\n  - ${serveErrors.join('\n  - ')}`);
+  }
+  const actions = config.serve.actions;
+
   // 4. Refuse an output dir whose clearing would delete the project or its sources.
   const outputDir = path.resolve(CWD, config.out || 'site');
   const srcDir = path.resolve(CWD, config.src || 'docs');
@@ -136,7 +168,15 @@ export async function startServe(
   // 5. Bind first, so a port already in use fails fast and never touches a
   // live instance's output. Until the build finishes every request is 503.
   let ready = false;
-  const route = createServeRouter({ outputDir: () => outputDir, version: readVersion() });
+  // MCP over HTTP: the same tools as `docmd mcp`, reading the same config
+  // file as this server, and read-only (no tool rebuilds the live site).
+  const mcp = config.serve.mcp.enabled
+    ? createMcpHttpHandler({
+        handler: createMcpHandler({ configPath: configPathOption, readOnly: true }),
+        origins: config.serve.mcp.origins,
+      })
+    : undefined;
+  const route = createServeRouter({ outputDir: () => outputDir, version: readVersion(), mcp });
   const server = http.createServer((req, res) => {
     if (!ready) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '1' });
@@ -153,10 +193,19 @@ export async function startServe(
     });
   });
 
-  // No WebSocket endpoint: an upgrade gets a definite answer.
-  server.on('upgrade', (_req, socket) => {
-    socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n', () => socket.destroy());
-  });
+  // Actions off: no WebSocket endpoint, an upgrade gets a definite 404.
+  // Actions on: until the action host attaches (it then owns the upgrade),
+  // an upgrade gets the same 503 as plain requests.
+  function startupUpgrade(_req: http.IncomingMessage, socket: Duplex): void {
+    socket.end('HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n', () => socket.destroy());
+  }
+  if (actions.enabled) {
+    server.on('upgrade', startupUpgrade);
+  } else {
+    server.on('upgrade', (_req, socket) => {
+      socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n', () => socket.destroy());
+    });
+  }
 
   // Listen on exactly host:port; no fallback.
   server.on('error', (err: NodeJS.ErrnoException) => {
@@ -175,15 +224,38 @@ export async function startServe(
   const workerPool = new WorkerPool(workerScript, { config: workerConfig, cwd: CWD });
   try {
     if (await fs.exists(outputDir)) await fs.remove(outputDir);
-    await buildSite(configPathOption, { isDev: false, quiet: false, showStats: false, workerPool });
+    await buildSite(configPathOption, { isDev: false, quiet: false, showStats: false, workerPool, liveServer: actions.enabled });
   } catch (e) {
     await workerPool.terminateAll().catch(() => {});
     exitWithError(e, { section: 'Build failed' });
   }
   TUI.info(`Build completed in ${elapsed()}.`);
+
+  // 7. Plugin actions, once the first build is on disk. A plugin whose
+  // `onServerReady` throws makes serve exit non-zero.
+  let actionHost: ActionHost | null = null;
+  if (actions.enabled) {
+    server.off('upgrade', startupUpgrade);
+    try {
+      actionHost = await createActionHost({
+        server,
+        mode: 'serve',
+        projectRoot: CWD,
+        config,
+        verifyClient: createOriginAllowlist(actions.origins),
+        identityHeader: actions.identityHeader,
+        getWorkerPool: () => workerPool,
+        rebuild: (files?: string[]) =>
+          buildSite(configPathOption, { isDev: false, quiet: true, workerPool, liveServer: true, targetFiles: files }),
+      });
+    } catch (e) {
+      await workerPool.terminateAll().catch(() => {});
+      exitWithError(e, { section: 'Failed to start plugin actions' });
+    }
+  }
   ready = true;
 
-  // 7. Banner.
+  // 8. Banner.
   const address = server.address();
   const boundPort = address && typeof address === 'object' ? address.port : port;
   const anyHost = host === '0.0.0.0' || host === '::';
@@ -195,10 +267,12 @@ export async function startServe(
   TUI.item('Local Access', `http://${localHost}:${boundPort}`, TUI.bold, TUI.green);
   if (networkIp) TUI.item('Network Access', `http://${networkIp}:${boundPort}`, TUI.bold, TUI.green);
   TUI.item('Serving from', formatPathForDisplay(outputDir, CWD), TUI.dim, TUI.green);
+  TUI.item('Actions', actionsBanner(actions), TUI.dim, TUI.green);
+  TUI.item('MCP', mcpBanner(config.serve.mcp), TUI.dim, TUI.green);
   TUI.item('', '', TUI.dim, TUI.green);
   TUI.footer(TUI.green);
 
-  // 8. Graceful shutdown.
+  // 9. Graceful shutdown.
   let shuttingDown = false;
   const shutdown = async () => {
     if (shuttingDown) return;
@@ -209,6 +283,8 @@ export async function startServe(
       process.exit(exitCodeFor(new Error('shutdown timed out')));
     }, SHUTDOWN_BUDGET_MS).unref();
     try {
+      // Sockets and plugin onShutdown callbacks first, then the HTTP server.
+      if (actionHost) await actionHost.close();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeIdleConnections?.();

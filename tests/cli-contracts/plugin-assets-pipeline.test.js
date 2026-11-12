@@ -31,6 +31,11 @@
  *          stateful getAssets hook from returning different files to
  *          different stages of the same build.
  *
+ *   PAA-5  A live-server build (`buildSite(..., { liveServer: true })`,
+ *          what `docmd serve` with actions on runs) keeps the client
+ *          assets of plugins that require a live server and ships the
+ *          docmd-api.js bridge; a plain `docmd build` does neither.
+ *
  * Uses the built-in @docmd/plugin-search, plugin-git, plugin-mermaid,
  * plugin-math, plugin-openapi as the test subjects because their
  * getAssets hooks cover the full matrix (local-copy src/dest, CDN
@@ -313,6 +318,41 @@ export const test = runTestFile({
       assert(!relativeFound.some(f => f.includes('anchored-root')), 'findFilesRecursive excludes anchored-root folder');
 
       fs.rmSync(testDir, { recursive: true, force: true });
+    }
+
+    // PAA-5: `liveServer: true` keeps the client assets of requiresLiveServer
+    // plugins and ships the docmd-api.js bridge; plain `docmd build` does not.
+    {
+      const proj = setup('paa-live-server');
+      writeFile(proj, 'docs/index.md', '# Live\n');
+      writeFile(proj, 'docmd.config.json', JSON.stringify({
+        title: 'PAA-5',
+        src: './docs',
+        out: './site',
+        plugins: { threads: {} }
+      }, null, 2) + '\n');
+      const assetFiles = ['assets/js/threads.js', 'assets/css/threads.css', 'assets/js/docmd-api.js'];
+
+      const { buildSite } = await import('../../packages/core/dist/commands/build.js');
+      await buildSite(path.join(proj, 'docmd.config.json'), { isDev: false, quiet: true, liveServer: true });
+      const html = readSite(proj, 'index.html') || '';
+      for (const f of assetFiles) {
+        assert(fs.existsSync(path.join(proj, 'site', f)), `PAA-5: liveServer build emits site/${f}`);
+        assert(html.includes(f), `PAA-5: liveServer index.html references ${f}`);
+      }
+      const bodyHtml = html.slice(html.indexOf('<body'));
+      assert(bodyHtml.includes('assets/js/docmd-api.js'), 'PAA-5: docmd-api.js is referenced inside <body>');
+
+      fs.rmSync(path.join(proj, 'site'), { recursive: true, force: true });
+      const plain = build(proj);
+      assert(plain.ok, 'PAA-5: plain build succeeds');
+      const plainHtml = readSite(proj, 'index.html') || '';
+      for (const f of assetFiles) {
+        // docmd-api.js is always copied with the UI asset dir; only its page reference is live-server only.
+        if (!f.endsWith('docmd-api.js')) assert(!fs.existsSync(path.join(proj, 'site', f)), `PAA-5: plain build omits site/${f}`);
+        assert(!plainHtml.includes(f), `PAA-5: plain index.html does not reference ${f}`);
+      }
+      assert(/requires live dev server/.test(plain.output), 'PAA-5: plain build prints the dev-only warning');
     }
   }
 });

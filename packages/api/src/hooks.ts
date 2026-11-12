@@ -342,8 +342,11 @@ export function resolveTemplateName(key: string): string {
 // Load & Register
 // ---------------------------------------------------------------------------
 
-export async function loadPlugins(config: any, opts?: { resolvePaths?: string[]; isDev?: boolean }): Promise<PluginHooks> {
+export async function loadPlugins(config: any, opts?: { resolvePaths?: string[]; isDev?: boolean; liveServer?: boolean }): Promise<PluginHooks> {
   const isDev = Boolean(opts?.isDev ?? config?._isDev ?? (process.env.DOCMD_DEV === 'true'));
+  // A production build that a live server (`docmd serve` with actions) will
+  // host: plugins that require a live server keep their client assets.
+  const liveServer = opts?.liveServer === true;
 
   // The monorepo dev fallback (loading plugins/templates from
   // packages/plugins or packages/templates in the monorepo source)
@@ -637,7 +640,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
       const manifestCapabilities = (loadRuntimeRegistry()[shortNameForManifest]?.capabilities) as string[] | undefined;
 
       try {
-        registerPlugin(name, pluginModule, options, manifestCapabilities, isDev);
+        registerPlugin(name, pluginModule, options, manifestCapabilities, isDev, liveServer);
       } catch (regError: any) {
         warnOnce(`register:${name}`, TUI.yellow(`Plugin loaded but failed to register: ${name}`) + TUI.dim(`\n   > ${regError.message}`));
       }
@@ -725,6 +728,7 @@ function registerPlugin(
   options: any,
   manifestCapabilities?: string[],   // Stage 4: from registry entry, for cross-check
   isDev = false,
+  liveServer = false,
 ) {
   const shortName = name.replace(/^@docmd\/plugin-/, '').replace(/^@docmd\/template-/, '');
   const isOfficial = name.startsWith('@docmd/plugin-') || name.startsWith('@docmd/template-');
@@ -736,7 +740,7 @@ function registerPlugin(
   const manifestEntry = loadRuntimeRegistry()[shortKey(name) ?? shortName];
   const requiresLive = descriptor?.requiresLiveServer === true || manifestEntry?.requiresLiveServer === true;
   const isDevOnly = requiresLive && options?.devOnly !== false && options?.liveOnly !== false;
-  const skipClientAssets = !isDev && isDevOnly;
+  const skipClientAssets = !isDev && !liveServer && isDevOnly;
 
   if (skipClientAssets) {
     warnOnce(`liveserver:${name}`, TUI.dim(`[${shortName}] requires live dev server — omitting client assets from static build`));
