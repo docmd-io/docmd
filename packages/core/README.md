@@ -199,6 +199,7 @@ Cloud Relay securely sends AI requests to the provider you choose, so provider c
 ```bash
 docmd dev            # Start the local development server
 docmd build          # Build for production
+docmd serve          # Build once and serve the site in production
 docmd live           # Start the browser-based Live Editor
 docmd init           # Create a configuration file
 docmd doctor         # Check configuration and plugin status
@@ -207,10 +208,12 @@ docmd migrate        # Migrate from Docusaurus, VitePress, MkDocs, or Starlight
 docmd deploy         # Generate deployment configuration
 docmd mcp            # Run the MCP server over stdio
 docmd add <name>     # Install a plugin or template
-docmd stop           # Stop running docmd development servers
+docmd stop           # Stop running docmd dev and serve servers
 ```
 
 **See complete [CLI Commands →](https://docs.docmd.io/reference/cli-commands/)**
+
+`docmd serve` is the production counterpart of `docmd dev`: it builds once and serves the site on a fixed port (`127.0.0.1:3000` by default), with a `/healthz` endpoint and no watcher. Plugin actions over WebSocket and MCP over HTTP are opt-in through the `serve` config block. It is the default command of the Docker image. See [docmd serve →](https://docs.docmd.io/deployment/docmd-serve/)
 
 ## Plugins
 

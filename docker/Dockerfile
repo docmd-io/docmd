@@ -14,14 +14,17 @@
 # Creates a minimal production image with docmd CLI pre-installed
 #
 # Usage:
-#   Quick Start (with demo site):
+#   Quick Start (with demo site, served in production mode):
 #     docker run -p 3000:3000 docmd:latest
 #
 #   Initialize new project in current directory:
 #     docker run -v $(pwd):/workspace docmd:latest init
 #
-#   Run dev server with your docs:
-#     docker run -v $(pwd)/my-docs:/docs -p 3000:3000 docmd:latest dev
+#   Serve your docs (default command: `serve --host 0.0.0.0`):
+#     docker run -v $(pwd)/my-docs:/docs -p 3000:3000 docmd:latest
+#
+#   Run the dev server instead (live reload, for writing docs):
+#     docker run -v $(pwd)/my-docs:/docs -p 3000:3000 docmd:latest dev --host 0.0.0.0
 #
 #   Build static site:
 #     docker run -v $(pwd)/docs:/docs -v $(pwd)/site:/site docmd:latest build
@@ -155,8 +158,8 @@ RUN mkdir -p /template && \
 # Install entrypoint + healthcheck scripts (see docker/docker-entrypoint.sh
 # and docker/docker-healthcheck.sh). The entrypoint seeds /docs from
 # /template when /docs is empty, so `docker run` with no volume mount
-# still works out of the box. The healthcheck probes a port range because
-# `docmd dev` may auto-increment past 3000 if the port is already taken.
+# still works out of the box. The healthcheck asks `docmd serve` for
+# GET /healthz on ${PORT:-3000}; for `dev` it falls back to probing ports.
 COPY docker/docker-entrypoint.sh /usr/local/bin/docmd-entrypoint.sh
 COPY docker/docker-healthcheck.sh /usr/local/bin/docmd-healthcheck.sh
 RUN chmod +x /usr/local/bin/docmd-entrypoint.sh /usr/local/bin/docmd-healthcheck.sh
@@ -173,13 +176,13 @@ ENV DOCMD_CONTAINER=true
 # Set working directory to docs (where user content will be mounted)
 WORKDIR /docs
 
-# Expose default port (dev server may pick a higher one if 3000 is in use)
+# Expose default port (`docmd serve` binds exactly PORT, default 3000)
 EXPOSE 3000
 
-# Health check — probes 3000-3005 to follow the dev server's actual port
+# Health check — GET /healthz on ${PORT:-3000} (see docker-healthcheck.sh)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD ["/usr/local/bin/docmd-healthcheck.sh"]
 
 # Default command — entrypoint detects /docs uid, drops privileges, then
 # seeds /docs if empty and execs the supplied command.
 ENTRYPOINT ["/usr/local/bin/docmd-entrypoint.sh"]
-CMD ["dev", "--host", "0.0.0.0"]
+CMD ["serve", "--host", "0.0.0.0"]
