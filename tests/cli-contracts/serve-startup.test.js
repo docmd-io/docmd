@@ -100,6 +100,16 @@ export const test = runTestFile({
       assert(r2.code === 1 && r2.text.includes('serve.actions.origins must list at least one origin'), 'actions on without origins exits 1');
     }
 
+    // Invalid serve.mcp origins -> exit 1 naming them, nothing listening.
+    {
+      const dir = project('serve-startup-bad-mcp', { serve: { mcp: { enabled: true, origins: ['*', 'docs.example.com'] } } });
+      const port = await freePort();
+      const r = await expectExit1(dir, ['--port', String(port)]);
+      assert(r.code === 1 && r.text.includes('serve.mcp.origins contains an invalid origin: "*"') && r.text.includes('"docs.example.com"'),
+        'invalid serve.mcp origins exit 1 and name each origin');
+      assert(!(await canConnect('127.0.0.1', port)), 'nothing listens after an invalid serve.mcp');
+    }
+
     // A throwing onServerReady with actions on -> exit 1, port closed.
     {
       const port = await freePort();

@@ -283,27 +283,61 @@ export function validateLinks(docsDir: string, excludePatterns: string[] = []): 
   return errors;
 }
 
-export async function runMcpServer() {
-  console.error("docmd MCP server starting...");
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: undefined,
-    terminal: false
-  });
-
-  const sendResponse = (id: any, result: any) => {
-    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
+/** A JSON-RPC 2.0 message as an MCP client sends it; fields are checked where they are used. */
+export interface McpMessage {
+  jsonrpc?: unknown;
+  id?: McpId;
+  method?: string;
+  params?: {
+    uri?: string;
+    name?: string;
+    arguments?: { query?: string; subdir?: string; route?: string };
   };
+}
 
-  const sendError = (id: any, code: number, message: string, data?: any) => {
-    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message, data } }) + "\n");
-  };
+type McpId = string | number | null;
 
-  rl.on('line', async (line) => {
-    if (!line.trim()) return;
+/** One JSON-RPC 2.0 response. */
+export interface McpResponse {
+  jsonrpc: '2.0';
+  id: McpId;
+  result?: unknown;
+  error?: { code: number; message: string; data?: unknown };
+}
+
+export interface McpHandlerOptions {
+  /** Config file the tools read, as passed to `--config`. Defaults to the usual lookup. */
+  configPath?: string;
+  /**
+   * Never write to disk: `get_llms_context` reads the llms-full.txt of the
+   * site that is already built instead of rebuilding it. `docmd serve` sets
+   * this, so an HTTP client cannot rebuild the live site.
+   */
+  readOnly?: boolean;
+  /** Diagnostics; defaults to stderr (stdout carries the stdio protocol). */
+  log?: (line: string) => void;
+}
+
+export interface McpHandler {
+  /** Answers one message: a response, or null for a notification. Never rejects. */
+  handle(message: McpMessage): Promise<McpResponse | null>;
+}
+
+/**
+ * Transport-independent MCP handler: the stdio server (`docmd mcp`) and the
+ * HTTP endpoint (`docmd serve` with `serve.mcp`) share these tools.
+ */
+export function createMcpHandler(opts: McpHandlerOptions = {}): McpHandler {
+  const configPath = opts.configPath || 'docmd.config.js';
+  const readOnly = opts.readOnly === true;
+  const log = opts.log || ((line: string) => console.error(line));
+
+  async function dispatch(
+    message: McpMessage,
+    sendResponse: (id: McpId, result: unknown) => void,
+    sendError: (id: McpId, code: number, message: string, data?: unknown) => void
+  ): Promise<void> {
     try {
-      const message = JSON.parse(line);
       if (message.jsonrpc !== "2.0") {
         sendError(message.id || null, -32600, "Invalid Request");
         return;
@@ -442,7 +476,7 @@ export async function runMcpServer() {
 
         let config: any;
         try {
-          config = await loadConfig('docmd.config.js', { quiet: true });
+          config = await loadConfig(configPath, { quiet: true });
         } catch {
           config = { src: 'docs', out: 'site' };
         }
@@ -528,7 +562,7 @@ export async function runMcpServer() {
         // Resolve workspace parameters
         let config: any;
         try {
-          config = await loadConfig('docmd.config.js', { quiet: true });
+          config = await loadConfig(configPath, { quiet: true });
         } catch {
           // Fallback zero config
           config = { src: 'docs', out: 'site' };
@@ -610,7 +644,7 @@ export async function runMcpServer() {
 
         if (name === "get_config") {
           try {
-            const resolvedConfig = await loadConfig('docmd.config.js', { quiet: true });
+            const resolvedConfig = await loadConfig(configPath, { quiet: true });
             // Surface only the structural keys an agent needs. Omit
             // potentially sensitive values (API keys, analytics IDs) by
             // reconstructing a safe summary from the resolved config.
@@ -686,12 +720,16 @@ export async function runMcpServer() {
         }
 
         if (name === "get_llms_context") {
-          // Trigger build to ensure context is up to date
-          try {
-            console.error("Building site context...");
-            await buildSite('docmd.config.js', { quiet: true, isDev: false });
-          } catch (err: any) {
-            console.error(`Build warning: ${err.message}`);
+          // Trigger build to ensure context is up to date. Read-only
+          // handlers (MCP over HTTP under `docmd serve`) read the site
+          // that is already built and served instead.
+          if (!readOnly) {
+            try {
+              log("Building site context...");
+              await buildSite(configPath, { quiet: true, isDev: false });
+            } catch (err: any) {
+              log(`Build warning: ${err.message}`);
+            }
           }
 
           const llmsFullFile = path.resolve(process.cwd(), config.out || 'site', 'llms-full.txt');
@@ -716,5 +754,43 @@ export async function runMcpServer() {
     } catch (err: any) {
       sendError(null, -32700, `Parse error: ${err.message}`);
     }
+  }
+
+  return {
+    async handle(message) {
+      let response: McpResponse | null = null;
+      if (!message || typeof message !== 'object' || Array.isArray(message)) {
+        return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
+      }
+      await dispatch(
+        message,
+        (id, result) => { response = { jsonrpc: '2.0', id, result }; },
+        (id, code, msg, data) => { response = { jsonrpc: '2.0', id, error: { code, message: msg, data } }; }
+      );
+      return response;
+    }
+  };
+}
+
+/** `docmd mcp`: newline-delimited JSON-RPC on stdin/stdout; stderr carries diagnostics. */
+export async function runMcpServer() {
+  console.error("docmd MCP server starting...");
+
+  const handler = createMcpHandler();
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: undefined,
+    terminal: false
+  });
+
+  rl.on('line', async (line) => {
+    if (!line.trim()) return;
+    let response: McpResponse | null;
+    try {
+      response = await handler.handle(JSON.parse(line));
+    } catch (err) {
+      response = { jsonrpc: '2.0', id: null, error: { code: -32700, message: `Parse error: ${(err as Error).message}` } };
+    }
+    if (response) process.stdout.write(JSON.stringify(response) + "\n");
   });
 }

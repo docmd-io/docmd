@@ -31,10 +31,22 @@ export interface ServeActionsConfig {
   identityHeader: string | null;
 }
 
+export interface ServeMcpConfig {
+  /** MCP over HTTP at `POST /mcp`; off unless exactly `true`. */
+  enabled: boolean;
+  /**
+   * Full origins allowed to call `/mcp` from a browser. A request with any
+   * other `Origin` gets 403; one without `Origin` (a non-browser MCP client)
+   * is accepted. Empty means no browser may call it.
+   */
+  origins: string[];
+}
+
 export interface ServeConfig {
   host: string;
   port: number;
   actions: ServeActionsConfig;
+  mcp: ServeMcpConfig;
 }
 
 const DEFAULT_SERVE_HOST = '127.0.0.1';
@@ -47,8 +59,9 @@ const STRIPPED_HEADERS = new Set(['cookie', 'set-cookie']);
 
 /** Fill defaults for the user's `serve` section. Never throws. */
 export function normalizeServeConfig(userServe: unknown): ServeConfig {
-  const u = (userServe && typeof userServe === 'object' ? userServe : {}) as { host?: unknown; port?: unknown; actions?: unknown };
+  const u = (userServe && typeof userServe === 'object' ? userServe : {}) as { host?: unknown; port?: unknown; actions?: unknown; mcp?: unknown };
   const a = (u.actions && typeof u.actions === 'object' ? u.actions : {}) as { enabled?: unknown; origins?: unknown; identityHeader?: unknown };
+  const m = (u.mcp && typeof u.mcp === 'object' ? u.mcp : {}) as { enabled?: unknown; origins?: unknown };
   return {
     host: typeof u.host === 'string' && u.host !== '' ? u.host : DEFAULT_SERVE_HOST,
     port: u.port === undefined || u.port === null || u.port === '' ? DEFAULT_SERVE_PORT : Number(u.port),
@@ -58,6 +71,10 @@ export function normalizeServeConfig(userServe: unknown): ServeConfig {
       identityHeader: typeof a.identityHeader === 'string' && a.identityHeader.trim() !== ''
         ? a.identityHeader.trim().toLowerCase()
         : null,
+    },
+    mcp: {
+      enabled: m.enabled === true,
+      origins: Array.isArray(m.origins) ? m.origins.map((o) => String(o)) : [],
     },
   };
 }
@@ -72,7 +89,7 @@ function isValidOrigin(value: string): boolean {
   }
 }
 
-/** Startup validation of the `serve.actions` block. Returns one message per problem; empty means valid. */
+/** Startup validation of the `serve.actions` and `serve.mcp` blocks. Returns one message per problem; empty means valid. */
 export function validateServeConfig(serve: ServeConfig): string[] {
   const errors: string[] = [];
   const { actions } = serve;
@@ -85,6 +102,9 @@ export function validateServeConfig(serve: ServeConfig): string[] {
   const header = actions.identityHeader;
   if (header !== null && (!HEADER_NAME.test(header) || STRIPPED_HEADERS.has(header))) {
     errors.push(`serve.actions.identityHeader is not a usable header name: "${header}".`);
+  }
+  for (const o of serve.mcp.origins) {
+    if (!isValidOrigin(o)) errors.push(`serve.mcp.origins contains an invalid origin: "${o}" (expected e.g. "https://docs.example.com").`);
   }
   return errors;
 }
