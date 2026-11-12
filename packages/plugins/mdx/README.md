@@ -1,10 +1,6 @@
 # @docmd/plugin-mdx
 
-Adds MDX and JSX component support to your docmd site via `lite-mdx` - compile JSX tags, compound elements, and attributes into docmd containers at build time with zero client overhead. An optional plugin, installed separately.
-
-```bash
-docmd add mdx
-```
+Adds MDX and JSX component support to your docmd site via `lite-mdx` - compile JSX tags, compound elements, and attributes into docmd containers at build time with zero client overhead. Bundled with `@docmd/core`.
 
 ```jsx
 <Callout type="tip" title="Pro Tip">

@@ -2,7 +2,7 @@
   "name": "@docmd/plugin-threads",
   "version": "0.9.9",
   "type": "module",
-  "description": "Inline discussion threads for docmd.",
+  "description": "Inline discussion threads and Markdown review comments plugin for docmd.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -58,22 +58,25 @@
     "threads",
     "discussions",
     "comments",
-    "editor",
+    "inline-feedback",
+    "git-sync",
+    "peer-review",
     "collaboration",
-    "markdown",
-    "documentation",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "annotations",
+    "documentation"
   ],
   "author": {
     "name": "Saulo Vallory"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/threads"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://docmd.io",
+  "funding": "https://github.com/sponsors/docmd-io",
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  }
 }

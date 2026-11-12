@@ -1,7 +1,7 @@
 {
   "name": "@docmd/parser",
   "version": "0.9.9",
-  "description": "Pure Markdown parsing engine for docmd.",
+  "description": "Isomorphic Markdown parser and container normaliser for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,21 +33,19 @@
   },
   "keywords": [
     "docmd",
+    "markdown-parser",
     "parser",
-    "utils",
-    "tools",
     "containers",
-    "markdown-it",
+    "callouts",
+    "tabs",
+    "steps",
+    "changelogs",
+    "gfm",
+    "ast",
+    "isomorphic",
     "markdown",
-    "markdown-processor",
-    "icon-renderer",
-    "renderer",
-    "validator",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -55,12 +53,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/parser"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

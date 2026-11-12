@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-mdx",
   "version": "0.9.9",
-  "description": "Interactive MDX and JSX component support for docmd documentation sites.",
+  "description": "Interactive MDX and JSX component support for docmd documentation sites, powered by lite-mdx.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,6 +11,7 @@
     "displayName": "MDX Support",
     "tagline": "Author interactive documentation with JSX components and expressions powered by lite-mdx.",
     "capabilities": [
+      "init",
       "build",
       "markdown",
       "doctor"
@@ -43,7 +44,12 @@
     "mdx",
     "jsx",
     "components",
-    "markdown",
+    "lite-mdx",
+    "interactive-docs",
+    "react-style",
+    "expressions",
+    "compound-tags",
+    "zero-dependency",
     "documentation"
   ],
   "author": {
@@ -52,7 +58,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/mdx"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://docmd.io",
+  "funding": "https://github.com/sponsors/docmd-io",
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  }
 }

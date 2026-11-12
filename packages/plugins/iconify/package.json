@@ -40,6 +40,13 @@
     "iconify",
     "icons",
     "svg",
+    "vector-icons",
+    "lucide",
+    "material-design",
+    "carbon",
+    "fontawesome",
+    "solar",
+    "containers",
     "documentation"
   ],
   "author": {
@@ -48,7 +55,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/iconify"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://docmd.io",
+  "funding": "https://github.com/sponsors/docmd-io",
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  }
 }
