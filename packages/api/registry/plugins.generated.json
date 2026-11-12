@@ -1,7 +1,7 @@
 {
   "$meta": {
     "generator": "scripts/build-plugin-registry.mjs",
-    "packageCount": 19
+    "packageCount": 20
   },
   "ai": {
     "package": "@docmd/plugin-ai",
@@ -87,6 +87,20 @@
     "capabilities": [
       "markdown",
       "assets"
+    ]
+  },
+  "mdx": {
+    "package": "@docmd/plugin-mdx",
+    "description": "Interactive MDX and JSX component support for docmd documentation sites.",
+    "configKey": "mdx",
+    "defaultConfig": "{}",
+    "kind": "plugin",
+    "displayName": "MDX Support",
+    "tagline": "Author interactive documentation with JSX components and expressions powered by lite-mdx.",
+    "capabilities": [
+      "build",
+      "markdown",
+      "doctor"
     ]
   },
   "mermaid": {
