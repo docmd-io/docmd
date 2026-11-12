@@ -1,28 +1,10 @@
 # @docmd/plugin-iconify
 
-Optional Iconify icon integration for docmd.
-
-Use over 200,000+ open-source icons from collections like Material Design, Carbon, Tabler, Lucide, FontAwesome, Solar, and more directly in docmd containers.
-
-## Installation
+Adds Iconify icon integration to your docmd site - use over 200,000+ open-source icons from collections like Material Design, Carbon, Tabler, Lucide, FontAwesome, Solar, and more directly in docmd containers. An optional plugin, installed separately.
 
 ```bash
 docmd add iconify
 ```
-
-Or configure in `docmd.config.json`:
-
-```json
-{
-  "plugins": {
-    "iconify": {}
-  }
-}
-```
-
-## Syntax
-
-Use simple and intuitive prefixes in your markdown containers:
 
 ```markdown
 ::: callout icon:iconify:mdi:home
@@ -38,3 +20,13 @@ High performance with inlined SVGs and zero runtime client JavaScript overhead.
 ```
 
 Both `icon:iconify:<set>:<name>` and `icon:iconify-<set>-<name>` (or `icon:iconify-<set>:<name>`) are supported.
+
+Part of the **[docmd](https://github.com/docmd-io/docmd)** documentation engine.
+
+## Documentation
+
+See **[docs.docmd.io](https://docs.docmd.io)** for full usage and API reference.
+
+## License
+
+MIT
