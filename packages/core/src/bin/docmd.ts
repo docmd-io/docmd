@@ -33,6 +33,13 @@ import { installPlugin, removePlugin } from '@docmd/plugin-installer';
 const pkgUrl = new URL('../../package.json', import.meta.url);
 const { version } = JSON.parse(readFileSync(pkgUrl, 'utf-8'));
 
+process.stdout.on('error', (err: any) => {
+  if (err?.code === 'EPIPE') process.exit(0);
+});
+process.stderr.on('error', (err: any) => {
+  if (err?.code === 'EPIPE') process.exit(0);
+});
+
 const args = process.argv.slice(2);
 
 const options = {
