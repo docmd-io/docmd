@@ -20,7 +20,7 @@ import {
   exitCodeOf,
   runTestFile
 } from '../shared.js';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -233,7 +233,7 @@ export const test = runTestFile({
       let captured = '';
       let code = -1;
       try {
-        execSync(`node ${DOCMD} build`, { cwd: dir, stdio: 'pipe', encoding: 'utf8' });
+        execFileSync(process.execPath, [DOCMD, 'build'], { cwd: dir, stdio: 'pipe', encoding: 'utf8' });
       } catch (e) {
         code = e.status == null ? -1 : e.status;
         const stderr = typeof e.stderr === 'string' ? e.stderr : (e.stderr ? e.stderr.toString() : '');
@@ -272,7 +272,7 @@ export const test = runTestFile({
         }
       }));
       
-      execSync(`node ${DOCMD} build`, { cwd: dir, stdio: 'pipe' });
+      execFileSync(process.execPath, [DOCMD, 'build'], { cwd: dir, stdio: 'pipe' });
       
       // Check the output html file1
       const htmlPath = path.join(dir, 'site/project1/sub1/file1/index.html');
@@ -302,7 +302,7 @@ export const test = runTestFile({
 
       // Test JSON mode captures error entry
       try {
-        execSync(`node ${DOCMD} validate --json`, { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+        execFileSync(process.execPath, [DOCMD, 'validate', '--json'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
       } catch (err) {
         const parsed = JSON.parse(err.stdout || '{}');
         assert(parsed.errors && parsed.errors.length > 0, 'validate --json reports missing container source in errors array');

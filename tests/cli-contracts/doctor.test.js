@@ -15,7 +15,7 @@ import {
   exitCodeOf,
   runTestFile
 } from '../shared.js';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -43,7 +43,7 @@ export const test = runTestFile({
     {
       const dir = setup('doctor-zero-config');
       writeFile(dir, 'docs/index.md', '# Welcome\n');
-      const out = execSync(`node ${DOCMD} doctor --json`, { cwd: dir, encoding: 'utf8' });
+      const out = execFileSync(process.execPath, [DOCMD, 'doctor', '--json'], { cwd: dir, encoding: 'utf8' });
       const report = JSON.parse(out);
 
       assert(report.environment && report.environment.node, 'DOCTOR-1: environment node version detected');
@@ -65,7 +65,7 @@ export const test = runTestFile({
         }
       }));
 
-      const out = execSync(`node ${DOCMD} doctor --json`, { cwd: dir, encoding: 'utf8' });
+      const out = execFileSync(process.execPath, [DOCMD, 'doctor', '--json'], { cwd: dir, encoding: 'utf8' });
       const report = JSON.parse(out);
 
       assert(report.project.configPath === 'docmd.config.json', 'DOCTOR-2: auto-discovers docmd.config.json');
@@ -89,7 +89,7 @@ export const test = runTestFile({
         ]
       }));
 
-      const out = execSync(`node ${DOCMD} doctor --json`, { cwd: dir, encoding: 'utf8' });
+      const out = execFileSync(process.execPath, [DOCMD, 'doctor', '--json'], { cwd: dir, encoding: 'utf8' });
       const report = JSON.parse(out);
 
       const navIssue = report.project.diagnostics.find(d => d.name === 'Navigation Target');
@@ -101,7 +101,7 @@ export const test = runTestFile({
     {
       const dir = setup('doctor-terminal-output');
       writeFile(dir, 'docs/index.md', '# Terminal\n');
-      const text = execSync(`node ${DOCMD} doctor`, { cwd: dir, encoding: 'utf8' });
+      const text = execFileSync(process.execPath, [DOCMD, 'doctor'], { cwd: dir, encoding: 'utf8' });
 
       assert(text.toUpperCase().includes('PRE-FLIGHT DIAGNOSTICS'), 'DOCTOR-4: section header present in terminal output');
       assert(text.toUpperCase().includes('ENVIRONMENT'), 'DOCTOR-4: environment group present');

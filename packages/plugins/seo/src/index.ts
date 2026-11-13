@@ -26,6 +26,54 @@ export const plugin: PluginDescriptor = {
 };
 
 /**
+ * Strips HTML tags, script blocks, and style blocks to produce clean plain text.
+ * Uses a linear character scanner instead of regular expressions to guarantee
+ * linear O(N) performance and eliminate any ReDoS or tag-filtering vulnerabilities.
+ */
+function stripHtmlToText(html: string): string {
+  if (!html || typeof html !== 'string') return '';
+  let inTag = false;
+  let inScript = false;
+  let inStyle = false;
+  let tagBuffer = '';
+  let text = '';
+
+  for (let i = 0; i < html.length; i++) {
+    const ch = html[i];
+    if (ch === '<') {
+      inTag = true;
+      tagBuffer = '<';
+      continue;
+    }
+    if (inTag) {
+      tagBuffer += ch;
+      if (ch === '>') {
+        inTag = false;
+        const lower = tagBuffer.toLowerCase();
+        if (lower.startsWith('<script')) {
+          inScript = true;
+        } else if (lower.startsWith('</script')) {
+          inScript = false;
+        } else if (lower.startsWith('<style')) {
+          inStyle = true;
+        } else if (lower.startsWith('</style')) {
+          inStyle = false;
+        } else if (!inScript && !inStyle && text.length > 0 && !text.endsWith(' ')) {
+          text += ' ';
+        }
+        tagBuffer = '';
+      }
+      continue;
+    }
+    if (!inScript && !inStyle) {
+      text += ch;
+    }
+  }
+
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Generates HTML meta tags for a specific page.
  * @param {Object} config - Project config
  * @param {Object} pageData - { frontmatter, outputPath, breadcrumbs, searchData, urlContext }
@@ -79,12 +127,7 @@ export function generateMetaTags(config: any, pageData: any, _relativePathToRoot
 
   // 2. From page HTML if available (strip tags and clean up whitespace)
   if (!description && pageData.html) {
-    const text = pageData.html
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const text = stripHtmlToText(pageData.html);
     if (text) {
       description = text.length > 155 ? text.substring(0, 152) + '...' : text;
     }
@@ -237,7 +280,7 @@ export function generateMetaTags(config: any, pageData: any, _relativePathToRoot
     // Active for all non-root pages unless explicitly disabled
     const breadcrumbsEnabled = (seo.breadcrumbs ?? globalSeo.breadcrumbs ?? frontmatter.breadcrumbs) !== false;
     if (!isRoot && breadcrumbsEnabled) {
-      const homeName = (siteTitle || 'Home').replace(/<[^>]+>/g, '').trim() || 'Home';
+      const homeName = stripHtmlToText(siteTitle || 'Home') || 'Home';
       const itemList: any[] = [
         {
           '@type': 'ListItem',
@@ -267,7 +310,7 @@ export function generateMetaTags(config: any, pageData: any, _relativePathToRoot
           // MUST have an 'item' URL. Omitting 'item' on unlinked intermediate categories
           // causes "Missing field 'item' (in 'itemListElement')" validation errors.
           if (itemUrl) {
-            const cleanTitle = (bc.title || 'Page').replace(/<[^>]+>/g, '').trim();
+            const cleanTitle = stripHtmlToText(bc.title || 'Page');
             itemList.push({
               '@type': 'ListItem',
               'position': itemList.length + 1,

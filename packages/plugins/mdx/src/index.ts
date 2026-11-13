@@ -93,7 +93,7 @@ export function onBeforeParse(
 
   // Process .mdx files or .md files that contain JSX elements or imports
   const isMdx = filePath ? /\.mdx$/i.test(filePath) : false;
-  const hasJsxOrExpressions = /<[A-Z][A-Za-z0-9_.]*|import\s+.*from|export\s+(?:const|let|var|default)|(?<!\\)\{[^}\r\n]+\}/.test(src);
+  const hasJsxOrExpressions = /<[A-Z][A-Za-z0-9_.]*|\bimport\s+[^\s;\r\n][^;\r\n]*?\bfrom\b|\bexport\s+(?:const|let|var|default|function|class)\b|(?<!\\)\{[^}\r\n]+\}/.test(src);
 
   if (!isMdx && !hasJsxOrExpressions) {
     return src;

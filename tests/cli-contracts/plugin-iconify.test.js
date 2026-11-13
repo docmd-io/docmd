@@ -16,7 +16,7 @@ import {
 } from '../shared.js';
 import { parseIconifyName, resolveIconifyIcon } from '../../packages/plugins/iconify/dist/index.js';
 import { renderIcon } from '../../packages/parser/dist/index.js';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -105,7 +105,7 @@ export const test = runTestFile({
         }
       }));
 
-      execSync(`node ${DOCMD} build`, { cwd: dir, stdio: 'pipe' });
+      execFileSync(process.execPath, [DOCMD, 'build'], { cwd: dir, stdio: 'pipe' });
 
       const html = fs.readFileSync(path.join(dir, 'site/index.html'), 'utf8');
       assert(html.includes('iconify-icon'), 'ICONIFY-4: build output inlines iconify-icon SVG');
@@ -124,7 +124,7 @@ export const test = runTestFile({
         }
       }));
 
-      const out = execSync(`node ${DOCMD} doctor --json`, { cwd: dir, encoding: 'utf8' });
+      const out = execFileSync(process.execPath, [DOCMD, 'doctor', '--json'], { cwd: dir, encoding: 'utf8' });
       const report = JSON.parse(out);
 
       assert(report.pluginDiagnostics && report.pluginDiagnostics.iconify, 'ICONIFY-5: doctor executes iconify health check');
