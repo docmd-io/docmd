@@ -139,8 +139,8 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
       ws:
-        specifier: ^8.22.2
-        version: 8.22.2
+        specifier: ^8.23.0
+        version: 8.23.0
     devDependencies:
       '@types/node':
         specifier: ^26.6.6
@@ -801,8 +801,8 @@ packages:
     resolution: {integrity: sha512-R76UKbvsqI68DJJVTVyqFKqU98CN4+B+acxNfEA2IFarSzP0SjtKf/3+fFiXzTyv5Fj3PxLkGHe2wnVWWMxobQ==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
-  '@eslint/config-array@0.23.5':
-    resolution: {integrity: sha512-Y3kKLvC1dvTOT+oGlqNQ1XLqK6D1HU2YXPc52NmAlJZbMMWDzGYXMiPRJ8TYD39muD/OTjlZmNJ4ib7dvSrMBA==}
+  '@eslint/config-array@0.23.6':
+    resolution: {integrity: sha512-WrTH7nioI9QPY4NZGnsywmecswJdgeq4BCM76qok9VgjTO29ZgUzUvcuJLVPYVQM4uDbaPBU0M33R9DIxI8X3w==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
   '@eslint/config-helpers@0.7.0':
@@ -839,8 +839,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@huggingface/jinja@0.5.12':
-    resolution: {integrity: sha512-o0aIdtHrSBmNgUC3zVHSRBReUZO87679tK9sQztp683pu6cbidcWnHivJYChYf/aDpGdlwxbTfs4pRQ1MhBGkQ==}
+  '@huggingface/jinja@0.5.13':
+    resolution: {integrity: sha512-jM17MqFily1iyT/1LD3r5w8/CZiyapVB0+7vOw48PfVtzyKsXStmHE4jVTyDAD05Tqv3un1xrS9ILUU1ugQAYQ==}
     engines: {node: '>=18'}
 
   '@huggingface/tokenizers@0.1.3':
@@ -2077,8 +2077,8 @@ packages:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
 
-  ws@8.22.2:
-    resolution: {integrity: sha512-/rEZ2ejown2N5gxVTHUu9bVVC7ttu0/Tgzf5hbTOixR3Fs7mbbXgn2DbdbcKgJOmpQMtrIUWivtYuVMnp/W/yA==}
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -2226,7 +2226,7 @@ snapshots:
 
   '@eslint-community/regexpp@4.12.3': {}
 
-  '@eslint/config-array@0.23.5':
+  '@eslint/config-array@0.23.6':
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3
@@ -2264,7 +2264,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@huggingface/jinja@0.5.12':
+  '@huggingface/jinja@0.5.13':
     optional: true
 
   '@huggingface/tokenizers@0.1.3':
@@ -2272,7 +2272,7 @@ snapshots:
 
   '@huggingface/transformers@4.2.0(@types/node@26.6.6)':
     dependencies:
-      '@huggingface/jinja': 0.5.12
+      '@huggingface/jinja': 0.5.13
       '@huggingface/tokenizers': 0.1.3
       onnxruntime-node: 1.29.0
       onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
@@ -3065,7 +3065,7 @@ snapshots:
     dependencies:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.14.0)
       '@eslint-community/regexpp': 4.12.3
-      '@eslint/config-array': 0.23.5
+      '@eslint/config-array': 0.23.6
       '@eslint/config-helpers': 0.7.0
       '@eslint/core': 1.2.1
       '@eslint/plugin-kit': 0.7.3
@@ -3558,7 +3558,7 @@ snapshots:
 
   word-wrap@1.2.5: {}
 
-  ws@8.22.2: {}
+  ws@8.23.0: {}
 
   yaml@2.9.1: {}
 
