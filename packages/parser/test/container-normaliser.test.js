@@ -904,6 +904,26 @@ test('sub-containers ::: tab, ::: step, ::: log render correctly and ignore inli
   assert.match(r.htmlContent, /v1\.0\.0/);
 });
 
+test('tabs parser supports === Tab Title and == tab Tab Title aliases', async () => {
+  const md = freshProcessor();
+  const input = [
+    '::: tabs',
+    '=== Human Terminal Output',
+    'Human text here',
+    '=== Machine-Readable JSON',
+    'JSON text here',
+    ':::'
+  ].join('\n');
+
+  const r = await processContentAsync(input, md, {}, { filePath: 'test-tabs-aliases.md' });
+
+  assert.match(r.htmlContent, /docmd-tabs/);
+  assert.match(r.htmlContent, /Human Terminal Output/);
+  assert.match(r.htmlContent, /Human text here/);
+  assert.match(r.htmlContent, /Machine-Readable JSON/);
+  assert.match(r.htmlContent, /JSON text here/);
+});
+
 test('smart self-closing container stripping logs info warning and removes stray ::: /tag', () => {
   const src = [
     '::: tag "v1.0" color:#3b82f6',

@@ -82,8 +82,8 @@ Math: **{10 + 20}**
         assert(html.includes('class="card-content"'), 'Card has card-content element');
 
         // Check Expression evaluations
-        assert(html.includes('Domain: <strong>docmd.io</strong>') || html.includes('docmd.io'), 'String expression evaluates to docmd.io');
-        assert(html.includes('Math: <strong>30</strong>') || html.includes('30'), 'Math expression evaluates to 30');
+        assert(html.includes('Domain: <strong><a href="https://docmd.io">docmd.io</a></strong>'), 'String expression evaluates to docmd.io');
+        assert(html.includes('Math: <strong>30</strong>'), 'Math expression evaluates to 30');
       }
     }
   }

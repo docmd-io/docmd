@@ -18,13 +18,16 @@
     ]
   },
   "scripts": {
-    "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --platform=node --format=esm --external:@docmd/api --external:@docmd/parser --outfile=dist/index.js"
+    "build": "tsc"
   },
   "files": [
     "dist"
   ],
   "engines": {
     "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "lite-mdx": "^0.1.1"
   },
   "peerDependencies": {
     "@docmd/api": "workspace:*",
