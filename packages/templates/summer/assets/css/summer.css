@@ -717,6 +717,7 @@ html[data-theme="dark"] .summer-logo__light {
 }
 
 .summer-pageheader {
+  position: -webkit-sticky;
   position: sticky;
   top: var(--summer-header-sticky-top);
   z-index: calc(var(--summer-z-sticky) - 2);
@@ -726,6 +727,8 @@ html[data-theme="dark"] .summer-logo__light {
   margin-left: calc(-1 * var(--summer-gutter, 0px));
   margin-right: calc(-1 * var(--summer-gutter, 0px));
   padding: 12px 10px 8px;
+  box-sizing: border-box;
+  transform: translateZ(0);
 }
 
 .summer-pageheader__inner {
@@ -885,11 +888,13 @@ html[data-theme="dark"] .summer-logo__light {
 }
 
 .summer-sidebar {
+  position: -webkit-sticky;
   position: sticky;
   top: var(--summer-header-sticky-top);
   align-self: start;
   max-height: calc(100vh - var(--summer-header-sticky-top));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 1rem 5px 3rem;
   border-right: none;
   background: var(--summer-bg);
@@ -1441,7 +1446,7 @@ html[data-theme="dark"] .summer-logo__light {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  align-self: start;
+  align-self: stretch;
 }
 
 .summer-content {
@@ -1605,7 +1610,7 @@ html[data-theme="dark"] .summer-logo__light {
   align-items: center;
   justify-content: center;
   width: 1.15rem;
-  height: -webkit-fill-available;
+  height: 100%;
   opacity: 0;
   color: var(--summer-fg-faint);
   vertical-align: middle;
@@ -1630,11 +1635,13 @@ html[data-theme="dark"] .summer-logo__light {
 }
 
 .summer-toc {
+  position: -webkit-sticky;
   position: sticky;
   top: var(--summer-header-sticky-top);
   align-self: start;
   max-height: calc(100vh - var(--summer-header-sticky-top));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

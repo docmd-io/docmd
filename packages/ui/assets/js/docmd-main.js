@@ -895,14 +895,59 @@
         currentPath = new URL(finalUrl).pathname;
         document.title = doc.title;
 
-        // Sync head inline scripts to update DOCMD_ROOT, DOCMD_BASE, etc.
+        // Sync head inline scripts to update DOCMD_ROOT, DOCMD_BASE, etc. without eval/new Function (CSP compliant)
         const inlineScripts = doc.head.querySelectorAll('script:not([src])');
         inlineScripts.forEach(script => {
-          if (script.textContent && script.textContent.includes('window.DOCMD_')) {
-            const fn = new Function(script.textContent);
-            try { fn(); } catch(e) { console.error(e); }
+          const text = script.textContent || '';
+          if (!text.includes('DOCMD_')) return;
+
+          // Parse root variable if present: var root = "...";
+          let parsedRoot = null;
+          const rootMatch = text.match(/var\s+root\s*=\s*["']([^"']*)["']/);
+          if (rootMatch) {
+            parsedRoot = rootMatch[1];
+            if (parsedRoot && !parsedRoot.endsWith('/')) parsedRoot += '/';
+            if (parsedRoot === '') parsedRoot = './';
+          }
+
+          // Match JSON objects e.g. window.DOCMD_I18N = { ... };
+          const jsonMatches = text.matchAll(/(?:window\.)?(DOCMD_[A-Z0-9_]+)\s*=\s*(\{[\s\S]*?\})\s*;/g);
+          for (const m of jsonMatches) {
+            try { window[m[1]] = JSON.parse(m[2]); } catch (_) {}
+          }
+
+          // Match string assignments: window.DOCMD_VAR = "..." || './'; or '...' or root;
+          const strMatches = text.matchAll(/(?:window\.)?(DOCMD_[A-Z0-9_]+)\s*=\s*(?:["']([^"']*)["'](?:\s*\|\|\s*["']([^"']*)["'])?|([a-zA-Z0-9_]+))\s*;/g);
+          for (const m of strMatches) {
+            const varName = m[1];
+            if (varName in window && window[varName] && typeof window[varName] === 'object') continue;
+            let val = m[2];
+            if (val === undefined && m[4] === 'root' && parsedRoot !== null) {
+              val = parsedRoot;
+            } else if (val === '' && m[3] !== undefined) {
+              val = m[3];
+            }
+            if (val !== undefined) {
+              window[varName] = val;
+            }
           }
         });
+
+        // Also sync #docmd-locale-pages if present in target doc
+        const localeScript = doc.getElementById('docmd-locale-pages');
+        if (localeScript && localeScript.textContent) {
+          try {
+            window.DOCMD_LOCALE_PAGES = JSON.parse(localeScript.textContent);
+            let curLocaleEl = document.getElementById('docmd-locale-pages');
+            if (!curLocaleEl) {
+              curLocaleEl = document.createElement('script');
+              curLocaleEl.id = 'docmd-locale-pages';
+              curLocaleEl.type = 'application/json';
+              document.head.appendChild(curLocaleEl);
+            }
+            curLocaleEl.textContent = localeScript.textContent;
+          } catch (_) {}
+        }
 
         // Re-resolve and apply theme based on new page configuration and user localStorage preference
         const localValue = localStorage.getItem('docmd-theme');
