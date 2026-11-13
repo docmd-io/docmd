@@ -755,6 +755,24 @@
     const pageCache = new Map();
     let prefetchTimer = null;
 
+    function isSpaNavigable(url) {
+      if (!url) return false;
+      if (url.origin !== location.origin) return false;
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+
+      // Bypass static non-HTML assets (e.g. .txt, .pdf, .json, .zip, .png, etc.)
+      const pathname = url.pathname.replace(/\/+$/, '');
+      const lastSegment = pathname.split('/').pop() || '';
+      const dotIndex = lastSegment.lastIndexOf('.');
+      if (dotIndex > 0) {
+        const ext = lastSegment.slice(dotIndex + 1).toLowerCase();
+        if (ext !== 'html' && ext !== 'htm') {
+          return false;
+        }
+      }
+      return true;
+    }
+
     // Intent-based Hover Prefetching
     document.addEventListener('mouseover', (e) => {
       const link = e.target.closest('.sidebar-nav a, .page-navigation a, .page-footer a, .main-content a');
@@ -763,16 +781,16 @@
       const rel = link.getAttribute('rel') || '';
       if (rawTarget === '_blank' || rel.includes('noopener') || rel.includes('external') || link.hasAttribute('download') || link.hasAttribute('data-spa-ignore')) return;
 
-      const url = new URL(link.href).href;
-      if (new URL(url).origin !== location.origin) return;
-      if (pageCache.has(url)) return;
+      let parsedUrl;
+      try { parsedUrl = new URL(link.href); } catch { return; }
+      if (!isSpaNavigable(parsedUrl)) return;
+      if (pageCache.has(parsedUrl.href)) return;
 
       // Wait 65ms to ensure the user actually intends to click
       clearTimeout(prefetchTimer);
       prefetchTimer = setTimeout(() => {
         // Prefetch using hash-stripped URL - the fragment is never sent to the server
-        const prefetchUrl = new URL(link.href);
-        const prefetchFetchUrl = prefetchUrl.origin + prefetchUrl.pathname + prefetchUrl.search;
+        const prefetchFetchUrl = parsedUrl.origin + parsedUrl.pathname + parsedUrl.search;
         if (pageCache.has(prefetchFetchUrl)) return;
         pageCache.set(prefetchFetchUrl, fetch(prefetchFetchUrl).then(res => {
           if (!res.ok) throw new Error('Prefetch failed');
@@ -799,8 +817,9 @@
       // toggle handler above only prevents default for dummy <span>s and
       // chevron clicks, so this branch is safe to fall through.
 
-      const url = new URL(link.href);
-      if (url.origin !== location.origin) return;
+      let url;
+      try { url = new URL(link.href); } catch { return; }
+      if (!isSpaNavigable(url)) return;
 
       // Same-page hash navigation: scroll to the target element smoothly
       // without a full SPA fetch. The browser's native behaviour doesn't
@@ -850,6 +869,11 @@
         } else {
           const res = await fetch(fetchUrl);
           if (!res.ok) throw new Error('Fetch failed');
+          const contentType = (res.headers.get('content-type') || '').toLowerCase();
+          if (contentType && !contentType.includes('text/html')) {
+            window.location.assign(url);
+            return;
+          }
           data = { html: await res.text(), finalUrl: res.url };
           pageCache.set(fetchUrl, Promise.resolve(data));
         }
@@ -860,8 +884,9 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // If target page is not SPA-compatible (e.g. noStyle), do a full redirect
-        if (doc.body.dataset.spaEnabled === 'false') {
+        // If target page is not SPA-compatible or lacks docmd content structure, do a full redirect
+        const hasDocmdContent = !!doc.querySelector('.main-content, .summer-content, .content-layout');
+        if (!hasDocmdContent || doc.body?.dataset.spaEnabled === 'false') {
           window.location.assign(url);
           return;
         }

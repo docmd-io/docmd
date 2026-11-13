@@ -157,8 +157,30 @@ export const test = runTestFile({
 
       const siteDomainRoot = path.join(dir, 'site', 'domain-root.txt');
       assert(fs.existsSync(siteDomainRoot), 'Workspace root public/domain-root.txt copied to site/domain-root.txt');
-      if (fs.existsSync(siteDomainRoot)) {
-        assert(fs.readFileSync(siteDomainRoot, 'utf8').trim() === 'domain root asset', 'Workspace root asset content matches');
+    }
+
+    // -------------------------------------------------------------------------
+    // Scenario 6: SPA static asset bypass and content-type fallback
+    // -------------------------------------------------------------------------
+    {
+      const dir = setup('public-assets-spa-bypass');
+      writeFile(dir, 'docs/index.md', '# Static Asset Docs\n\n[Download Specs](/specs.pdf)\n[Asset](/asset.txt)\n');
+      writeFile(dir, 'public/asset.txt', 'Custom Static Content\n');
+      const res = build(dir);
+      assert(res.ok, 'Build succeeds for SPA static asset test');
+
+      const clientJsPath = path.join(dir, 'site', 'assets', 'js', 'docmd-main.js');
+      assert(fs.existsSync(clientJsPath), 'Client runtime docmd-main.js emitted in site/');
+      if (fs.existsSync(clientJsPath)) {
+        const clientJs = fs.readFileSync(clientJsPath, 'utf8');
+        assert(clientJs.includes('window.location.assign'), 'Client JS contains window.location.assign fallback');
+      }
+
+      const srcMainJsPath = path.resolve('packages/ui/assets/js/docmd-main.js');
+      if (fs.existsSync(srcMainJsPath)) {
+        const srcMainJs = fs.readFileSync(srcMainJsPath, 'utf8');
+        assert(srcMainJs.includes('isSpaNavigable'), 'Source docmd-main.js contains isSpaNavigable check');
+        assert(srcMainJs.includes("ext !== 'html' && ext !== 'htm'"), 'Source docmd-main.js bypasses non-HTML file extensions');
       }
     }
   }

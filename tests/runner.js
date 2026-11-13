@@ -222,6 +222,11 @@ addInProcess(
   await import('./cli-contracts/plugin-playground.test.js')
 );
 addInProcess(
+  'plugin-mdx',
+  'Plugin MDX contracts (JSX container structures, expressions, zero-overhead)',
+  await import('./cli-contracts/plugin-mdx.test.js')
+);
+addInProcess(
   'host-flag',
   'Dev --host flag binds the requested interface',
   await import('./cli-contracts/host-flag.test.js')
