@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-mermaid",
-  "version": "0.9.9",
-  "description": "Mermaid diagram support plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Mermaid diagram and flowchart rendering plugin for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,18 +41,13 @@
     "plugin",
     "mermaid",
     "diagrams",
-    "flowchart",
-    "sequence",
-    "class",
-    "graph",
-    "mindmap",
-    "syntax",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "flowcharts",
+    "charts",
+    "visualisation",
+    "sequence-diagrams",
+    "offline",
+    "markdown-diagrams",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -60,12 +55,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/mermaid"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

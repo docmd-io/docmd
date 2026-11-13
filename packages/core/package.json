@@ -1,6 +1,6 @@
 {
   "name": "@docmd/core",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Documentation compiler for humans and machines. One Markdown source, one command — generates website, search, AI context, and knowledge formats together.",
   "type": "module",
   "browser": false,
@@ -29,6 +29,7 @@
     "@docmd/plugin-git": "workspace:*",
     "@docmd/plugin-installer": "workspace:*",
     "@docmd/plugin-llms": "workspace:*",
+    "@docmd/plugin-mdx": "workspace:*",
     "@docmd/plugin-mermaid": "workspace:*",
     "@docmd/plugin-okf": "workspace:*",
     "@docmd/plugin-openapi": "workspace:*",
@@ -41,7 +42,7 @@
     "@docmd/ui": "workspace:*",
     "@docmd/utils": "workspace:*",
     "esbuild": "^0.28.2",
-    "ws": "^8.22.1"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6"
@@ -56,21 +57,21 @@
   "keywords": [
     "docmd",
     "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
     "documentation",
-    "typescript",
-    "javascript",
+    "static-site-generator",
+    "ssg",
+    "developer-tools",
+    "site-generator",
+    "docs",
+    "zero-config",
+    "minimalist",
+    "cli",
+    "generator",
     "nodejs",
     "browser",
-    "website",
-    "generator",
-    "hosted",
-    "cli",
-    "ssg",
-    "docs"
+    "typescript",
+    "ai-context",
+    "mcp-server"
   ],
   "author": {
     "name": "Ghazi",
@@ -78,12 +79,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/core"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

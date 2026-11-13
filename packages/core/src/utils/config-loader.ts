@@ -445,7 +445,7 @@ export async function loadConfig(configPath: string, options: any = {}) {
       // being wiped by a shallow spread when the child declares its own plugins key.
       const mergedConfig = mergeWorkspaceDefaults(options._globalDefaults || {}, rawConfig);
 
-      const normalized = normalizeConfig(mergedConfig, { isDev: options.isDev });
+      const normalized = normalizeConfig(mergedConfig, { isDev: options.isDev, strict: options.strict });
 
       // Dev server always serves the output dir at root ('/'), regardless of
       // where the production site will live. If base was auto-derived from url

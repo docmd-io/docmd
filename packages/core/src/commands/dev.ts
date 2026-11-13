@@ -42,6 +42,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
     preserve: opts.preserve || false,
     port: opts.port || undefined,
     host: opts.host || undefined,
+    noOpen: opts.noOpen || false,
   };
 
   // ── Multi-Project (Workspace) Detection ──────────────────────────
@@ -246,6 +247,31 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
     const contentPaths = [paths.srcDirToWatch];
     if (nativeFs.existsSync(paths.userAssetsDir)) contentPaths.push(paths.userAssetsDir);
 
+    // Watch static root asset directories
+    if (config.static !== false) {
+      if (Array.isArray(config.static)) {
+        for (const item of config.static) {
+          const p = path.resolve(CWD, item);
+          if (nativeFs.existsSync(p)) contentPaths.push(p);
+          if (config.src && config.src !== '.') {
+            const sp = path.resolve(CWD, config.src, item);
+            if (nativeFs.existsSync(sp)) contentPaths.push(sp);
+          }
+        }
+      } else {
+        const defaultPublic = path.resolve(CWD, 'public');
+        if (nativeFs.existsSync(defaultPublic)) contentPaths.push(defaultPublic);
+        const defaultStatic = path.resolve(CWD, 'static');
+        if (nativeFs.existsSync(defaultStatic)) contentPaths.push(defaultStatic);
+        if (config.src && config.src !== '.') {
+          const srcPublic = path.resolve(CWD, config.src, 'public');
+          if (nativeFs.existsSync(srcPublic)) contentPaths.push(srcPublic);
+          const srcStatic = path.resolve(CWD, config.src, 'static');
+          if (nativeFs.existsSync(srcStatic)) contentPaths.push(srcStatic);
+        }
+      }
+    }
+
     if (process.env.DOCMD_DEV === 'true') {
       const DOCMD_ROOT = path.resolve(__dirname, '..');
       contentPaths.push(
@@ -290,6 +316,8 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
 
         const relativeFilePath = path.relative(CWD, filePath);
         const isAsset = filePath.startsWith(path.resolve(paths.userAssetsDir));
+        const isDocmdMarkdown = filePath.endsWith('.md') || filePath.endsWith('.markdown') || filePath.endsWith('.ejs');
+        const isStaticOrAsset = isAsset || !isDocmdMarkdown;
         const isConfigOrNav =
           filename.includes('navigation.json') ||
           (filename.includes('docmd.config') && !filename.includes('docmd.config-'));
@@ -317,7 +345,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
             rebuildQueued = false;
             watcherBuilding = true;
             try {
-              await runDevBuild(isAsset ? undefined : [filePath], false);
+              await runDevBuild(isStaticOrAsset ? undefined : [filePath], false);
               sp.done(`Rebuilt: ${relativeFilePath} in ${rebuildElapsed()}`, true);
               if (!wasWrittenByRpc(filePath)) {
                 broadcastReload();
@@ -426,8 +454,10 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
           TUI.warn('Root index.html not found. Build may be incomplete.');
         }
 
-        // Auto-launch localhost URL in default browser
-        openBrowser(localUrl);
+        // Auto-launch local IP URL in default browser
+        if (!options.noOpen) {
+          openBrowser(localUrl);
+        }
       })
       .once('error', (err: any) => {
         if (err.code === 'EADDRINUSE') {

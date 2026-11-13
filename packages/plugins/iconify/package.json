@@ -1,0 +1,67 @@
+{
+  "name": "@docmd/plugin-iconify",
+  "version": "0.10.0",
+  "description": "Optional Iconify icon integration for docmd documentation containers.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "docmd": {
+    "key": "iconify",
+    "kind": "plugin",
+    "displayName": "Iconify Icons",
+    "tagline": "Use 200,000+ open-source icons from Iconify in docmd containers.",
+    "capabilities": [
+      "markdown",
+      "init",
+      "doctor"
+    ]
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@docmd/api": "workspace:*"
+  },
+  "devDependencies": {
+    "@docmd/api": "workspace:*",
+    "@docmd/parser": "workspace:*",
+    "@docmd/tui": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "docmd",
+    "plugin",
+    "iconify",
+    "icons",
+    "svg",
+    "vector-icons",
+    "lucide",
+    "material-design",
+    "carbon",
+    "fontawesome",
+    "solar",
+    "containers",
+    "documentation"
+  ],
+  "author": {
+    "name": "docmd.io",
+    "url": "https://docmd.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/iconify"
+  },
+  "license": "MIT",
+  "homepage": "https://docmd.io",
+  "funding": "https://github.com/sponsors/docmd-io",
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  }
+}

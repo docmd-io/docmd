@@ -1,7 +1,7 @@
 {
   "name": "@docmd/template-summer",
-  "version": "0.9.9",
-  "description": "Summer template for docmd. A bright, hopeful, summer-feel layout with a top search bar and halo accents.",
+  "version": "0.10.0",
+  "description": "Official modern clean summer template for docmd documentation sites.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,23 +39,16 @@
   },
   "keywords": [
     "docmd",
-    "documentation",
-    "docmd-template",
     "template",
-    "summer",
     "theme",
-    "markdown",
+    "summer-theme",
+    "layout",
+    "responsive-design",
+    "accessible",
+    "modern-docs",
+    "light-dark",
     "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "typescript",
-    "javascript",
-    "nodejs",
-    "browser",
-    "website",
-    "generator",
-    "docs"
+    "documentation"
   ],
   "engines": {
     "node": ">=20.0.0"
@@ -66,12 +59,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/templates/summer"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

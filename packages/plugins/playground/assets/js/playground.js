@@ -56,6 +56,8 @@
       this.panels = container.querySelectorAll('.docmd-playground-tab-panel');
       this.viewTabs = container.querySelectorAll('.docmd-playground-view-tab');
       this.hasRun = false;
+      this.activeWorker = null;
+      this.workerTimeout = null;
 
       this.init();
     }
@@ -233,6 +235,16 @@
       this.hasRun = true;
       const code = this.editor ? this.editor.value : '';
 
+      // Terminate any currently active worker and timer
+      if (this.activeWorker) {
+        this.activeWorker.terminate();
+        this.activeWorker = null;
+      }
+      if (this.workerTimeout) {
+        clearTimeout(this.workerTimeout);
+        this.workerTimeout = null;
+      }
+
       // If language is HTML or markup, render preview
       if (this.lang === 'html' || this.lang === 'xml' || this.lang === 'svg') {
         this.renderHtmlPreview(code);
@@ -253,16 +265,162 @@
         clear: () => this.clearConsole()
       };
 
-      try {
-        // Strip simple TS type annotations if written in TS mode
-        let cleanJs = code;
-        if (this.lang === 'ts' || this.lang === 'typescript') {
-          cleanJs = cleanJs
-            .replace(/:\s*[A-Z][a-zA-Z0-9<>\[\]|&\s]*/g, '')
-            .replace(/as\s+[A-Z][a-zA-Z0-9<>\[\]|&\s]*/g, '');
-        }
+      // Strip simple TS type annotations if written in TS mode
+      let cleanJs = code;
+      if (this.lang === 'ts' || this.lang === 'typescript') {
+        cleanJs = cleanJs
+          .replace(/:\s*[A-Z][a-zA-Z0-9<>\[\]|&\s]*/g, '')
+          .replace(/as\s+[A-Z][a-zA-Z0-9<>\[\]|&\s]*/g, '');
+      }
 
-        // Create async runner with scoped console and window.docmd access
+      // Prepare docmd state snapshot for safe pass-through into sandbox
+      const docmdSnapshot = {
+        version: window.docmd?.version || '0.10.0',
+        variables: (window.docmd?.var?.all && typeof window.docmd.var.all === 'function')
+          ? window.docmd.var.all()
+          : {}
+      };
+
+      // 1. Primary Isolated Execution: Web Worker (Blob URL)
+      // Web Workers execute in a completely isolated thread with NO access to window,
+      // document, document.cookie, localStorage, sessionStorage, or the parent DOM.
+      if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        try {
+          const workerSource = `
+            function formatVal(val) {
+              if (val === undefined) return 'undefined';
+              if (val === null) return 'null';
+              if (typeof val === 'string') return '"' + val + '"';
+              if (typeof val === 'function') return '[Function: ' + (val.name || 'anonymous') + ']';
+              if (val instanceof Error) return val.name + ': ' + val.message + (val.stack ? '\\n' + val.stack : '');
+              if (typeof val === 'object') {
+                try { return JSON.stringify(val, null, 2); }
+                catch(e) { return Object.prototype.toString.call(val); }
+              }
+              return String(val);
+            }
+
+            self.onmessage = async function(e) {
+              const data = e.data || {};
+              const code = data.code || '';
+              const docmdData = data.docmdData || {};
+
+              const customConsole = {
+                log: function(...args) { self.postMessage({ type: 'log', level: 'info', text: args.map(formatVal).join(' ') }); },
+                info: function(...args) { self.postMessage({ type: 'log', level: 'info', text: args.map(formatVal).join(' ') }); },
+                warn: function(...args) { self.postMessage({ type: 'log', level: 'warn', text: args.map(formatVal).join(' ') }); },
+                error: function(...args) { self.postMessage({ type: 'log', level: 'error', text: args.map(formatVal).join(' ') }); },
+                table: function(data) {
+                  const out = (typeof data === 'object' && data !== null) ? JSON.stringify(data, null, 2) : formatVal(data);
+                  self.postMessage({ type: 'log', level: 'info', text: out });
+                },
+                clear: function() { self.postMessage({ type: 'clear' }); }
+              };
+
+              const docmd = {
+                version: docmdData.version || '0.10.0',
+                var: {
+                  _store: docmdData.variables || {},
+                  get: function(k) {
+                    if (!k || typeof k !== 'string') return undefined;
+                    if (k in this._store && this._store[k] !== undefined) return this._store[k];
+                    const parts = k.split('.');
+                    if (parts.length > 1) {
+                      let cur = this._store;
+                      let found = true;
+                      for (const p of parts) {
+                        if (cur !== null && cur !== undefined && typeof cur === 'object' && p in cur) cur = cur[p];
+                        else { found = false; break; }
+                      }
+                      if (found && cur !== undefined) return cur;
+                    }
+                    if (k === 'docmd.version' || k === 'DOCMD_VERSION' || k === 'version') return docmdData.version;
+                    if (k === 'docmd.buildYear' || k === 'BUILD_YEAR') return String(new Date().getFullYear());
+                    return undefined;
+                  },
+                  set: function(k, v) {
+                    if (typeof k === 'string') this._store[k] = v;
+                    else if (typeof k === 'object' && k !== null) Object.assign(this._store, k);
+                  },
+                  all: function() { return { ...this._store }; }
+                },
+                get: function(k) { return this.var.get(k); }
+              };
+
+              try {
+                const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+                const runner = new AsyncFunction('console', 'docmd', code);
+                const result = await runner(customConsole, docmd);
+                self.postMessage({ type: 'done', hasReturn: result !== undefined, result: result !== undefined ? formatVal(result) : undefined });
+              } catch (err) {
+                const errMsg = err?.message || String(err);
+                const stack = err?.stack ? String(err.stack).split('\\n').slice(0, 3).join('\\n') : '';
+                self.postMessage({ type: 'error', message: errMsg, stack: stack });
+              }
+            };
+          `;
+
+          const blob = new Blob([workerSource], { type: 'application/javascript' });
+          const workerUrl = URL.createObjectURL(blob);
+          const worker = new Worker(workerUrl);
+          this.activeWorker = worker;
+
+          const cleanup = () => {
+            if (this.workerTimeout) {
+              clearTimeout(this.workerTimeout);
+              this.workerTimeout = null;
+            }
+            if (this.activeWorker === worker) {
+              this.activeWorker = null;
+            }
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+          };
+
+          // 5000ms safety timeout terminates infinite loops or blocking sync calls
+          this.workerTimeout = setTimeout(() => {
+            cleanup();
+            this.renderErrorNotice('Execution timed out after 5000ms (potential infinite loop terminated).');
+            this.appendLog('error', 'TimeoutError: Script execution exceeded 5000ms limit.');
+          }, 5000);
+
+          worker.onmessage = (e) => {
+            const msg = e.data || {};
+            if (msg.type === 'log') {
+              this.appendLog(msg.level || 'info', msg.text);
+            } else if (msg.type === 'clear') {
+              this.clearConsole();
+            } else if (msg.type === 'done') {
+              if (msg.hasReturn) {
+                this.appendLog('return', `=> ${msg.result}`);
+              }
+              cleanup();
+            } else if (msg.type === 'error') {
+              this.renderErrorNotice(msg.message);
+              this.appendLog('error', `RuntimeError: ${msg.message}`);
+              if (msg.stack) {
+                this.appendLog('error', msg.stack);
+              }
+              cleanup();
+            }
+          };
+
+          worker.onerror = (err) => {
+            const msg = err?.message || 'Worker execution error';
+            this.renderErrorNotice(msg);
+            this.appendLog('error', `WorkerError: ${msg}`);
+            cleanup();
+          };
+
+          worker.postMessage({ code: cleanJs, docmdData: docmdSnapshot });
+          return;
+        } catch (workerErr) {
+          // Fallback to inline AsyncFunction if Worker/Blob is blocked by strict CSP
+        }
+      }
+
+      // 2. Fallback AsyncFunction runner (used when Worker is unavailable or blocked by strict CSP)
+      try {
         const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
         const runner = new AsyncFunction('console', 'docmd', cleanJs);
 
@@ -319,6 +477,14 @@
     }
 
     reset() {
+      if (this.activeWorker) {
+        this.activeWorker.terminate();
+        this.activeWorker = null;
+      }
+      if (this.workerTimeout) {
+        clearTimeout(this.workerTimeout);
+        this.workerTimeout = null;
+      }
       if (this.editor) {
         this.editor.value = this.initialCode;
       }
@@ -381,7 +547,7 @@
   window.docmd = window.docmd || {};
   const injectedVars = (typeof window !== 'undefined' && window.__DOCMD_VARIABLES__ && typeof window.__DOCMD_VARIABLES__ === 'object') ? window.__DOCMD_VARIABLES__ : {};
   if (!window.docmd.version) {
-    window.docmd.version = injectedVars.docmd?.version || injectedVars.DOCMD_VERSION || '0.9.9';
+    window.docmd.version = injectedVars.docmd?.version || injectedVars.DOCMD_VERSION || '0.10.0';
   }
   if (!window.docmd.var) {
     window.docmd.var = {

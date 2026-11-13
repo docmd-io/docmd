@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-seo",
-  "version": "0.9.9",
-  "description": "SEO meta tag generator for docmd.",
+  "version": "0.10.0",
+  "description": "Automated SEO meta tags, Open Graph, and Twitter Card generator for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,7 +12,8 @@
     "tagline": "SEO meta tag generator for docmd.",
     "capabilities": [
       "head",
-      "post-build"
+      "post-build",
+      "doctor"
     ]
   },
   "scripts": {
@@ -41,15 +42,12 @@
     "meta-tags",
     "open-graph",
     "twitter-cards",
-    "robots",
-    "sitemap",
-    "favicon",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "social-previews",
+    "structured-data",
+    "schema-org",
+    "canonical",
+    "search-engine-optimisation",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -57,12 +55,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/seo"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

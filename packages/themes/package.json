@@ -1,7 +1,7 @@
 {
   "name": "@docmd/themes",
-  "version": "0.9.9",
-  "description": "Official themes for docmd.",
+  "version": "0.10.0",
+  "description": "Design system, syntax highlighters, and aesthetic stylesheets for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,20 +24,16 @@
   "keywords": [
     "docmd",
     "themes",
-    "theme",
-    "theme-pack",
+    "theme-engine",
+    "templates",
     "css",
-    "scss",
-    "stylesheets",
-    "sky",
-    "retro",
-    "ruby",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "dark-mode",
+    "syntax-highlighting",
+    "styling",
+    "customisation",
+    "branding",
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -45,12 +41,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/themes"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

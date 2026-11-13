@@ -51,6 +51,7 @@ export async function buildSite(configPath: string, opts: any = {}) {
     onProgress: opts.onProgress || null,  // External progress callback
     targetFiles: opts.targetFiles || null, // Optional: only rebuild specific files
     verbose: opts.verbose === true || process.env.DOCMD_VERBOSE === 'true',
+    strict: opts.strict || false,
     // D-H1: honour an explicit `cwd` override. Previously the build always
     // used `process.cwd()`, so calling `buildSite('/abs/path/config.json')`
     // from a different cwd would still look for `docs/` and `site/` next
@@ -99,14 +100,21 @@ export async function buildSite(configPath: string, opts: any = {}) {
 
   // Start build timer
   const elapsed = TUI.timer();
+  const prevDocmdStrict = process.env.DOCMD_STRICT;
 
   // 1. Load Config (Zero-Config aware)
   try {
-    const config = await loadConfig(configPath, { isDev: options.isDev, _globalDefaults: opts._globalDefaults, cwd: options.cwd });
+    const config = await loadConfig(configPath, { isDev: options.isDev, _globalDefaults: opts._globalDefaults, cwd: options.cwd, strict: options.strict || undefined });
     config._workspace = opts._workspace || null;
     config._activePrefix = opts._activePrefix || '/';
     config._globalDefaults = opts._globalDefaults || null;
     config.offline = options.offline || false;
+    if (options.strict) {
+      config.strict = true;
+    }
+    if (config.strict) {
+      process.env.DOCMD_STRICT = 'true';
+    }
     
     // Initialize global WorkerPool (or use provided one)
     const workerScript = path.resolve(__dirname, '../engine/worker-parser.js');
@@ -453,5 +461,11 @@ export async function buildSite(configPath: string, opts: any = {}) {
       process.exit(1);
     }
     throw e;
+  } finally {
+    if (prevDocmdStrict !== undefined) {
+      process.env.DOCMD_STRICT = prevDocmdStrict;
+    } else {
+      delete process.env.DOCMD_STRICT;
+    }
   }
 }

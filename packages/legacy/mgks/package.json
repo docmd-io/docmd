@@ -1,7 +1,7 @@
 {
   "name": "@mgks/docmd",
-  "version": "0.9.9",
-  "description": "Discontinued from 0.8.x, use @docmd/core instead.",
+  "version": "0.10.0",
+  "description": "Legacy @mgks/docmd package redirecting to @docmd/core.",
   "bin": {
     "docmd": "bin/docmd.js"
   },
@@ -13,22 +13,11 @@
   },
   "keywords": [
     "docmd",
+    "mgks",
     "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
     "documentation",
-    "typescript",
-    "javascript",
-    "nodejs",
-    "browser",
-    "website",
-    "generator",
-    "hosted",
-    "cli",
-    "ssg",
-    "docs"
+    "legacy-alias",
+    "redirect"
   ],
   "author": {
     "name": "Ghazi",
@@ -36,12 +25,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/legacy/mgks"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

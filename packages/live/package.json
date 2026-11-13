@@ -1,7 +1,7 @@
 {
   "name": "@docmd/live",
-  "version": "0.9.9",
-  "description": "Browser-based editor engine for docmd.",
+  "version": "0.10.0",
+  "description": "Interactive in-browser live editor and realtime preview runtime for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,15 +42,17 @@
   },
   "keywords": [
     "docmd",
-    "editor",
-    "browser",
-    "live",
-    "parser",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "docs"
+    "live-editor",
+    "preview",
+    "in-browser",
+    "realtime",
+    "markdown-editor",
+    "hot-reload",
+    "browser-ide",
+    "wysiwyg",
+    "documentation",
+    "ssg",
+    "client-side"
   ],
   "author": {
     "name": "Ghazi",
@@ -58,12 +60,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/live"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

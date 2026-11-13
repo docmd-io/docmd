@@ -27,7 +27,7 @@ import process from 'node:process';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { safePath, asUserPath } from '@docmd/utils';
-import type { PluginDescriptor, PluginHooks, PluginModule, Capability, ServerHandle, TemplateHook, TemplateAssetHook } from './types.js';
+import type { PluginDescriptor, PluginHooks, PluginModule, Capability, ServerHandle, TemplateHook, TemplateAssetHook, DoctorCheckResult, DoctorContext } from './types.js';
 import {
   loadRuntimeRegistry,
   installRuntimeDep,
@@ -59,6 +59,7 @@ const CAPABILITY_HOOKS: Record<Capability, string[]> = {
   dev:          ['onDevServerReady'],
   server:       ['onServerReady'],
   template:     ['templates', 'templateAssets'],
+  doctor:       ['onDoctorCheck'],
 };
 
 const KNOWN_CAPABILITIES = new Set(Object.keys(CAPABILITY_HOOKS));
@@ -86,6 +87,7 @@ export const hooks: PluginHooks = {
   onPageReady: [],
   templates: [],
   templateAssets: [],
+  onDoctorCheck: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -272,7 +274,7 @@ export function getPluginLoadErrors() {
  */
 export const CORE_PLUGINS: ReadonlyArray<string> = [
   'search', 'seo', 'sitemap', 'analytics', 'llms',
-  'mermaid', 'git', 'openapi', 'okf', 'ai', 'playground'
+  'mermaid', 'git', 'openapi', 'okf', 'ai', 'playground', 'mdx'
 ] as const;
 
 /** True if `name` is one of the plugins that ship with @docmd/core. */
@@ -342,7 +344,7 @@ export function resolveTemplateName(key: string): string {
 // Load & Register
 // ---------------------------------------------------------------------------
 
-export async function loadPlugins(config: any, opts?: { resolvePaths?: string[]; isDev?: boolean; liveServer?: boolean }): Promise<PluginHooks> {
+export async function loadPlugins(config: any, opts?: { resolvePaths?: string[]; isDev?: boolean; liveServer?: boolean; skipAutoInstall?: boolean }): Promise<PluginHooks> {
   const isDev = Boolean(opts?.isDev ?? config?._isDev ?? (process.env.DOCMD_DEV === 'true'));
   // A production build that a live server (`docmd serve` with actions) will
   // host: plugins that require a live server keep their client assets.
@@ -416,6 +418,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
   hooks.onPageReady = [];
   hooks.templates = [];
   hooks.templateAssets = [];
+  hooks.onDoctorCheck = [];
   pluginErrors.length = 0;
   pluginLoadErrors.length = 0;
 
@@ -483,7 +486,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
       missingOfficial.push(name);
     }
   }
-  if (missingOfficial.length > 1) {
+  if (missingOfficial.length > 1 && !opts?.skipAutoInstall) {
     await preflightEnsureRuntimeDeps({
       plugins: missingOfficial.filter(n => n.startsWith('@docmd/plugin-')),
       templates: missingOfficial.filter(n => n.startsWith('@docmd/template-')),
@@ -582,6 +585,7 @@ export async function loadPlugins(config: any, opts?: { resolvePaths?: string[];
       // Auto-install official plugins AND templates that are missing
       const isOfficial = name.startsWith('@docmd/plugin-') || name.startsWith('@docmd/template-');
       if (needsAutoInstall && isOfficial) {
+        if (opts?.skipAutoInstall) continue;
         const installed = await installRuntimeDep(name);
         if (installed) {
           // Defense in depth: re-verify the package is in the official registry
@@ -1097,4 +1101,45 @@ function registerPlugin(
       TUI.warn(`Plugin "${shortName}" exports onPageReady but didn't declare "build" capability - skipped`);
     }
   }
+
+  // onDoctorCheck
+  if (typeof plugin.onDoctorCheck === 'function') {
+    if (hasCapabilityForHook(descriptor, 'onDoctorCheck') || !descriptor) {
+      hooks.onDoctorCheck.push({
+        pluginName: name,
+        fn: plugin.onDoctorCheck
+      });
+    } else {
+      TUI.warn(`Plugin "${shortName}" exports onDoctorCheck but didn't declare "doctor" capability - skipped`);
+    }
+  }
+}
+
+/**
+ * Execute all registered plugin diagnostic health checks for `docmd doctor`.
+ */
+export async function runPluginDoctorChecks(config: any, projectRoot: string): Promise<Record<string, DoctorCheckResult[]>> {
+  const results: Record<string, DoctorCheckResult[]> = {};
+  for (const entry of hooks.onDoctorCheck) {
+    const shortName = entry.pluginName.replace(/^@docmd\/plugin-/, '');
+    const pluginOptions = config?.plugins?.[shortName] ?? config?.plugins?.[entry.pluginName] ?? {};
+    try {
+      const checkResults = await entry.fn({
+        projectRoot,
+        config,
+        pluginOptions,
+        mode: 'doctor'
+      });
+      if (Array.isArray(checkResults)) {
+        results[shortName] = checkResults;
+      }
+    } catch (err: any) {
+      results[shortName] = [{
+        name: `${shortName} health check`,
+        status: 'error',
+        message: `Plugin threw during diagnostic check: ${err.message}`
+      }];
+    }
+  }
+  return results;
 }

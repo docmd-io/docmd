@@ -1,11 +1,11 @@
 {
   "$meta": {
     "generator": "scripts/build-plugin-registry.mjs",
-    "packageCount": 18
+    "packageCount": 20
   },
   "ai": {
     "package": "@docmd/plugin-ai",
-    "description": "Interactive AI chat with documentation plugin for docmd, powered by docmd-assistant with multi-provider runtime.",
+    "description": "Interactive in-page AI chat assistant grounded in documentation, powered by docmd-assistant.",
     "configKey": "ai",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -22,7 +22,7 @@
   },
   "analytics": {
     "package": "@docmd/plugin-analytics",
-    "description": "Analytics injection plugin for docmd.",
+    "description": "Google Analytics (GA4) integration plugin for docmd sites.",
     "configKey": "analytics",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -35,7 +35,7 @@
   },
   "git": {
     "package": "@docmd/plugin-git",
-    "description": "Git integration plugin for docmd.",
+    "description": "Git-based metadata, contributor histories, and edit links generator for docmd.",
     "configKey": "git",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -50,9 +50,23 @@
       "translations"
     ]
   },
+  "iconify": {
+    "package": "@docmd/plugin-iconify",
+    "description": "Optional Iconify icon integration for docmd documentation containers.",
+    "configKey": "iconify",
+    "defaultConfig": "{}",
+    "kind": "plugin",
+    "displayName": "Iconify Icons",
+    "tagline": "Use 200,000+ open-source icons from Iconify in docmd containers.",
+    "capabilities": [
+      "markdown",
+      "init",
+      "doctor"
+    ]
+  },
   "llms": {
     "package": "@docmd/plugin-llms",
-    "description": "Generate llms.txt context files for AI agents from your docmd site.",
+    "description": "Generates llms.txt and llms-full.txt context files for AI agents at build time.",
     "configKey": "llms",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -64,7 +78,7 @@
   },
   "math": {
     "package": "@docmd/plugin-math",
-    "description": "Mathematics (KaTeX/LaTeX) plugin for docmd.",
+    "description": "LaTeX mathematics plugin for docmd via KaTeX rendering.",
     "configKey": "math",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -75,9 +89,24 @@
       "assets"
     ]
   },
+  "mdx": {
+    "package": "@docmd/plugin-mdx",
+    "description": "Interactive MDX and JSX component support for docmd documentation sites, powered by lite-mdx.",
+    "configKey": "mdx",
+    "defaultConfig": "{}",
+    "kind": "plugin",
+    "displayName": "MDX Support",
+    "tagline": "Author interactive documentation with JSX components and expressions powered by lite-mdx.",
+    "capabilities": [
+      "init",
+      "build",
+      "markdown",
+      "doctor"
+    ]
+  },
   "mermaid": {
     "package": "@docmd/plugin-mermaid",
-    "description": "Mermaid diagram support plugin for docmd.",
+    "description": "Mermaid diagram and flowchart rendering plugin for docmd.",
     "configKey": "mermaid",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -90,7 +119,7 @@
   },
   "okf": {
     "package": "@docmd/plugin-okf",
-    "description": "Generate an Open Knowledge Format (OKF) bundle from your docmd site for AI agent consumption.",
+    "description": "Open Knowledge Format (OKF) bundle generator and manifest emitter for docmd.",
     "configKey": "okf",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -102,7 +131,7 @@
   },
   "openapi": {
     "package": "@docmd/plugin-openapi",
-    "description": "OpenAPI documentation generator plugin for docmd.",
+    "description": "OpenAPI 3.x REST API reference documentation renderer for docmd.",
     "configKey": "openapi",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -115,7 +144,7 @@
   },
   "playground": {
     "package": "@docmd/plugin-playground",
-    "description": "Interactive live code runner and component playground plugin for docmd.",
+    "description": "Interactive JavaScript live code runner and component playground for docmd.",
     "configKey": "playground",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -128,7 +157,7 @@
   },
   "pwa": {
     "package": "@docmd/plugin-pwa",
-    "description": "Progressive Web App (PWA) plugin for docmd.",
+    "description": "Progressive Web App manifest and offline service worker generator for docmd.",
     "configKey": "pwa",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -142,7 +171,7 @@
   },
   "search": {
     "package": "@docmd/plugin-search",
-    "description": "Offline full-text search for docmd.",
+    "description": "Offline full-text search indexer powered by minisearch for docmd sites.",
     "configKey": "search",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -159,7 +188,7 @@
   },
   "seo": {
     "package": "@docmd/plugin-seo",
-    "description": "SEO meta tag generator for docmd.",
+    "description": "Automated SEO meta tags, Open Graph, and Twitter Card generator for docmd.",
     "configKey": "seo",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -167,12 +196,13 @@
     "tagline": "SEO meta tag generator for docmd.",
     "capabilities": [
       "head",
-      "post-build"
+      "post-build",
+      "doctor"
     ]
   },
   "sitemap": {
     "package": "@docmd/plugin-sitemap",
-    "description": "Sitemap generator plugin for docmd.",
+    "description": "Automated sitemap.xml generator for docmd documentation sites.",
     "configKey": "sitemap",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -184,7 +214,7 @@
   },
   "threads": {
     "package": "@docmd/plugin-threads",
-    "description": "Inline discussion threads for docmd.",
+    "description": "Inline discussion threads and Markdown review comments plugin for docmd.",
     "configKey": "threads",
     "defaultConfig": "{}",
     "kind": "plugin",
@@ -201,7 +231,7 @@
   },
   "summer": {
     "package": "@docmd/template-summer",
-    "description": "Summer template for docmd. A bright, hopeful, summer-feel layout with a top search bar and halo accents.",
+    "description": "Official modern clean summer template for docmd documentation sites.",
     "configKey": "summer",
     "defaultConfig": "{}",
     "kind": "template",
@@ -214,32 +244,32 @@
   },
   "js": {
     "package": "@docmd/engine-js",
-    "description": "Default JavaScript engine for docmd using Node.js native APIs.",
+    "description": "Pure JavaScript Markdown parsing and site generation engine for docmd.",
     "configKey": "js",
     "defaultConfig": "{}",
     "kind": "engine",
     "displayName": "js",
-    "tagline": "Default JavaScript engine for docmd using Node.js native APIs.",
+    "tagline": "Pure JavaScript Markdown parsing and site generation engine for docmd.",
     "capabilities": []
   },
   "python": {
     "package": "@docmd/engine-python",
-    "description": "Python-accelerated engine for docmd using Python 3 runtime.",
+    "description": "Python runtime bridge and markdown rendering engine for docmd.",
     "configKey": "python",
     "defaultConfig": "{}",
     "kind": "engine",
     "displayName": "python",
-    "tagline": "Python-accelerated engine for docmd using Python 3 runtime.",
+    "tagline": "Python runtime bridge and markdown rendering engine for docmd.",
     "capabilities": []
   },
   "rust": {
     "package": "@docmd/engine-rust",
-    "description": "Rust-accelerated engine for docmd. The postinstall script downloads a pre-built platform binary from npm CDN (unpkg/jsdelivr). No code is executed beyond copying the .node file. Source: https://github.com/docmd-io/docmd",
+    "description": "High-performance Rust native engine for ultra-fast docmd compilation.",
     "configKey": "rust",
     "defaultConfig": "{}",
     "kind": "engine",
     "displayName": "rust",
-    "tagline": "Rust-accelerated engine for docmd. The postinstall script downloads a pre-built platform binary from npm CDN (unpkg/jsdelivr). No code is executed beyond copying the .node file. Source: https://github.com/docmd-io/docmd",
+    "tagline": "High-performance Rust native engine for ultra-fast docmd compilation.",
     "capabilities": []
   }
 }

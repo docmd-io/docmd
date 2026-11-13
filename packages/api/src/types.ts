@@ -30,7 +30,28 @@ export type Capability =
   | 'build'
   | 'dev'
   | 'server'
-  | 'template';
+  | 'template'
+  | 'doctor';
+
+/** Diagnostic check status */
+export type DoctorCheckStatus = 'ok' | 'warn' | 'error';
+
+/** Result from a plugin's custom diagnostic/health check */
+export interface DoctorCheckResult {
+  name: string;
+  status: DoctorCheckStatus;
+  message: string;
+  hint?: string;
+  fixable?: boolean;
+}
+
+/** Context provided to a plugin's onDoctorCheck hook */
+export interface DoctorContext {
+  projectRoot: string;
+  config: any;
+  pluginOptions?: any;
+  mode: 'doctor';
+}
 
 /**
  * Every plugin should export a `plugin` descriptor.
@@ -285,6 +306,11 @@ export interface PluginModule {
    * capability. Loaded at priority 10 by default so user customCss (15) wins.
    */
   templateAssets?: TemplateAssetHook[];
+
+  /**
+   * Custom diagnostic tests and health checks for `docmd doctor`.
+   */
+  onDoctorCheck?(ctx: DoctorContext): DoctorCheckResult[] | Promise<DoctorCheckResult[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +365,7 @@ export interface DocConfigShape {
   i18n?: Record<string, any>;
   versions?: Record<string, any>;
   workspace?: Record<string, any>;
+  static?: string | string[] | boolean;
   plugins?: Record<string, any>;
   markdown?: {
     breaks?: boolean;
@@ -430,6 +457,8 @@ export interface PluginHooks {
   templates: TemplateHook[];
   /** Asset bundles registered by template plugins. */
   templateAssets: TemplateAssetHook[];
+  /** Diagnostic tests registered by plugins for docmd doctor. */
+  onDoctorCheck: Array<{ pluginName: string; fn: (ctx: DoctorContext) => DoctorCheckResult[] | Promise<DoctorCheckResult[]> }>;
 }
 
 // ---------------------------------------------------------------------------

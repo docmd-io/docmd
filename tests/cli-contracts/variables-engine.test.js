@@ -59,14 +59,14 @@ export const test = runTestFile({
     // 2. Built-in system variables
     {
       const registry = new VariableRegistry({
-        version: '0.9.9',
+        version: '0.10.0',
         siteTitle: 'Docmd Docs',
         siteBase: '/docs/'
       });
 
       const currentYear = String(new Date().getFullYear());
-      assert(registry.get('docmd.version') === '0.9.9', 'Built-in docmd.version matches');
-      assert(registry.get('DOCMD_VERSION') === '0.9.9', 'Built-in DOCMD_VERSION alias matches');
+      assert(registry.get('docmd.version') === '0.10.0', 'Built-in docmd.version matches');
+      assert(registry.get('DOCMD_VERSION') === '0.10.0', 'Built-in DOCMD_VERSION alias matches');
       assert(registry.get('docmd.buildYear') === currentYear, 'Built-in docmd.buildYear matches current year');
       assert(registry.get('BUILD_YEAR') === currentYear, 'Built-in BUILD_YEAR alias matches current year');
       assert(registry.get('site.title') === 'Docmd Docs', 'Built-in site.title matches');
@@ -142,13 +142,13 @@ export const test = runTestFile({
 
       const escapedMarkdown = 'Literal: \\{{ docmd.version }} and Live: {{ docmd.version }}';
       const interpolated = interpolateVariables(escapedMarkdown, registry);
-      assert(interpolated === 'Literal: {{ docmd.version }} and Live: 0.9.9', 'Escaped \\{{ ... }} preserves literal syntax');
+      assert(interpolated === 'Literal: {{ docmd.version }} and Live: 0.10.0', 'Escaped \\{{ ... }} preserves literal syntax');
     }
 
     // 6. Config string interpolation
     {
       const registry = new VariableRegistry({
-        version: '0.9.9',
+        version: '0.10.0',
         siteTitle: 'My Project'
       });
 
@@ -169,11 +169,11 @@ export const test = runTestFile({
 
       const interpolated = interpolateConfigVariables(config, registry);
       assert(
-        interpolated.footer.copyright === `© ${currentYear} Acme Corp. Built with v0.9.9.`,
+        interpolated.footer.copyright === `© ${currentYear} Acme Corp. Built with v0.10.0.`,
         'Config footer copyright interpolated with year and version'
       );
       assert(
-        interpolated.layout.banners.top.content === 'Welcome to My Project — Running on 0.9.9',
+        interpolated.layout.banners.top.content === 'Welcome to My Project — Running on 0.10.0',
         'Config banner content interpolated with site title and version'
       );
     }
@@ -235,7 +235,7 @@ export const test = runTestFile({
       const currentYear = new Date().getFullYear();
       const registry = new VariableRegistry({
         siteTitle: 'Docmd Guide',
-        version: '0.9.9',
+        version: '0.10.0',
         gitCommit: 'abc1234',
         gitBranch: 'main',
         configVariables: {
@@ -255,7 +255,7 @@ export const test = runTestFile({
         }
       });
 
-      assert(clientVars.docmd && clientVars.docmd.version === '0.9.9', 'clientVars includes docmd.version');
+      assert(clientVars.docmd && clientVars.docmd.version === '0.10.0', 'clientVars includes docmd.version');
       assert(clientVars.docmd && clientVars.docmd.buildYear === String(currentYear), 'clientVars includes docmd.buildYear');
       assert(clientVars.site && clientVars.site.title === 'Docmd Guide', 'clientVars includes site.title');
       assert(clientVars.apiBase === 'https://api.example.com', 'clientVars includes user configVariables');

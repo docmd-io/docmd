@@ -34,7 +34,10 @@ export default [
         getComputedStyle: 'readonly',
         navigator: 'readonly',
         location: 'readonly',
-        URL: 'readonly'
+        URL: 'readonly',
+        Blob: 'readonly',
+        Worker: 'readonly',
+        self: 'readonly'
       }
     },
     rules: {

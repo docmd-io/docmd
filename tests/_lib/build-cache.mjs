@@ -94,7 +94,7 @@ export function tryHit(dir, configPath) {
     const key = hash(snap);
     const cachedSite = path.join(cacheDirFor(key), 'site');
     const entry = path.join(cacheDirFor(key), 'output.json');
-    if (!fs.existsSync(entry) || !fs.existsSync(cachedSite)) return null;
+    if (!fs.existsSync(entry) || !fs.existsSync(cachedSite) || !fs.existsSync(path.join(cachedSite, 'index.html'))) return null;
     try {
         const out = JSON.parse(fs.readFileSync(entry, 'utf8'));
         if (!out.ok) return null;  // never cache a failure — operator must see fresh runs

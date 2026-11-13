@@ -75,13 +75,76 @@ function updateDockerVersion() {
   }
 }
 
+function updateEcosystemFallbacks(v) {
+  // 1. packages/parser/src/variables/registry.ts fallback
+  const regPath = path.join(packagesDir, 'parser', 'src', 'variables', 'registry.ts');
+  if (fs.existsSync(regPath)) {
+    let content = fs.readFileSync(regPath, 'utf8');
+    content = content.replace(/return\s*['"][\d.]+['"];(\s*\/\/\s*Fallback|\s*})/i, `return '${v}';$1`);
+    fs.writeFileSync(regPath, content);
+    console.log(`Updated Registry Fallback → ${v}`);
+  }
+
+  // 2. packages/live/src/browser-entry.ts
+  const liveEntry = path.join(packagesDir, 'live', 'src', 'browser-entry.ts');
+  if (fs.existsSync(liveEntry)) {
+    let content = fs.readFileSync(liveEntry, 'utf8');
+    content = content.replace(/(const LIVE_VERSION = typeof __DOCMD_VERSION__ !== 'undefined' \? __DOCMD_VERSION__ : )['"][\d.]+['"]/, `$1'${v}'`);
+    fs.writeFileSync(liveEntry, content);
+    console.log(`Updated Live Browser Entry Fallback → ${v}`);
+  }
+
+  // 3. packages/ui/assets/js/docmd-runtime.js
+  const runtimePath = path.join(packagesDir, 'ui', 'assets', 'js', 'docmd-runtime.js');
+  if (fs.existsSync(runtimePath)) {
+    let content = fs.readFileSync(runtimePath, 'utf8');
+    content = content.replace(/(this\.version = injected\.docmd\?\.version \|\| injected\.DOCMD_VERSION \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    content = content.replace(/(return this\._runtime\.version \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    content = content.replace(/(version: this\._runtime\.version \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    fs.writeFileSync(runtimePath, content);
+    console.log(`Updated docmd-runtime.js Fallback → ${v}`);
+  }
+
+  // 4. packages/plugins/playground/assets/js/playground.js
+  const pgPath = path.join(packagesDir, 'plugins', 'playground', 'assets', 'js', 'playground.js');
+  if (fs.existsSync(pgPath)) {
+    let content = fs.readFileSync(pgPath, 'utf8');
+    content = content.replace(/(version: window\.docmd\?\.version \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    content = content.replace(/(version: docmdData\.version \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    content = content.replace(/(window\.docmd\.version = injectedVars\.docmd\?\.version \|\| injectedVars\.DOCMD_VERSION \|\| )['"][\d.]+['"]/, `$1'${v}'`);
+    fs.writeFileSync(pgPath, content);
+    console.log(`Updated Playground Fallback → ${v}`);
+  }
+
+  // 5. packages/templates/summer/templates/layout.ejs
+  const layoutPath = path.join(packagesDir, 'templates', 'summer', 'templates', 'layout.ejs');
+  if (fs.existsSync(layoutPath)) {
+    let content = fs.readFileSync(layoutPath, 'utf8');
+    content = content.replace(/(coreVersion\s*:\s*)['"][\d.]+['"]/, `$1'${v}'`);
+    fs.writeFileSync(layoutPath, content);
+    console.log(`Updated Summer Layout Fallback → ${v}`);
+  }
+
+  // 6. packages/live/src/index.html
+  const liveHtml = path.join(packagesDir, 'live', 'src', 'index.html');
+  if (fs.existsSync(liveHtml)) {
+    let content = fs.readFileSync(liveHtml, 'utf8');
+    content = content.replace(/<meta name="generator" content="docmd v[\d.]+">/, `<meta name="generator" content="docmd v${v}">`);
+    fs.writeFileSync(liveHtml, content);
+    console.log(`Updated Live HTML Generator Tag → ${v}`);
+  }
+}
+
 // 1️⃣ Update root
 updateVersion(path.join(root, "package.json"));
 
 // 2️⃣ Update Docker version references
 updateDockerVersion();
 
-// 2️⃣ Recursively update all packages
+// 3️⃣ Update ecosystem fallback strings
+updateEcosystemFallbacks(newVersion);
+
+// 4️⃣ Recursively update all packages
 function walk(dir) {
   for (const entry of fs.readdirSync(dir)) {
     if (['node_modules', 'dist', '.build'].includes(entry)) continue;

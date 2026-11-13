@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-git",
-  "version": "0.9.9",
-  "description": "Git integration plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Git-based metadata, contributor histories, and edit links generator for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -46,18 +46,15 @@
     "docmd",
     "plugin",
     "git",
-    "github",
-    "gitlab",
-    "last-updated",
+    "git-history",
     "contributors",
+    "last-updated",
+    "changelog",
+    "vcs",
     "edit-link",
-    "markdown",
+    "repository",
     "documentation",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -65,12 +62,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/git"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

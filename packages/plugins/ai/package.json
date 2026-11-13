@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-ai",
-  "version": "0.9.9",
-  "description": "Interactive AI chat with documentation plugin for docmd, powered by docmd-assistant with multi-provider runtime.",
+  "version": "0.10.0",
+  "description": "Interactive in-page AI chat assistant grounded in documentation, powered by docmd-assistant.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -45,11 +45,17 @@
     "plugin",
     "ai",
     "chat",
-    "llm",
-    "aiplug",
     "rag",
     "assistant",
-    "docs"
+    "llm",
+    "vector-search",
+    "embeddings",
+    "ollama",
+    "openai",
+    "anthropic",
+    "gemini",
+    "documentation",
+    "interactive"
   ],
   "author": {
     "name": "Ghazi",
@@ -57,11 +63,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/ai"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "license": "MIT"
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/docmd-io"
 }

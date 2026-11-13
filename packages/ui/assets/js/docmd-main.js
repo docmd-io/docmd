@@ -755,6 +755,24 @@
     const pageCache = new Map();
     let prefetchTimer = null;
 
+    function isSpaNavigable(url) {
+      if (!url) return false;
+      if (url.origin !== location.origin) return false;
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+
+      // Bypass static non-HTML assets (e.g. .txt, .pdf, .json, .zip, .png, etc.)
+      const pathname = url.pathname.replace(/\/+$/, '');
+      const lastSegment = pathname.split('/').pop() || '';
+      const dotIndex = lastSegment.lastIndexOf('.');
+      if (dotIndex > 0) {
+        const ext = lastSegment.slice(dotIndex + 1).toLowerCase();
+        if (ext !== 'html' && ext !== 'htm') {
+          return false;
+        }
+      }
+      return true;
+    }
+
     // Intent-based Hover Prefetching
     document.addEventListener('mouseover', (e) => {
       const link = e.target.closest('.sidebar-nav a, .page-navigation a, .page-footer a, .main-content a');
@@ -763,16 +781,16 @@
       const rel = link.getAttribute('rel') || '';
       if (rawTarget === '_blank' || rel.includes('noopener') || rel.includes('external') || link.hasAttribute('download') || link.hasAttribute('data-spa-ignore')) return;
 
-      const url = new URL(link.href).href;
-      if (new URL(url).origin !== location.origin) return;
-      if (pageCache.has(url)) return;
+      let parsedUrl;
+      try { parsedUrl = new URL(link.href); } catch { return; }
+      if (!isSpaNavigable(parsedUrl)) return;
+      if (pageCache.has(parsedUrl.href)) return;
 
       // Wait 65ms to ensure the user actually intends to click
       clearTimeout(prefetchTimer);
       prefetchTimer = setTimeout(() => {
         // Prefetch using hash-stripped URL - the fragment is never sent to the server
-        const prefetchUrl = new URL(link.href);
-        const prefetchFetchUrl = prefetchUrl.origin + prefetchUrl.pathname + prefetchUrl.search;
+        const prefetchFetchUrl = parsedUrl.origin + parsedUrl.pathname + parsedUrl.search;
         if (pageCache.has(prefetchFetchUrl)) return;
         pageCache.set(prefetchFetchUrl, fetch(prefetchFetchUrl).then(res => {
           if (!res.ok) throw new Error('Prefetch failed');
@@ -799,8 +817,9 @@
       // toggle handler above only prevents default for dummy <span>s and
       // chevron clicks, so this branch is safe to fall through.
 
-      const url = new URL(link.href);
-      if (url.origin !== location.origin) return;
+      let url;
+      try { url = new URL(link.href); } catch { return; }
+      if (!isSpaNavigable(url)) return;
 
       // Same-page hash navigation: scroll to the target element smoothly
       // without a full SPA fetch. The browser's native behaviour doesn't
@@ -850,6 +869,11 @@
         } else {
           const res = await fetch(fetchUrl);
           if (!res.ok) throw new Error('Fetch failed');
+          const contentType = (res.headers.get('content-type') || '').toLowerCase();
+          if (contentType && !contentType.includes('text/html')) {
+            window.location.assign(url);
+            return;
+          }
           data = { html: await res.text(), finalUrl: res.url };
           pageCache.set(fetchUrl, Promise.resolve(data));
         }
@@ -860,8 +884,9 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        // If target page is not SPA-compatible (e.g. noStyle), do a full redirect
-        if (doc.body.dataset.spaEnabled === 'false') {
+        // If target page is not SPA-compatible or lacks docmd content structure, do a full redirect
+        const hasDocmdContent = !!doc.querySelector('.main-content, .summer-content, .content-layout');
+        if (!hasDocmdContent || doc.body?.dataset.spaEnabled === 'false') {
           window.location.assign(url);
           return;
         }
@@ -870,14 +895,59 @@
         currentPath = new URL(finalUrl).pathname;
         document.title = doc.title;
 
-        // Sync head inline scripts to update DOCMD_ROOT, DOCMD_BASE, etc.
+        // Sync head inline scripts to update DOCMD_ROOT, DOCMD_BASE, etc. without eval/new Function (CSP compliant)
         const inlineScripts = doc.head.querySelectorAll('script:not([src])');
         inlineScripts.forEach(script => {
-          if (script.textContent && script.textContent.includes('window.DOCMD_')) {
-            const fn = new Function(script.textContent);
-            try { fn(); } catch(e) { console.error(e); }
+          const text = script.textContent || '';
+          if (!text.includes('DOCMD_')) return;
+
+          // Parse root variable if present: var root = "...";
+          let parsedRoot = null;
+          const rootMatch = text.match(/var\s+root\s*=\s*["']([^"']*)["']/);
+          if (rootMatch) {
+            parsedRoot = rootMatch[1];
+            if (parsedRoot && !parsedRoot.endsWith('/')) parsedRoot += '/';
+            if (parsedRoot === '') parsedRoot = './';
+          }
+
+          // Match JSON objects e.g. window.DOCMD_I18N = { ... };
+          const jsonMatches = text.matchAll(/(?:window\.)?(DOCMD_[A-Z0-9_]+)\s*=\s*(\{[\s\S]*?\})\s*;/g);
+          for (const m of jsonMatches) {
+            try { window[m[1]] = JSON.parse(m[2]); } catch (_) { /* ignore */ }
+          }
+
+          // Match string assignments: window.DOCMD_VAR = "..." || './'; or '...' or root;
+          const strMatches = text.matchAll(/(?:window\.)?(DOCMD_[A-Z0-9_]+)\s*=\s*(?:["']([^"']*)["'](?:\s*\|\|\s*["']([^"']*)["'])?|([a-zA-Z0-9_]+))\s*;/g);
+          for (const m of strMatches) {
+            const varName = m[1];
+            if (varName in window && window[varName] && typeof window[varName] === 'object') continue;
+            let val = m[2];
+            if (val === undefined && m[4] === 'root' && parsedRoot !== null) {
+              val = parsedRoot;
+            } else if (val === '' && m[3] !== undefined) {
+              val = m[3];
+            }
+            if (val !== undefined) {
+              window[varName] = val;
+            }
           }
         });
+
+        // Also sync #docmd-locale-pages if present in target doc
+        const localeScript = doc.getElementById('docmd-locale-pages');
+        if (localeScript && localeScript.textContent) {
+          try {
+            window.DOCMD_LOCALE_PAGES = JSON.parse(localeScript.textContent);
+            let curLocaleEl = document.getElementById('docmd-locale-pages');
+            if (!curLocaleEl) {
+              curLocaleEl = document.createElement('script');
+              curLocaleEl.id = 'docmd-locale-pages';
+              curLocaleEl.type = 'application/json';
+              document.head.appendChild(curLocaleEl);
+            }
+            curLocaleEl.textContent = localeScript.textContent;
+          } catch (_) { /* ignore */ }
+        }
 
         // Re-resolve and apply theme based on new page configuration and user localStorage preference
         const localValue = localStorage.getItem('docmd-theme');

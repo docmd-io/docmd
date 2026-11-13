@@ -14,7 +14,7 @@
 
 import { createMarkdownProcessor, processContent, processContentAsync, flushNormaliserWarnings, setNormaliserVerbose } from './markdown-processor.js';
 import { renderTemplateAsync } from './html-renderer.js';
-import { renderIcon } from './utils/icon-renderer.js';
+import { renderIcon, registerIconResolver, clearIconResolvers, type IconResolver } from './utils/icon-renderer.js';
 import { validateConfig } from './utils/validator.js';
 
 export {
@@ -27,6 +27,9 @@ export {
 
   // Utils
   renderIcon,
+  registerIconResolver,
+  clearIconResolvers,
+  type IconResolver,
   flushNormaliserWarnings,
   setNormaliserVerbose
 };

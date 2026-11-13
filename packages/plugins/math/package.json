@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-math",
-  "version": "0.9.9",
-  "description": "Mathematics (KaTeX/LaTeX) plugin for docmd.",
+  "version": "0.10.0",
+  "description": "LaTeX mathematics plugin for docmd via KaTeX rendering.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -35,14 +35,15 @@
     "docmd",
     "plugin",
     "math",
-    "latex",
     "katex",
-    "markdown",
+    "latex",
+    "mathematics",
+    "equations",
+    "formula",
+    "client-side",
+    "scientific",
     "documentation",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "docs"
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -50,12 +51,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/math"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

@@ -136,7 +136,7 @@ function tabsRule(state: any, startLine: number, endLine: number, silent: boolea
       continue;
     }
 
-    const tabMatch = trimmedLine.match(/^(?::::\s*tab|==\s*tab)(?:\s+(.*))?$/i);
+    const tabMatch = trimmedLine.match(/^(?::::\s*tab|={2,3}\s*(?:tab\b)?)(?:\s+(.*))?$/i);
 
     if (nestedDepth === 0 && (trimmedLine === ':::' || /^:::\s*(\/tab|endtab|\/tabs|endtabs)\b/i.test(trimmedLine))) {
       if (currentTab) {
@@ -153,7 +153,13 @@ function tabsRule(state: any, startLine: number, endLine: number, silent: boolea
         currentTab.content = smartDedent(currentContentLines.join('\n'));
         tabs.push(currentTab);
       }
-      const { title, icon } = parseTitleAndIcon(tabMatch[1] || '');
+      const rawInfo = (tabMatch[1] || '').trim();
+      const parsed = parseTitleAndIcon(rawInfo);
+      let title = parsed.title;
+      const icon = parsed.icon;
+      if (rawInfo && !rawInfo.includes('"') && !rawInfo.includes("'") && !rawInfo.includes(':') && !rawInfo.includes('=')) {
+        title = stripContainerComment(rawInfo);
+      }
       currentTab = { title: title || 'Tab', icon, content: '' };
       currentContentLines = [];
     } else if (currentTab) {

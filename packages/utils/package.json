@@ -1,7 +1,7 @@
 {
   "name": "@docmd/utils",
-  "version": "0.9.9",
-  "description": "Zero-dependency shared utilities for docmd core.",
+  "version": "0.10.0",
+  "description": "Shared path, string, security, and filesystem utilities for docmd packages.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,21 +26,16 @@
   },
   "keywords": [
     "docmd",
-    "ui",
-    "templates",
-    "assets",
-    "layout",
-    "html",
-    "css",
-    "scss",
-    "kit",
-    "base",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "utilities",
+    "helpers",
+    "safepath",
+    "html-escape",
+    "string-tools",
+    "filesystem",
+    "shared-utils",
+    "isomorphic",
+    "documentation",
+    "typescript"
   ],
   "author": {
     "name": "Ghazi",
@@ -48,12 +43,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/utils"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

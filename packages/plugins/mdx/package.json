@@ -1,0 +1,71 @@
+{
+  "name": "@docmd/plugin-mdx",
+  "version": "0.10.0",
+  "description": "Interactive MDX and JSX component support for docmd documentation sites, powered by lite-mdx.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "docmd": {
+    "key": "mdx",
+    "kind": "plugin",
+    "displayName": "MDX Support",
+    "tagline": "Author interactive documentation with JSX components and expressions powered by lite-mdx.",
+    "capabilities": [
+      "init",
+      "build",
+      "markdown",
+      "doctor"
+    ]
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "lite-mdx": "^0.1.1"
+  },
+  "peerDependencies": {
+    "@docmd/api": "workspace:*",
+    "@docmd/parser": "workspace:*"
+  },
+  "devDependencies": {
+    "@docmd/api": "workspace:*",
+    "@docmd/parser": "workspace:*",
+    "@docmd/tui": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "docmd",
+    "plugin",
+    "mdx",
+    "jsx",
+    "components",
+    "lite-mdx",
+    "interactive-docs",
+    "react-style",
+    "expressions",
+    "compound-tags",
+    "zero-dependency",
+    "documentation"
+  ],
+  "author": {
+    "name": "docmd.io",
+    "url": "https://docmd.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/mdx"
+  },
+  "license": "MIT",
+  "homepage": "https://docmd.io",
+  "funding": "https://github.com/sponsors/docmd-io",
+  "bugs": {
+    "url": "https://github.com/docmd-io/docmd/issues"
+  }
+}

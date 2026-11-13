@@ -1,7 +1,7 @@
 {
   "name": "@docmd/engine-rust",
-  "version": "0.9.9",
-  "description": "Rust-accelerated engine for docmd. The postinstall script downloads a pre-built platform binary from npm CDN (unpkg/jsdelivr). No code is executed beyond copying the .node file. Source: https://github.com/docmd-io/docmd",
+  "version": "0.10.0",
+  "description": "High-performance Rust native engine for ultra-fast docmd compilation.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,15 +29,14 @@
   "keywords": [
     "docmd",
     "engine",
+    "rust-engine",
+    "compiler",
+    "napi",
+    "native-addons",
+    "high-performance",
+    "fast-compiler",
     "rust",
-    "native",
-    "performance",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "documentation",
-    "docs"
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -45,12 +44,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/engines/rust"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

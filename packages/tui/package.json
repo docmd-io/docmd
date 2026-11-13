@@ -1,7 +1,7 @@
 {
   "name": "@docmd/tui",
-  "version": "0.9.9",
-  "description": "Terminal User Interface (TUI) design system for docmd.",
+  "version": "0.10.0",
+  "description": "Structured terminal interface, logging, and diagnostics output for docmd CLI.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,13 +29,17 @@
   },
   "keywords": [
     "docmd",
-    "documentation",
     "tui",
-    "terminal",
+    "terminal-ui",
     "cli",
-    "design-system",
-    "chalk",
-    "docs"
+    "console",
+    "formatting",
+    "progress-bar",
+    "diagnostics",
+    "logging",
+    "terminal",
+    "developer-tools",
+    "nodejs"
   ],
   "author": {
     "name": "Ghazi",
@@ -43,12 +47,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/tui"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

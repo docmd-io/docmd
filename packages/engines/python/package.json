@@ -1,7 +1,7 @@
 {
   "name": "@docmd/engine-python",
-  "version": "0.9.9",
-  "description": "Python-accelerated engine for docmd using Python 3 runtime.",
+  "version": "0.10.0",
+  "description": "Python runtime bridge and markdown rendering engine for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,14 +27,14 @@
   "keywords": [
     "docmd",
     "engine",
+    "python-engine",
+    "compiler",
+    "markdown-engine",
     "python",
+    "pyodide",
+    "cross-language",
     "performance",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "documentation",
-    "docs"
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -42,12 +42,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/engines/python"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

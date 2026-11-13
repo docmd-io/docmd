@@ -1,7 +1,7 @@
 {
   "name": "@docmd/api",
-  "version": "0.9.9",
-  "description": "Plugin API surface for docmd.",
+  "version": "0.10.0",
+  "description": "Public API, plugin contracts, and hook interfaces for the docmd documentation engine.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,16 +39,18 @@
   "keywords": [
     "docmd",
     "documentation",
-    "api",
-    "plugin",
+    "plugin-api",
     "hooks",
-    "rpc",
+    "runtime",
+    "extension-api",
     "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
+    "typescript",
+    "ssg",
+    "developer-tools",
     "static-site-generator",
-    "docs"
+    "plugins",
+    "lifecycle",
+    "mcp"
   ],
   "author": {
     "name": "Ghazi",
@@ -56,12 +58,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/api"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

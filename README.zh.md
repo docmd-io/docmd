@@ -53,7 +53,7 @@
 npx @docmd/core dev
 ```
 
-打开 `http://localhost:3000`。
+打开 `http://127.0.0.1:3000`。
 
 大功告成。目录导航将根据您的文件结构自动生成。无需配置文件、Frontmatter 或学习任何框架。
 

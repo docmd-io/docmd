@@ -110,9 +110,51 @@ function flag(status: string): string {
     case 'DONE': return chalk.green('[ DONE ]');
     case 'FAIL': return chalk.red  ('[ FAIL ]');
     case 'SKIP': return chalk.yellow('[ SKIP ]');
-    case 'WAIT': return chalk.blue ('[ WAIT ]');
+    case 'WAIT': return chalk.cyan ('[ WAIT ]');
+    case 'INFO': return chalk.blue ('[ INFO ]');
+    case 'WARN': return chalk.yellow('[ WARN ]');
     default:     return chalk.blue (`[ ${status.padEnd(4)} ]`);
   }
+}
+
+export interface ScopedLogger {
+  step: (label: string, status?: 'DONE'|'WAIT'|'SKIP'|'FAIL'|string) => void;
+  info: (msg: string) => void;
+  success: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string, detail?: string) => void;
+  progress: (label: string, current: number, total: number) => void;
+}
+
+export function createLogger(scope: string): ScopedLogger {
+  const prefix = chalk.dim(`[${scope}]`).padEnd(10);
+  return {
+    step: (label: string, status: 'DONE'|'WAIT'|'SKIP'|'FAIL'|string = 'WAIT') => {
+      TUI.step(`${prefix} ${label}`, status);
+    },
+    info: (msg: string) => {
+      commitState();
+      console.log(`${flag('INFO')} ${prefix} ${msg}`);
+    },
+    success: (msg: string) => {
+      commitState();
+      console.log(`${flag('DONE')} ${prefix} ${chalk.bold(msg)}`);
+    },
+    warn: (msg: string) => {
+      commitState();
+      console.log(`${flag('WARN')} ${prefix} ${msg}`);
+    },
+    error: (msg: string, detail?: string) => {
+      commitState();
+      console.error(`${flag('FAIL')} ${prefix} ${chalk.red(msg)}`);
+      if (detail) {
+        detail.split('\n').forEach(l => console.error(`         ${prefix} ${chalk.dim(l)}`));
+      }
+    },
+    progress: (label: string, current: number, total: number) => {
+      TUI.progress(`${prefix} ${label}`, current, total);
+    }
+  };
 }
 
 /**
@@ -221,6 +263,9 @@ export const TUI = {
     }
   },
 
+  createLogger,
+  scoped: createLogger,
+
   footer: (_color = chalk.cyan) => {
     commitState();
     _sectionOpen = false;
@@ -228,22 +273,22 @@ export const TUI = {
 
   info: (msg: string) => {
     commitState();
-    console.log(`\n${chalk.blue('[ INFO ]')} ${msg}`);
+    console.log(`${flag('INFO')} ${msg}`);
   },
 
   success: (msg: string) => {
     commitState();
-    console.log(`\n${chalk.green.bold('[ DONE ]')} ${chalk.bold(msg)}`);
+    console.log(`${flag('DONE')} ${chalk.bold(msg)}`);
   },
 
   warn: (msg: string) => {
     commitState();
-    console.log(`${chalk.yellow.bold('[ WARN ]')} ${chalk.yellow(msg)}`);
+    console.log(`${flag('WARN')} ${msg}`);
   },
 
   error: (msg: string, detail?: string) => {
     commitState();
-    console.error(`\n${chalk.red.bold('[ FAIL ]')} ${chalk.red(msg)}`);
+    console.error(`${flag('FAIL')} ${chalk.red(msg)}`);
     if (detail) {
       detail.split('\n').forEach(l => console.error(`         ${chalk.dim(l)}`));
     }
@@ -253,7 +298,7 @@ export const TUI = {
 
   progress: (label: string, current: number, total: number, _barColor = chalk.cyan) => {
     const bar  = renderBar(current, total);
-    const line = `${chalk.blue('[ WAIT ]')} ${chalk.cyan(bar)} ${chalk.dim(label)}`;
+    const line = `${flag('WAIT')} ${chalk.cyan(bar)} ${chalk.dim(label)}`;
 
     if (!isTTY()) {
       const pct = total > 0 ? Math.round((current / total) * 100) : 0;

@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-sitemap",
-  "version": "0.9.9",
-  "description": "Sitemap generator plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Automated sitemap.xml generator for docmd documentation sites.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -31,15 +31,15 @@
     "docmd",
     "plugin",
     "sitemap",
-    "xml",
-    "url",
+    "sitemap-xml",
+    "crawlers",
+    "indexing",
     "seo",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "xml",
+    "search-engine",
+    "automated",
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -47,12 +47,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/sitemap"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

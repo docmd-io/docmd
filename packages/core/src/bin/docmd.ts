@@ -33,10 +33,18 @@ import { installPlugin, removePlugin } from '@docmd/plugin-installer';
 const pkgUrl = new URL('../../package.json', import.meta.url);
 const { version } = JSON.parse(readFileSync(pkgUrl, 'utf-8'));
 
+process.stdout.on('error', (err: any) => {
+  if (err?.code === 'EPIPE') process.exit(0);
+});
+process.stderr.on('error', (err: any) => {
+  if (err?.code === 'EPIPE') process.exit(0);
+});
+
 const args = process.argv.slice(2);
 
 const options = {
   config: { type: 'string', short: 'c' },
+  strict: { type: 'boolean' },
   offline: { type: 'boolean' },
   port: { type: 'string', short: 'p' },
   host: { type: 'string' },
@@ -47,6 +55,7 @@ const options = {
   help: { type: 'boolean', short: 'h' },
   force: { type: 'boolean' },
   yes: { type: 'boolean', short: 'y' },
+  'no-open': { type: 'boolean' },
   json: { type: 'boolean' }
 } as const;
 
@@ -102,6 +111,7 @@ if (!command || values.help) {
   TUI.section('Options');
   const optsList = [
     ['-c, --config', 'Path to config (default: docmd.config.js)'],
+    ['--strict', 'Fail build/validation if any referenced file or asset is missing'],
     ['-p, --port', 'Port to run server'],
     ['--host', 'Interface to bind (default 127.0.0.1; 0.0.0.0 for all)'],
     ['--offline', 'Optimise for file:// viewing'],
@@ -110,6 +120,7 @@ if (!command || values.help) {
     ['-v, --version', 'Output the version number'],
     ['-h, --help', 'Display help for command'],
     ['--force', 'Overwrite existing files (use with init)'],
+    ['--no-open', 'Do not auto-open browser on dev server start'],
     ['-y, --yes', 'Answer "yes" to all prompts (use with init in CI)']
   ];
   optsList.forEach(([o, d]) => TUI.item(o, d, TUI.cyan));
@@ -136,14 +147,26 @@ if (
 
 const opts = {
   config: values.config || 'docmd.config.js',
+  strict: values.strict,
   offline: values.offline,
   port: values.port,
   host: values.host,
   buildOnly: values['build-only'],
+  noOpen: values['no-open'],
   verbose: values.verbose,
   force: values.force,
   json: values.json
 };
+
+if (opts.noOpen) {
+  process.env.DOCMD_NO_OPEN = 'true';
+}
+
+// `--strict` is a global flag: any missing sourced snippets, broken containers,
+// or critical validation errors immediately fail CI with exit code 1.
+if (opts.strict) {
+  process.env.DOCMD_STRICT = 'true';
+}
 
 // `--verbose` is a global flag: it must be honoured by every command,
 // not just `add` / `remove`. Setting DOCMD_VERBOSE in the process
@@ -165,7 +188,7 @@ if (command !== 'stop' && command !== 'mcp' && !values.json) {
 if (command === 'init') {
   initProject({ force: values.force, yes: values.yes });
 } else if (command === 'build') {
-  buildSite(opts.config, { isDev: false, offline: opts.offline, verbose: opts.verbose })
+  buildSite(opts.config, { isDev: false, offline: opts.offline, verbose: opts.verbose, strict: opts.strict })
     .then(() => {
       process.exit(0);
     })
@@ -329,7 +352,7 @@ if (command === 'init') {
     process.exit(1);
   });
 } else if (command === 'validate') {
-  validateProject({ json: opts.json }).catch((e) => {
+  validateProject({ json: opts.json, strict: opts.strict }).catch((e) => {
     console.error(e);
     process.exit(1);
   });

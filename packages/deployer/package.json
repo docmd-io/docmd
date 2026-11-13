@@ -1,7 +1,7 @@
 {
   "name": "@docmd/deployer",
-  "version": "0.9.9",
-  "description": "Deployment configuration generator for docmd - Docker, Nginx, Caddy, GitHub Pages, Vercel, and Netlify.",
+  "version": "0.10.0",
+  "description": "Deployment adapters and static site publisher for docmd sites.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -23,15 +23,19 @@
   "keywords": [
     "docmd",
     "deployer",
-    "docker",
-    "nginx",
-    "caddy",
+    "deployment",
+    "hosting",
+    "static-hosting",
     "github-pages",
+    "cloudflare-pages",
     "vercel",
     "netlify",
-    "deployment",
-    "static-site-generator",
-    "docs"
+    "docker",
+    "caddy",
+    "nginx",
+    "ci-cd",
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -39,12 +43,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/deployer"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

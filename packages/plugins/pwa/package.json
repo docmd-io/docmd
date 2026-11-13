@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-pwa",
-  "version": "0.9.9",
-  "description": "Progressive Web App (PWA) plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Progressive Web App manifest and offline service worker generator for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -39,16 +39,14 @@
     "docmd",
     "plugin",
     "pwa",
-    "progressive-web-app",
     "service-worker",
-    "manifest",
-    "offline",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "offline-first",
+    "web-manifest",
+    "cache-busting",
+    "installable",
+    "offline-docs",
+    "progressive-web-app",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -56,12 +54,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/pwa"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

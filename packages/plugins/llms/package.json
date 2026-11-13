@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-llms",
-  "version": "0.9.9",
-  "description": "Generate llms.txt context files for AI agents from your docmd site.",
+  "version": "0.10.0",
+  "description": "Generates llms.txt and llms-full.txt context files for AI agents at build time.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,18 +30,16 @@
   "keywords": [
     "docmd",
     "plugin",
-    "llms",
-    "ai",
-    "context",
-    "agents",
-    "text-generation",
-    "documentation",
+    "llms-txt",
+    "ai-context",
     "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "agentic-ai",
+    "cursor",
+    "copilot",
+    "rag",
+    "prompts",
+    "machine-readable",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -49,12 +47,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/llms"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

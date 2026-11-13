@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-playground",
-  "version": "0.9.9",
-  "description": "Interactive live code runner and component playground plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Interactive JavaScript live code runner and component playground for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,14 +40,14 @@
     "docmd",
     "plugin",
     "playground",
+    "live-runner",
+    "interactive-code",
     "code-runner",
-    "live-code",
-    "repl",
+    "web-worker",
     "sandbox",
-    "interactive",
-    "javascript",
-    "html",
-    "docs"
+    "javascript-runner",
+    "console",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -55,11 +55,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/playground"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "license": "MIT"
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/docmd-io"
 }

@@ -136,7 +136,17 @@ export async function findAvailablePort(startPort: number): Promise<number> {
  * container — the official image sets DOCMD_CONTAINER=true for this.
  */
 export function openBrowser(url: string): void {
-  if (process.env.DOCMD_CONTAINER === 'true') return;
+  if (
+    process.env.DOCMD_CONTAINER === 'true' ||
+    process.env.DOCMD_TEST === 'true' ||
+    process.env.DOCMD_TEST === '1' ||
+    process.env.DOCMD_NO_OPEN === 'true' ||
+    process.env.DOCMD_NO_OPEN === '1' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.CI === 'true'
+  ) {
+    return;
+  }
 
   let command = 'xdg-open';
   let args = [url];

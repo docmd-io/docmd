@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-openapi",
-  "version": "0.9.9",
-  "description": "OpenAPI documentation generator plugin for docmd.",
+  "version": "0.10.0",
+  "description": "OpenAPI 3.x REST API reference documentation renderer for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -47,13 +47,13 @@
     "plugin",
     "openapi",
     "swagger",
-    "rest",
-    "api-docs",
-    "documentation",
-    "markdown",
-    "static-site-generator",
-    "zero-config",
-    "docs"
+    "api-reference",
+    "json-schema",
+    "rest-api",
+    "api-documentation",
+    "spec-viewer",
+    "interactive-api",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -61,12 +61,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/openapi"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

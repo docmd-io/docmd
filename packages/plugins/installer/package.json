@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-installer",
-  "version": "0.9.9",
-  "description": "Installer utility to add and remove plugins for docmd.",
+  "version": "0.10.0",
+  "description": "Package installer and dependency resolver for docmd add and docmd remove commands.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,16 +24,15 @@
   "keywords": [
     "docmd",
     "plugin",
+    "plugin-manager",
     "installer",
+    "dependency-resolver",
     "cli",
-    "add",
-    "remove",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "dynamic-install",
+    "ecosystem",
+    "registry",
+    "developer-tools",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -41,12 +40,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/installer"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

@@ -17,6 +17,7 @@ import { fsUtils as fs } from '@docmd/utils';
 import esbuild from 'esbuild';
 import { createRequire } from 'module';
 import nativeFs from 'fs';
+import { TUI } from '@docmd/tui';
 import type { Asset, AssetKind, ResolvedAsset, TemplateAssetHook } from '@docmd/api';
 
 const _require = createRequire(import.meta.url);
@@ -252,8 +253,134 @@ export async function findFilesRecursive(
   return files;
 }
 
+/**
+ * Copies static root assets directly to the build output directory (root).
+ *
+ * Supports:
+ * - Zero-config auto-detection: if `public/` (or `static/`) exists at the project root or inside `config.src`,
+ *   its directory hierarchy and contents are copied directly to `outputDir` (e.g. `public/work/fund.json` -> `site/work/fund.json`).
+ * - Configurable `config.static`:
+ *   - `false`: disables static root asset copying.
+ *   - `string[]` or `string`: explicit list of directories or standalone files to copy to root.
+ *     If a configured path does not exist, a warning is logged and the build continues.
+ */
+export async function copyStaticAssets(
+  config: any,
+  outputDir: string,
+  options: any = {}
+): Promise<void> {
+  if (config.static === false) {
+    return;
+  }
+
+  const CWD = options.cwd || process.cwd();
+  await fs.ensureDir(outputDir);
+
+  // Explicitly configured static entries
+  if (Array.isArray(config.static)) {
+    for (const item of config.static) {
+      if (typeof item !== 'string' || !item.trim()) continue;
+      const cleanItem = item.trim();
+
+      const candidatePaths = [
+        path.resolve(CWD, cleanItem)
+      ];
+      if (config.src && config.src !== '.') {
+        candidatePaths.push(path.resolve(CWD, config.src, cleanItem));
+      }
+
+      let resolvedPath: string | null = null;
+      for (const p of candidatePaths) {
+        if (nativeFs.existsSync(p)) {
+          resolvedPath = p;
+          break;
+        }
+      }
+
+      if (!resolvedPath) {
+        if (!options.quiet) {
+          TUI.warn(`[static] Configured path "${cleanItem}" does not exist, skipping.`);
+        }
+        continue;
+      }
+
+      try {
+        const stat = await nativeFs.promises.stat(resolvedPath);
+        if (stat.isDirectory()) {
+          const baseName = path.basename(resolvedPath).toLowerCase();
+          // If the directory itself represents the static container (e.g. "public", "static"),
+          // copy its contents into outputDir. Otherwise (e.g. user specified "work" directory),
+          // preserve the directory name under outputDir.
+          if (baseName === 'public' || baseName === 'static') {
+            await fs.copy(resolvedPath, outputDir);
+          } else {
+            const destDir = path.join(outputDir, path.basename(resolvedPath));
+            await fs.ensureDir(destDir);
+            await fs.copy(resolvedPath, destDir);
+          }
+        } else if (stat.isFile()) {
+          let norm = cleanItem.replace(/\\/g, '/').replace(/^\/+/, '');
+          if (config.src && norm.startsWith(`${config.src}/public/`)) {
+            norm = norm.slice(`${config.src}/public/`.length);
+          } else if (norm.startsWith('public/')) {
+            norm = norm.slice('public/'.length);
+          } else if (config.src && norm.startsWith(`${config.src}/static/`)) {
+            norm = norm.slice(`${config.src}/static/`.length);
+          } else if (norm.startsWith('static/')) {
+            norm = norm.slice('static/'.length);
+          } else if (config.src && norm.startsWith(`${config.src}/`)) {
+            norm = norm.slice(`${config.src}/`.length);
+          }
+          const destFile = path.isAbsolute(cleanItem)
+            ? path.join(outputDir, path.basename(cleanItem))
+            : path.join(outputDir, norm);
+
+          await fs.ensureDir(path.dirname(destFile));
+          await fs.copy(resolvedPath, destFile);
+        }
+      } catch (err: any) {
+        if (!options.quiet) {
+          TUI.warn(`[static] Failed to copy "${cleanItem}": ${err.message}`);
+        }
+      }
+    }
+    return;
+  }
+
+  // Zero-config auto-detection: check public/ and static/ at project root and inside docs/
+  const candidates: string[] = [
+    path.resolve(CWD, 'public'),
+    path.resolve(CWD, 'static')
+  ];
+  if (config.src && config.src !== '.') {
+    candidates.push(path.resolve(CWD, config.src, 'public'));
+    candidates.push(path.resolve(CWD, config.src, 'static'));
+  }
+
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+
+    if (nativeFs.existsSync(candidate)) {
+      try {
+        const stat = await nativeFs.promises.stat(candidate);
+        if (stat.isDirectory()) {
+          await fs.copy(candidate, outputDir);
+        }
+      } catch (err: any) {
+        if (!options.quiet) {
+          TUI.warn(`[static] Failed to copy auto-detected directory "${candidate}": ${err.message}`);
+        }
+      }
+    }
+  }
+}
+
+export const copyPublicAssets = copyStaticAssets;
+
 export async function prepareAssets(config: any, outputDir: string, options: any = {}) {
-  const CWD = process.cwd();
+  const CWD = options.cwd || process.cwd();
 
   // 1. Core UI Assets
   const uiAssets = ui.getAssetsDir();
@@ -284,6 +411,9 @@ export async function prepareAssets(config: any, outputDir: string, options: any
     const srcAssets = path.resolve(CWD, config.src, 'assets');
     if (await fs.exists(srcAssets)) await fs.copy(srcAssets, path.join(outputDir, 'assets'));
   }
+
+  // 3.6. Static Root Assets (zero-config public/ folder or user-configured static paths)
+  await copyStaticAssets(config, outputDir, { ...options, cwd: CWD });
 
   // 4. Minification (Production only)
   if (config.minify !== false && !options.isDev) {

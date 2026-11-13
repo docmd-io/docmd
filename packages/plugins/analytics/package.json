@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-analytics",
-  "version": "0.9.9",
-  "description": "Analytics injection plugin for docmd.",
+  "version": "0.10.0",
+  "description": "Google Analytics (GA4) integration plugin for docmd sites.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,15 +37,14 @@
     "docmd",
     "plugin",
     "analytics",
-    "tracking",
-    "ga4",
     "google-analytics",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "ga4",
+    "metrics",
+    "telemetry",
+    "visitor-tracking",
+    "privacy",
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -53,12 +52,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/analytics"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

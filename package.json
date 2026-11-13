@@ -1,6 +1,6 @@
 {
   "name": "@docmd/monorepo",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "private": true,
   "description": "Documentation compiler for humans and machines. Monorepo for @docmd/core and ecosystem.",
   "scripts": {
@@ -39,7 +39,7 @@
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.2"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -109,6 +109,6 @@
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

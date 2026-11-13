@@ -1,7 +1,7 @@
 {
   "name": "@docmd/ui",
-  "version": "0.9.9",
-  "description": "Base UI templates and assets for docmd.",
+  "version": "0.10.0",
+  "description": "Browser client runtime and vanilla UI web components for docmd sites.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,21 +29,17 @@
   },
   "keywords": [
     "docmd",
-    "ui",
-    "templates",
-    "assets",
-    "layout",
-    "html",
-    "css",
-    "scss",
-    "kit",
-    "base",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "ui-components",
+    "web-components",
+    "browser",
+    "interface",
+    "vanilla-js",
+    "accessible",
+    "responsive",
+    "light-dark",
+    "navigation",
+    "documentation",
+    "ssg"
   ],
   "author": {
     "name": "Ghazi",
@@ -51,12 +47,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/ui"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

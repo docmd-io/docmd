@@ -61,6 +61,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 
 process.env.DOCMD_TEST = 'true';
+process.env.DOCMD_NO_OPEN = 'true';
+process.env.NODE_ENV = 'test';
 const pipelineStartMs = Date.now();
 
 const path = require('path');
@@ -315,13 +317,15 @@ function runTestStep(label, cmd, statLabel = label) {
             // an escape sequence, not whitespace or the box-drawing char.
             // eslint-disable-next-line no-control-regex
             const stripped = line.replace(/\x1b\[[0-9;]*m/g, '');
-            const m = stripped.match(/^\s*┌─\s+(.+?)\s*$/);
+            const m = stripped.match(/^\s*┌─\s+(.+?)\s*$/) ||
+                      stripped.match(/^\s*\[\s*\d+\/\d+\]\s*\(\s*(\d+%)\)\s*\[\s*PASS\s*\]\s+(.+?)\s*•/);
             if (m) {
+                const label = m[2] ? `${m[2].trim()} (${m[1]})` : m[1].trim();
                 // Print as a small progress marker under the WAIT line.
                 // Use a subtle "next" arrow so the operator knows it's
                 // progress, not a new step.
                 process.stdout.write(
-                    `${C.dim}│   ${C.cyan}→${C.reset} ${C.dim}${m[1].trim()}${C.reset}\n`
+                    `${C.dim}│   ${C.cyan}→${C.reset} ${C.dim}${label}${C.reset}\n`
                 );
                 numProgressLines++;
             }

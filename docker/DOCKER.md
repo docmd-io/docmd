@@ -24,7 +24,7 @@ The default command is `docmd serve --host 0.0.0.0`: it builds the site once and
 # Start with built-in demo site — works out of the box
 docker run -p 3000:3000 ghcr.io/docmd-io/docmd:latest
 
-# Visit http://localhost:3000
+# Visit http://127.0.0.1:3000
 ```
 
 ### Initialize New Project
@@ -211,7 +211,7 @@ The image includes a health check that requests `GET /healthz` on `${PORT:-3000}
 docker inspect --format='{{.State.Health.Status}}' <container-id>
 
 # Probe it directly
-curl -f http://localhost:3000/healthz
+curl -f http://127.0.0.1:3000/healthz
 ```
 
 ## Development Server

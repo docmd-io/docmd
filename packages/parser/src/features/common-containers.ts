@@ -162,12 +162,17 @@ export default {
     createDepthTrackingContainer(md, 'callout', (tokens, idx) => {
       const info = tokens[idx].info.trim();
       const parts = info.split(' ');
-      const type = parts[0] || 'info';
+      let type = 'info';
+      let remaining = info;
 
-      // Support ::: callout type "Title" or ::: callout type Title
+      if (parts[0] && !parts[0].includes(':') && !parts[0].startsWith('"') && !parts[0].startsWith("'")) {
+        type = parts[0];
+        remaining = parts.slice(1).join(' ').trim();
+      }
+
+      // Support ::: callout type "Title" or ::: callout type Title or ::: callout icon:...
       let title = '';
       let icon = '';
-      const remaining = parts.slice(1).join(' ').trim();
       if (remaining) {
         const parsed = parseTitleAndIcon(remaining);
         title = parsed.title;

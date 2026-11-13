@@ -1,7 +1,7 @@
 {
   "name": "@docmd/engine-rust-binaries",
-  "version": "0.9.9",
-  "description": "Pre-built Rust binaries for the docmd engine. All platforms bundled.",
+  "version": "0.10.0",
+  "description": "Prebuilt platform binaries for @docmd/engine-rust.",
   "scripts": {
     "build": "node build.js"
   },
@@ -14,15 +14,12 @@
   "keywords": [
     "docmd",
     "engine",
-    "rust",
-    "binaries",
-    "native",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "documentation",
-    "docs"
+    "rust-binaries",
+    "prebuilt-binaries",
+    "platform-binaries",
+    "native-modules",
+    "cross-platform",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -30,12 +27,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/engines/rust-binaries"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }

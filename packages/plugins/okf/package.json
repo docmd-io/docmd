@@ -1,7 +1,7 @@
 {
   "name": "@docmd/plugin-okf",
-  "version": "0.9.9",
-  "description": "Generate an Open Knowledge Format (OKF) bundle from your docmd site for AI agent consumption.",
+  "version": "0.10.0",
+  "description": "Open Knowledge Format (OKF) bundle generator and manifest emitter for docmd.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,17 +34,13 @@
     "plugin",
     "okf",
     "open-knowledge-format",
-    "ai",
-    "agents",
-    "google",
     "knowledge-graph",
-    "documentation",
-    "markdown",
-    "minimalist",
-    "zero-config",
-    "site-generator",
-    "static-site-generator",
-    "docs"
+    "ai-context",
+    "typed-manifest",
+    "semantic-web",
+    "agentic-ai",
+    "data-sharing",
+    "documentation"
   ],
   "author": {
     "name": "Ghazi",
@@ -52,12 +48,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/docmd-io/docmd.git"
+    "url": "git+https://github.com/docmd-io/docmd.git",
+    "directory": "packages/plugins/okf"
   },
   "bugs": {
     "url": "https://github.com/docmd-io/docmd/issues"
   },
   "homepage": "https://docmd.io",
-  "funding": "https://github.com/sponsors/mgks",
+  "funding": "https://github.com/sponsors/docmd-io",
   "license": "MIT"
 }
