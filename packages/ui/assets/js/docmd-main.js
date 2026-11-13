@@ -913,7 +913,7 @@
           // Match JSON objects e.g. window.DOCMD_I18N = { ... };
           const jsonMatches = text.matchAll(/(?:window\.)?(DOCMD_[A-Z0-9_]+)\s*=\s*(\{[\s\S]*?\})\s*;/g);
           for (const m of jsonMatches) {
-            try { window[m[1]] = JSON.parse(m[2]); } catch (_) {}
+            try { window[m[1]] = JSON.parse(m[2]); } catch (_) { /* ignore */ }
           }
 
           // Match string assignments: window.DOCMD_VAR = "..." || './'; or '...' or root;
@@ -946,7 +946,7 @@
               document.head.appendChild(curLocaleEl);
             }
             curLocaleEl.textContent = localeScript.textContent;
-          } catch (_) {}
+          } catch (_) { /* ignore */ }
         }
 
         // Re-resolve and apply theme based on new page configuration and user localStorage preference
