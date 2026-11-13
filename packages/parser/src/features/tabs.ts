@@ -153,6 +153,7 @@ function tabsRule(state: any, startLine: number, endLine: number, silent: boolea
         currentTab.content = smartDedent(currentContentLines.join('\n'));
         tabs.push(currentTab);
       }
+      const rawInfo = (tabMatch[1] || '').trim();
       const parsed = parseTitleAndIcon(rawInfo);
       let title = parsed.title;
       const icon = parsed.icon;
