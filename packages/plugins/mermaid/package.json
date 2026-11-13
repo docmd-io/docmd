@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-mermaid",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Mermaid diagram and flowchart rendering plugin for docmd.",
   "type": "module",
   "main": "dist/index.js",

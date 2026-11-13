@@ -121,7 +121,7 @@ export const test = runTestFile({
       } catch (e) {
         output = (typeof e.stdout === 'string' ? e.stdout : '') + (typeof e.stderr === 'string' ? e.stderr : '');
       }
-      assert(/v0\.[89]\.\d+/.test(output), 'N-13/N-16: banner (version line) is present by default');
+      assert(/v\d+\.\d+\.\d+/.test(output), 'N-13/N-16: banner (version line) is present by default');
 
       // NO_COLOR — banner suppressed (chalk 4+ also drops colour, but
       // our banner-specific check suppresses the ASCII art too).
@@ -131,7 +131,7 @@ export const test = runTestFile({
       } catch (e) {
         output = (typeof e.stdout === 'string' ? e.stdout : '') + (typeof e.stderr === 'string' ? e.stderr : '');
       }
-      assert(!/v0\.[89]\.\d+/.test(output), 'N-13: NO_COLOR suppresses the banner');
+      assert(!/v\d+\.\d+\.\d+/.test(output), 'N-13: NO_COLOR suppresses the banner');
 
       // DOCMD_NO_BANNER — banner suppressed even without NO_COLOR.
       output = '';
@@ -140,7 +140,7 @@ export const test = runTestFile({
       } catch (e) {
         output = (typeof e.stdout === 'string' ? e.stdout : '') + (typeof e.stderr === 'string' ? e.stderr : '');
       }
-      assert(!/v0\.[89]\.\d+/.test(output), 'N-16: DOCMD_NO_BANNER suppresses the banner');
+      assert(!/v\d+\.\d+\.\d+/.test(output), 'N-16: DOCMD_NO_BANNER suppresses the banner');
     }
 
     // `docmd mcp` speaks JSON-RPC over stdio, so stdout must carry only

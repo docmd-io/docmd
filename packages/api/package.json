@@ -1,6 +1,6 @@
 {
   "name": "@docmd/api",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Public API, plugin contracts, and hook interfaces for the docmd documentation engine.",
   "type": "module",
   "main": "dist/index.js",

@@ -53,7 +53,7 @@ docmd'yi bir Markdown dosyaları klasörüne yönlendirin:
 npx @docmd/core dev
 ```
 
-`http://localhost:3000` adresini açın.
+`http://127.0.0.1:3000` adresini açın.
 
 Bu kadar. Gezinme menüsü dosya yapınızdan otomatik oluşturulur. Yapılandırma dosyası, frontmatter veya harici bir çatı gerektirmez.
 

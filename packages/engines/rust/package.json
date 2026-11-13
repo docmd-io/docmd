@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-rust",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "High-performance Rust native engine for ultra-fast docmd compilation.",
   "type": "module",
   "main": "dist/index.js",

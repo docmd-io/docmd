@@ -53,7 +53,7 @@ Pointez docmd vers un dossier de fichiers Markdown :
 npx @docmd/core dev
 ```
 
-Ouvrez `http://localhost:3000`.
+Ouvrez `http://127.0.0.1:3000`.
 
 C'est tout. La navigation est générée automatiquement à partir de votre arborescence de fichiers. Aucun fichier de configuration, frontmatter ou framework requis.
 

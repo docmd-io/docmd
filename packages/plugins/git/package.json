@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-git",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Git-based metadata, contributor histories, and edit links generator for docmd.",
   "type": "module",
   "main": "dist/index.js",

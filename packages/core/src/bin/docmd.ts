@@ -48,6 +48,7 @@ const options = {
   help: { type: 'boolean', short: 'h' },
   force: { type: 'boolean' },
   yes: { type: 'boolean', short: 'y' },
+  'no-open': { type: 'boolean' },
   json: { type: 'boolean' }
 } as const;
 
@@ -112,6 +113,7 @@ if (!command || values.help) {
     ['-v, --version', 'Output the version number'],
     ['-h, --help', 'Display help for command'],
     ['--force', 'Overwrite existing files (use with init)'],
+    ['--no-open', 'Do not auto-open browser on dev server start'],
     ['-y, --yes', 'Answer "yes" to all prompts (use with init in CI)']
   ];
   optsList.forEach(([o, d]) => TUI.item(o, d, TUI.cyan));
@@ -143,10 +145,15 @@ const opts = {
   port: values.port,
   host: values.host,
   buildOnly: values['build-only'],
+  noOpen: values['no-open'],
   verbose: values.verbose,
   force: values.force,
   json: values.json
 };
+
+if (opts.noOpen) {
+  process.env.DOCMD_NO_OPEN = 'true';
+}
 
 // `--strict` is a global flag: any missing sourced snippets, broken containers,
 // or critical validation errors immediately fail CI with exit code 1.

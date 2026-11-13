@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-iconify",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Optional Iconify icon integration for docmd documentation containers.",
   "type": "module",
   "main": "dist/index.js",
@@ -32,7 +32,7 @@
     "@docmd/api": "workspace:*",
     "@docmd/parser": "workspace:*",
     "@docmd/tui": "workspace:*",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "docmd",

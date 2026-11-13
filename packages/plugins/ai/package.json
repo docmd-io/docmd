@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-ai",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Interactive in-page AI chat assistant grounded in documentation, powered by docmd-assistant.",
   "type": "module",
   "main": "dist/index.js",

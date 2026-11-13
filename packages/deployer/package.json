@@ -1,6 +1,6 @@
 {
   "name": "@docmd/deployer",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Deployment adapters and static site publisher for docmd sites.",
   "type": "module",
   "main": "dist/index.js",

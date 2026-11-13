@@ -1,6 +1,6 @@
 {
   "name": "@docmd/ui",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Browser client runtime and vanilla UI web components for docmd sites.",
   "type": "module",
   "main": "dist/index.js",

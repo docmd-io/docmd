@@ -105,7 +105,7 @@ This is the home page of your new **docmd** project. You're currently viewing \`
 npx @docmd/core dev
 \`\`\`
 
-Open \`http://localhost:3000\` — the page auto-reloads as you edit.
+Open \`http://127.0.0.1:3000\` — the page auto-reloads as you edit.
 
 ## Build for production
 

@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-playground",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Interactive JavaScript live code runner and component playground for docmd.",
   "type": "module",
   "main": "dist/index.js",

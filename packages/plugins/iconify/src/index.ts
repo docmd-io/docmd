@@ -24,7 +24,7 @@ const log = createLogger('iconify');
 
 export const plugin: PluginDescriptor = {
   name: 'iconify',
-  version: '0.9.9',
+  version: '0.10.0',
   capabilities: ['markdown', 'init', 'doctor']
 };
 

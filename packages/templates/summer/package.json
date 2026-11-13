@@ -1,6 +1,6 @@
 {
   "name": "@docmd/template-summer",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Official modern clean summer template for docmd documentation sites.",
   "type": "module",
   "main": "dist/index.js",

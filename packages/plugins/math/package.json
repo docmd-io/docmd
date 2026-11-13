@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-math",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "LaTeX mathematics plugin for docmd via KaTeX rendering.",
   "type": "module",
   "main": "dist/index.js",

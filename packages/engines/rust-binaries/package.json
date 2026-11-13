@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-rust-binaries",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Prebuilt platform binaries for @docmd/engine-rust.",
   "scripts": {
     "build": "node build.js"

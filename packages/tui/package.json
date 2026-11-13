@@ -1,6 +1,6 @@
 {
   "name": "@docmd/tui",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Structured terminal interface, logging, and diagnostics output for docmd CLI.",
   "type": "module",
   "main": "dist/index.js",

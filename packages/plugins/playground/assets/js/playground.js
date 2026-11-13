@@ -275,7 +275,7 @@
 
       // Prepare docmd state snapshot for safe pass-through into sandbox
       const docmdSnapshot = {
-        version: window.docmd?.version || '0.9.9',
+        version: window.docmd?.version || '0.10.0',
         variables: (window.docmd?.var?.all && typeof window.docmd.var.all === 'function')
           ? window.docmd.var.all()
           : {}
@@ -318,7 +318,7 @@
               };
 
               const docmd = {
-                version: docmdData.version || '0.9.9',
+                version: docmdData.version || '0.10.0',
                 var: {
                   _store: docmdData.variables || {},
                   get: function(k) {
@@ -547,7 +547,7 @@
   window.docmd = window.docmd || {};
   const injectedVars = (typeof window !== 'undefined' && window.__DOCMD_VARIABLES__ && typeof window.__DOCMD_VARIABLES__ === 'object') ? window.__DOCMD_VARIABLES__ : {};
   if (!window.docmd.version) {
-    window.docmd.version = injectedVars.docmd?.version || injectedVars.DOCMD_VERSION || '0.9.9';
+    window.docmd.version = injectedVars.docmd?.version || injectedVars.DOCMD_VERSION || '0.10.0';
   }
   if (!window.docmd.var) {
     window.docmd.var = {

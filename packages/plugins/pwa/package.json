@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-pwa",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Progressive Web App manifest and offline service worker generator for docmd.",
   "type": "module",
   "main": "dist/index.js",

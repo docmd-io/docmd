@@ -42,6 +42,7 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
     preserve: opts.preserve || false,
     port: opts.port || undefined,
     host: opts.host || undefined,
+    noOpen: opts.noOpen || false,
   };
 
   // ── Multi-Project (Workspace) Detection ──────────────────────────
@@ -453,8 +454,10 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
           TUI.warn('Root index.html not found. Build may be incomplete.');
         }
 
-        // Auto-launch localhost URL in default browser
-        openBrowser(localUrl);
+        // Auto-launch local IP URL in default browser
+        if (!options.noOpen) {
+          openBrowser(localUrl);
+        }
       })
       .once('error', (err: any) => {
         if (err.code === 'EADDRINUSE') {

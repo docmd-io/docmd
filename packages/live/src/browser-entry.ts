@@ -20,7 +20,7 @@ import { markdownSetup as playgroundMarkdownSetup } from '@docmd/plugin-playgrou
 import templates from 'virtual:docmd-templates';
 
 declare const __DOCMD_VERSION__: string;
-const LIVE_VERSION = typeof __DOCMD_VERSION__ !== 'undefined' ? __DOCMD_VERSION__ : '0.9.9';
+const LIVE_VERSION = typeof __DOCMD_VERSION__ !== 'undefined' ? __DOCMD_VERSION__ : '0.10.0';
 
 if (typeof window !== 'undefined') {
     (window as any).docmd = (window as any).docmd || {};

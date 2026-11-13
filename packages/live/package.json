@@ -1,6 +1,6 @@
 {
   "name": "@docmd/live",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Interactive in-browser live editor and realtime preview runtime for docmd.",
   "type": "module",
   "main": "dist/index.js",

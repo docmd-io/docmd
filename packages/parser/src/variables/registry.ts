@@ -76,6 +76,21 @@ function getGitMetadata(cwd: string, optionsCommit?: string, optionsBranch?: str
   return { commit: _cachedGitCommit || '', branch: _cachedGitBranch || '' };
 }
 
+function getPackageVersion(): string {
+  if (typeof process !== 'undefined' && process.env?.DOCMD_VERSION) {
+    return process.env.DOCMD_VERSION;
+  }
+  if (_nodeRequire) {
+    try {
+      const pkg = _nodeRequire('../../package.json');
+      if (pkg?.version) return pkg.version;
+    } catch {
+      // Fallback if running outside package structure
+    }
+  }
+  return '0.10.0';
+}
+
 /**
  * Resolve a dot-notated or direct path in an object.
  * e.g., getNestedValue({ docmd: { buildYear: 2026 } }, 'docmd.buildYear') => 2026
@@ -104,7 +119,7 @@ export class VariableRegistry {
 
   constructor(options: VariableRegistryOptions = {}) {
     this.cwd = options.cwd || (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '/');
-    this.version = options.version || '0.9.9';
+    this.version = options.version || getPackageVersion();
     this.initBaseVariables(options);
     this.loadConfigVariables(options.configVariables);
   }

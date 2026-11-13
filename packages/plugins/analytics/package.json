@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-analytics",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Google Analytics (GA4) integration plugin for docmd sites.",
   "type": "module",
   "main": "dist/index.js",

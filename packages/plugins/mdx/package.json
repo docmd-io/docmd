@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-mdx",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Interactive MDX and JSX component support for docmd documentation sites, powered by lite-mdx.",
   "type": "module",
   "main": "dist/index.js",
@@ -36,7 +36,7 @@
     "@docmd/api": "workspace:*",
     "@docmd/parser": "workspace:*",
     "@docmd/tui": "workspace:*",
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "docmd",

@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-python",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Python runtime bridge and markdown rendering engine for docmd.",
   "type": "module",
   "main": "dist/index.js",

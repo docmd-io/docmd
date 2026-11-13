@@ -148,10 +148,10 @@ export const test = runTestFile({
       }, null, 2) + '\n');
 
       const port = await freePort();
-      const env = { ...process.env };
+      const env = { ...process.env, DOCMD_TEST: 'true', DOCMD_NO_OPEN: 'true', NODE_ENV: 'test' };
       delete env.DOCMD_HOST;
       delete env.DOCMD_PROJECT_OUT;
-      const child = spawn(process.execPath, [DOCMD, 'dev', '--host', '0.0.0.0', '--port', String(port)], {
+      const child = spawn(process.execPath, [DOCMD, 'dev', '--host', '0.0.0.0', '--port', String(port), '--no-open'], {
         cwd: dir, env, stdio: ['ignore', 'pipe', 'pipe']
       });
       const output = { text: '' };

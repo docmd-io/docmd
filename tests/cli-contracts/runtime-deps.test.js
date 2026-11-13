@@ -198,7 +198,7 @@ export const test = runTestFile({
       assert(typeof promise?.then === 'function', 'RD-INSTALL-4: installRuntimeDep returns a Promise for valid name');
       // Drain without asserting outcome — under CI there may be no
       // network. We only care about the call surface.
-      promise.then((ok) => assert(typeof ok === 'boolean', 'RD-INSTALL-5: installRuntimeDep resolves to boolean')).catch(() => {});
+      await promise.then((ok) => assert(typeof ok === 'boolean', 'RD-INSTALL-5: installRuntimeDep resolves to boolean')).catch(() => {});
     }
 
     // -----------------------------------------------------------------

@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-search",
-  "version": "0.9.9",
+  "version": "0.10.0",
   "description": "Offline full-text search indexer powered by minisearch for docmd sites.",
   "type": "module",
   "main": "dist/index.js",

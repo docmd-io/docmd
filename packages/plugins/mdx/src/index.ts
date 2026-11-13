@@ -17,7 +17,7 @@ import { compile, type ComponentRenderer } from 'lite-mdx';
 
 export const plugin: PluginDescriptor = {
   name: 'mdx',
-  version: '0.9.9',
+  version: '0.10.0',
   capabilities: ['init', 'build', 'markdown', 'doctor']
 };
 
