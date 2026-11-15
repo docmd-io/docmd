@@ -107,8 +107,11 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
 
     const root: any[] = [];
     const stack: { indent: number; items: any[] }[] = [{ indent: -1, items: root }];
+    const unquote = (s: string) => s.replace(/^(['"])(.*)\1$/, '$2');
     for (let i = navIdx + 1; i < lines.length; i++) {
       const line = lines[i];
+      // The next top-level key (`plugins:`, `markdown_extensions:`, ...) ends the nav.
+      if (/^[^\s#-]/.test(line)) break;
       // `- Title: file.md` (most common) OR `- Title:` (section header).
       // The colon + value are optional. The title capture is non-greedy
       // so it stops at the colon, and we strip a trailing `:` from the
@@ -120,10 +123,11 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
       // Strip a trailing `:` from the title (which happens when the
       // line is `- Title:` with no file value, the section-header
       // shape in MkDocs).
-      const title = m[2].trim().replace(/:\s*$/, '');
-      const file = (m[3] || '').trim();
+      const title = unquote(m[2].trim().replace(/:\s*$/, ''));
+      const file = unquote((m[3] || '').trim());
+      // index.md is served at its folder: 'guide/index.md' -> 'guide/', 'index.md' -> '/'.
       const item: any = file
-        ? { title, path: file.replace(/\.(md|markdown)$/i, '/') }
+        ? { title, path: file.replace(/(^|\/)index\.(md|markdown)$/i, '$1').replace(/\.(md|markdown)$/i, '/') || '/' }
         : { title };
       while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
       const top = stack[stack.length - 1];
