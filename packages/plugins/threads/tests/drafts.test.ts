@@ -1,4 +1,4 @@
-import { test, before, after, beforeEach } from 'node:test';
+import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -100,4 +100,19 @@ test('concurrent transact calls on one store keep both ops', async () => {
   const s = store();
   await Promise.all([append(s, 'k'), append(s, 'k')]);
   assert.equal((await s.load('k')).ops.length, 2);
+});
+
+test('a failed write leaves no tmp file and the journal as it was', async () => {
+  const s = store();
+  await append(s, 'k');
+  const file = path.join(draftsDir(), 'k.json');
+  const bytes = rdBytes(file);
+  const rename = mock.method(fs.promises, 'rename', async () => { throw new Error('boom'); });
+  try {
+    await assert.rejects(append(s, 'k'), /boom/);
+  } finally {
+    rename.mock.restore();
+  }
+  assert.deepEqual(ls(draftsDir()).filter((f) => f.endsWith('.tmp')), []);
+  assert.deepEqual(rdBytes(file), bytes);
 });

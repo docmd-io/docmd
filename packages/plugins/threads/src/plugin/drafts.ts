@@ -73,8 +73,13 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
     }
     const file = safePath(dir, nameOf(key));
     const tmp = safePath(dir, `${nameOf(key)}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`);
-    await fs.promises.writeFile(tmp, JSON.stringify(journal, null, 2) + '\n');
-    await fs.promises.rename(tmp, file);
+    try {
+      await fs.promises.writeFile(tmp, JSON.stringify(journal, null, 2) + '\n');
+      await fs.promises.rename(tmp, file);
+    } catch (e) {
+      await fs.promises.rm(tmp, { force: true });
+      throw e;
+    }
   }
 
   return {
