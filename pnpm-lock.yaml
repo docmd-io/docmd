@@ -27,7 +27,7 @@ importers:
         version: 6.0.1
       docmd-search:
         specifier: ^0.1.7
-        version: 0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
+        version: 0.1.7(@docmd/engine-js@0.10.0)(@docmd/engine-python@0.10.0)(@docmd/engine-rust@0.10.0)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -367,8 +367,8 @@ importers:
   packages/plugins/mdx:
     dependencies:
       lite-mdx:
-        specifier: ^0.1.1
-        version: 0.1.1
+        specifier: ^0.1.2
+        version: 0.1.2
     devDependencies:
       '@docmd/api':
         specifier: workspace:*
@@ -475,7 +475,7 @@ importers:
     dependencies:
       docmd-search:
         specifier: '>=0.1.6'
-        version: 0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
+        version: 0.1.7(@docmd/engine-js@0.10.0)(@docmd/engine-python@0.10.0)(@docmd/engine-rust@0.10.0)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6))
       markdown-it:
         specifier: ^15.0.3
         version: 15.0.3
@@ -631,6 +631,18 @@ packages:
   '@ctrl/tinycolor@4.3.0':
     resolution: {integrity: sha512-6V0+8vw/GmH92URQ/Ki12FPhoB3nqaQUJE+5xgbFbB5ok0OXYK5jCQsQQoyR3BzCddHsCpyCFRnIcI1PSOVYkQ==}
     engines: {node: '>=14'}
+
+  '@docmd/engine-js@0.10.0':
+    resolution: {integrity: sha512-9qlw6aN3maK/d2MwRuleLIplLDJj/b96S40IjQ2qMB+OP24spyNcHAGY3zHbbKwKMhpopuuNSevIJTWgwkCHhw==}
+    engines: {node: '>=20.0.0'}
+
+  '@docmd/engine-python@0.10.0':
+    resolution: {integrity: sha512-4ZrEwAseAE9DqAi2uJeHtC2QlPz4jU0dkt3QV+5+zmg4thyCT5WrbvYVOoi8SxT5cGoRDcergLrj4w5+jTyIMA==}
+    engines: {node: '>=20.0.0'}
+
+  '@docmd/engine-rust@0.10.0':
+    resolution: {integrity: sha512-BCW0w+4Tsx5C+jb9B07qh2CLBtrHsX9OnsC74X0kpoMtGiL2T4OJKEtkBfJ2rrNuaFR7E+s39s9/E+sHwbPd/A==}
+    engines: {node: '>=20.0.0'}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1802,8 +1814,8 @@ packages:
   lite-matter@0.1.2:
     resolution: {integrity: sha512-cGSYxO6vcipYZBSF5dUtDF3IqbkNxSjVQuvs5Ol3fO35URzHEvG2Ml0KbH5kvXXsx33SgbfwiVp6afwovarD8A==}
 
-  lite-mdx@0.1.1:
-    resolution: {integrity: sha512-q5gkHWZe8BET5xjxlAqOFnIKbIUOrpttLtnOQzbDJezkIvpKNqEjgHrbbjRu+Z3Plsh/IA74ExK/rLE6rRLYMQ==}
+  lite-mdx@0.1.2:
+    resolution: {integrity: sha512-cRM9BCE/jYRO6YpQIyuBxicNZk+WSuqAQrOyBJjs0wfNvmtMiufZBC79V9iIh56opPUcoacy9PUJt+78tFI7jg==}
 
   lite-template@0.1.3:
     resolution: {integrity: sha512-JVN3BA0WMTjRshH1ljQd2ZF2019NhYpQgvi0VGLJ4TXc9kkfu6kx672DhUWPLlhFMfjZCirYY4emawXl3hEKPQ==}
@@ -2135,6 +2147,15 @@ snapshots:
   '@chevrotain/utils@13.2.0': {}
 
   '@ctrl/tinycolor@4.3.0': {}
+
+  '@docmd/engine-js@0.10.0':
+    optional: true
+
+  '@docmd/engine-python@0.10.0':
+    optional: true
+
+  '@docmd/engine-rust@0.10.0':
+    optional: true
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -2993,8 +3014,11 @@ snapshots:
     dependencies:
       aiplug: 0.2.0
 
-  docmd-search@0.1.7(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6)):
+  docmd-search@0.1.7(@docmd/engine-js@0.10.0)(@docmd/engine-python@0.10.0)(@docmd/engine-rust@0.10.0)(@huggingface/transformers@4.2.0(@types/node@26.6.6))(adm-zip@0.6.1)(onnxruntime-node@1.29.0)(protobufjs@8.8.0)(sharp@0.35.5(@types/node@26.6.6)):
     optionalDependencies:
+      '@docmd/engine-js': 0.10.0
+      '@docmd/engine-python': 0.10.0
+      '@docmd/engine-rust': 0.10.0
       '@huggingface/transformers': 4.2.0(@types/node@26.6.6)
       adm-zip: 0.6.1
       onnxruntime-node: 1.29.0
@@ -3267,7 +3291,7 @@ snapshots:
     dependencies:
       yaml: 2.9.1
 
-  lite-mdx@0.1.1: {}
+  lite-mdx@0.1.2: {}
 
   lite-template@0.1.3: {}
 

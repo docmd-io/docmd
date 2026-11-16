@@ -150,11 +150,11 @@ export function onBeforeParse(
 ): string {
   if (!src) return src;
 
-  // Process .mdx files or .md files that contain JSX elements or imports
+  // Process .mdx files or .md files that contain JSX elements or imports/exports
   const isMdx = filePath ? /\.mdx$/i.test(filePath) : false;
-  const hasJsxOrExpressions = /<[A-Z][A-Za-z0-9_.]*|\bimport\s+[^\s;\r\n][^;\r\n]*?\bfrom\b|\bexport\s+(?:const|let|var|default|function|class)\b|(?<!\\)\{[^}\r\n]+\}/.test(src);
+  const hasJsxOrImports = /<[A-Z][A-Za-z0-9_.]*|\bimport\s+[^\s;\r\n][^;\r\n]*?\bfrom\b|\bexport\s+(?:const|let|var|default|function|class)\b/.test(src);
 
-  if (!isMdx && !hasJsxOrExpressions) {
+  if (!isMdx && !hasJsxOrImports) {
     return src;
   }
 
