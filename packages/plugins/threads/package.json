@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-threads",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "description": "Inline discussion threads and Markdown review comments plugin for docmd.",
   "main": "dist/index.js",

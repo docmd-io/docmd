@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 
 export const plugin: PluginDescriptor = {
   name: 'playground',
-  version: '0.10.0',
+  version: '0.10.1',
   capabilities: ['markdown', 'assets']
 };
 

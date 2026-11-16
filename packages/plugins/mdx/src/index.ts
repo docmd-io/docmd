@@ -19,7 +19,7 @@ import { renderIcon } from '@docmd/parser';
 
 export const plugin: PluginDescriptor = {
   name: 'mdx',
-  version: '0.10.0',
+  version: '0.10.1',
   capabilities: ['init', 'build', 'markdown', 'doctor']
 };
 

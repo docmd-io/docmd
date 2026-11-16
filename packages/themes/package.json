@@ -1,6 +1,6 @@
 {
   "name": "@docmd/themes",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Design system, syntax highlighters, and aesthetic stylesheets for docmd.",
   "type": "module",
   "main": "dist/index.js",

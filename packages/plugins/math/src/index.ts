@@ -18,7 +18,7 @@ import type { PluginDescriptor } from '@docmd/api';
 
 export const plugin: PluginDescriptor = {
   name: 'math',
-  version: '0.10.0',
+  version: '0.10.1',
   capabilities: ['markdown', 'assets']
 };
 

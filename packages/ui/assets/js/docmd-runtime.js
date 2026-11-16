@@ -124,13 +124,13 @@
 
       // 4. Built-in system fallbacks
       if (key === 'docmd.version' || key === 'DOCMD_VERSION' || key === 'version') {
-        return this._runtime.version || '0.10.0';
+        return this._runtime.version || '0.10.1';
       }
       if (key === 'docmd.buildYear' || key === 'BUILD_YEAR') {
         return String(new Date().getFullYear());
       }
       if (key === 'docmd') {
-        return { version: this._runtime.version || '0.10.0', buildYear: String(new Date().getFullYear()) };
+        return { version: this._runtime.version || '0.10.1', buildYear: String(new Date().getFullYear()) };
       }
 
       return undefined;
@@ -262,7 +262,7 @@
     constructor() {
       super();
       const injected = (typeof window !== 'undefined' && window.__DOCMD_VARIABLES__ && typeof window.__DOCMD_VARIABLES__ === 'object') ? window.__DOCMD_VARIABLES__ : {};
-      this.version = injected.docmd?.version || injected.DOCMD_VERSION || '0.10.0';
+      this.version = injected.docmd?.version || injected.DOCMD_VERSION || '0.10.1';
       this.var = new DocmdVariablesManager(this);
       this.theme = new DocmdThemeManager(this);
       this.nav = new DocmdNavManager(this);

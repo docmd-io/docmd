@@ -142,7 +142,7 @@ export const test = runTestFile({
 
       const escapedMarkdown = 'Literal: \\{{ docmd.version }} and Live: {{ docmd.version }}';
       const interpolated = interpolateVariables(escapedMarkdown, registry);
-      assert(interpolated === 'Literal: {{ docmd.version }} and Live: 0.10.0', 'Escaped \\{{ ... }} preserves literal syntax');
+      assert(interpolated === `Literal: {{ docmd.version }} and Live: ${registry.get('docmd.version')}`, 'Escaped \\{{ ... }} preserves literal syntax');
     }
 
     // 6. Config string interpolation

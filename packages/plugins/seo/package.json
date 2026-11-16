@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-seo",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Automated SEO meta tags, Open Graph, and Twitter Card generator for docmd.",
   "type": "module",
   "main": "dist/index.js",
