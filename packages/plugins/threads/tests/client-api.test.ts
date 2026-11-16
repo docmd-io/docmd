@@ -5,7 +5,6 @@ type Call = { action: string; payload: Record<string, unknown> };
 const calls: Call[] = [];
 const storage = new Map<string, string>();
 let prompts = 0;
-let promptAnswer = 'Prompted';
 const g = globalThis as Record<string, unknown>;
 const saved: Record<string, unknown> = {};
 const STUBS: Record<string, unknown> = {
@@ -15,7 +14,7 @@ const STUBS: Record<string, unknown> = {
     getItem: (k: string) => storage.get(k) ?? null,
     setItem: (k: string, v: string) => void storage.set(k, v),
   },
-  prompt: () => { prompts++; return promptAnswer; },
+  prompt: () => { prompts++; return 'Prompted'; },
 };
 
 type Api = typeof import('../src/client/lib/api.ts');
