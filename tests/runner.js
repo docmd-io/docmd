@@ -292,6 +292,14 @@ addExternal(
   ['./packages/plugins/okf/node_modules/tsx/dist/cli.mjs', '--test', 'packages/plugins/okf/tests/*.test.ts']
 );
 
+// --- Threads plugin ---------------------------------------------------------
+addExternal(
+  'threads-plugin',
+  'Threads plugin (inline discussion threads)',
+  'node',
+  ['./packages/plugins/threads/node_modules/tsx/dist/cli.mjs', '--test', 'packages/plugins/threads/tests/*.test.ts']
+);
+
 // --- Section 7: Mermaid plugin --------------------------------------------
 addExternal(
   'mermaid-plugin',

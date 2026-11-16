@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { setup as setupContainers } from './plugin/containers.js';
 import { setup as setupHighlightRule } from './plugin/highlight-rule.js';
 import { actions } from './plugin/actions.js';
+import { normalizeOptions } from './plugin/config.js';
 import { scriptLiteral } from '@docmd/utils';
 import type { PluginDescriptor } from '@docmd/api';
 
@@ -59,7 +60,7 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
     authors = {};
   }
 
-  const clientConfig = { sidebar: options?.sidebar === true };
+  const clientConfig = { sidebar: normalizeOptions(options).sidebar };
   const i18nStrings = loadPluginStrings(config._activeLocale?.id || 'en');
 
   return {

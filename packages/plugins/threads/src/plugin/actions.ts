@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import * as parser from './parser.js';
+import { ThreadsError } from './errors.js';
 import type { Thread, Comment, Reaction } from '../types.js';
 
 // TODO(0.7.0): Import ActionContext from @docmd/api once types package is extracted
@@ -109,7 +110,7 @@ async function writeBack(file: string, content: string, threads: Thread[], ctx: 
  */
 function findThread(threads: Thread[], threadId: string): Thread {
   const thread = threads.find((t) => t.id === threadId);
-  if (!thread) throw new Error(`Thread not found: ${threadId}`);
+  if (!thread) throw new ThreadsError('not-found', `Thread not found: ${threadId}`);
   return thread;
 }
 
@@ -118,7 +119,7 @@ function findThread(threads: Thread[], threadId: string): Thread {
  */
 function findComment(thread: Thread, commentId: string): Comment {
   const comment = thread.comments.find((c) => c.id === commentId);
-  if (!comment) throw new Error(`Comment not found: ${commentId}`);
+  if (!comment) throw new ThreadsError('not-found', `Comment not found: ${commentId}`);
   return comment;
 }
 
@@ -128,7 +129,7 @@ function findComment(thread: Thread, commentId: string): Comment {
 function requireFields(action: string, payload: Record<string, any>, fields: string[]): void {
   for (const field of fields) {
     if (!payload[field] || (typeof payload[field] === 'string' && !payload[field].trim())) {
-      throw new Error(`${action}: ${field} is required`);
+      throw new ThreadsError('invalid', `${action}: ${field} is required`);
     }
   }
 }
@@ -289,7 +290,7 @@ export const actions: Record<string, (payload: any, ctx: ActionContext) => Promi
     const thread = findThread(threads, threadId);
 
     const idx = thread.comments.findIndex((c) => c.id === commentId);
-    if (idx === -1) throw new Error(`Comment not found: ${commentId}`);
+    if (idx === -1) throw new ThreadsError('not-found', `Comment not found: ${commentId}`);
     thread.comments.splice(idx, 1);
 
     await writeBack(file, content, threads, ctx);
@@ -307,7 +308,7 @@ export const actions: Record<string, (payload: any, ctx: ActionContext) => Promi
     let { content } = parsed;
 
     const idx = threads.findIndex((t) => t.id === threadId);
-    if (idx === -1) throw new Error(`Thread not found: ${threadId}`);
+    if (idx === -1) throw new ThreadsError('not-found', `Thread not found: ${threadId}`);
     threads.splice(idx, 1);
 
     // Remove orphaned ==highlight=={threadId} markup from the body,
