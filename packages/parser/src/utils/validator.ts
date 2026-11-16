@@ -94,6 +94,12 @@ function validateConfig(config) {
     errors.push('"versions.all" must be an Array');
   }
 
+  if (config.markdown) {
+    if (config.markdown.headingIds && !['nested', 'github'].includes(config.markdown.headingIds)) {
+      warnings.push('"markdown.headingIds" must be either "nested" or "github"');
+    }
+  }
+
   // 3. Typos and Unknown Keys (Top Level)
   // T-Z3: previously completely-unknown keys were silently ignored. We
   // now warn about every unrecognised top-level key (typo suggestions

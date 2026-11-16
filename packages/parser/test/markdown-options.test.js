@@ -16,7 +16,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarkdownProcessor } from '../dist/index.js';
+import { createMarkdownProcessor, processContent, validateConfig } from '../dist/index.js';
 
 test('autolinked bare domains default to https://', () => {
   const md = createMarkdownProcessor();
@@ -88,4 +88,65 @@ test('markdown.breaks: false disables soft line breaks', () => {
   const renderedDefault = mdDefault.render('first line\nsecond line');
 
   assert.match(renderedDefault, /<br>/);
+});
+
+test('default heading IDs use nested (contextual) hierarchy and collapse dashes', () => {
+  const md = createMarkdownProcessor();
+  const input = '# Security Model\n\n## Docker Socket & Security\n\n### Access Controls';
+  const rendered = md.render(input);
+
+  assert.match(rendered, /<h1[^>]*id="security-model"/);
+  assert.match(rendered, /<h2[^>]*id="security-model-docker-socket-security"/);
+  assert.match(rendered, /<h3[^>]*id="security-model-docker-socket-security-access-controls"/);
+});
+
+test('markdown.headingIds: "github" produces flat GitHub-compatible slug ids (#286)', () => {
+  const md = createMarkdownProcessor({ markdown: { headingIds: 'github' } });
+  const input = '# Security Model\n\n## Docker Socket & Security\n\n### Access Controls\n\n## Install / Setup\n\n## Docker Socket & Security';
+  const rendered = md.render(input);
+
+  // Flat (not prefixed with parent), punctuation dropped, spaces replaced with dash (preserving --)
+  assert.match(rendered, /<h1[^>]*id="security-model"/);
+  assert.match(rendered, /<h2[^>]*id="docker-socket--security"/);
+  assert.match(rendered, /<h3[^>]*id="access-controls"/);
+  assert.match(rendered, /<h2[^>]*id="install--setup"/);
+
+  // Hard collisions on duplicate headings append -1, -2
+  assert.match(rendered, /<h2[^>]*id="docker-socket--security-1"/);
+});
+
+test('frontmatter headingIds overrides config style per page', () => {
+  const mdDefault = createMarkdownProcessor();
+  const pageWithGithub = '---\ntitle: Page\nheadingIds: github\n---\n# Security Model\n\n## Docker Socket & Security';
+  const res1 = processContent(pageWithGithub, mdDefault, {});
+  assert.match(res1.htmlContent, /<h2[^>]*id="docker-socket--security"/);
+  assert.equal(res1.headings[1].id, 'docker-socket--security');
+
+  const mdGithub = createMarkdownProcessor({ markdown: { headingIds: 'github' } });
+  const pageWithNested = '---\ntitle: Page\nheadingIds: nested\n---\n# Security Model\n\n## Docker Socket & Security';
+  const res2 = processContent(pageWithNested, mdGithub, { markdown: { headingIds: 'github' } });
+  assert.match(res2.htmlContent, /<h2[^>]*id="security-model-docker-socket-security"/);
+  assert.equal(res2.headings[1].id, 'security-model-docker-socket-security');
+});
+
+test('frontmatter heading-ids and heading_ids aliases work', () => {
+  const md = createMarkdownProcessor();
+  const pageKebab = '---\ntitle: Page\nheading-ids: github\n---\n## Docker Socket & Security';
+  const resKebab = processContent(pageKebab, md, {});
+  assert.match(resKebab.htmlContent, /<h2[^>]*id="docker-socket--security"/);
+
+  const pageSnake = '---\ntitle: Page\nheading_ids: github\n---\n## Docker Socket & Security';
+  const resSnake = processContent(pageSnake, md, {});
+  assert.match(resSnake.htmlContent, /<h2[^>]*id="docker-socket--security"/);
+});
+
+test('validateConfig checks markdown.headingIds valid values', () => {
+  const validGithub = validateConfig({ title: 'Test', markdown: { headingIds: 'github' } });
+  assert.equal(validGithub.warnings.some(w => w.includes('markdown.headingIds')), false);
+
+  const validNested = validateConfig({ title: 'Test', markdown: { headingIds: 'nested' } });
+  assert.equal(validNested.warnings.some(w => w.includes('markdown.headingIds')), false);
+
+  const invalid = validateConfig({ title: 'Test', markdown: { headingIds: 'flat' } });
+  assert.equal(invalid.warnings.some(w => w.includes('"markdown.headingIds" must be either "nested" or "github"')), true);
 });
