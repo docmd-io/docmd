@@ -1,4 +1,4 @@
-import { getStoredIdentity } from './identity';
+import { getIdentityPayload, getStoredIdentity } from './identity';
 import type { Thread, Comment, Reaction, AuthorsMap } from '../../types';
 
 declare global {
@@ -17,8 +17,8 @@ function getSourceFile(): string {
   return file;
 }
 
-/** The identity every threads call carries, so the server can tell whose drafts to use. Never prompts. */
-function identity(): { author: string; authorKey: string; avatarUrl: string } | Record<string, never> {
+/** Identity for reads: whatever is stored. Page loads never prompt. */
+function storedIdentity(): { author: string; authorKey: string; avatarUrl: string } | Record<string, never> {
   return getStoredIdentity() ?? {};
 }
 
@@ -36,7 +36,7 @@ export async function upsertAuthor(authorKey: string, name: string, avatarUrl: s
 }
 
 export async function fetchThreads(): Promise<Thread[]> {
-  return docmd.call('threads:get-threads', { file: getSourceFile(), ...identity() });
+  return docmd.call('threads:get-threads', { file: getSourceFile(), ...storedIdentity() });
 }
 
 export async function createThread(payload: {
@@ -48,7 +48,7 @@ export async function createThread(payload: {
 }): Promise<Thread> {
   return docmd.call('threads:add-thread', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     ...payload,
   });
 }
@@ -59,7 +59,7 @@ export async function addComment(
 ): Promise<Comment> {
   return docmd.call('threads:add-comment', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
     ...payload,
   });
@@ -72,7 +72,7 @@ export async function editComment(
 ): Promise<Comment> {
   return docmd.call('threads:edit-comment', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
     commentId,
     ...payload,
@@ -85,7 +85,7 @@ export async function deleteComment(
 ): Promise<void> {
   await docmd.call('threads:delete-comment', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
     commentId,
   });
@@ -94,7 +94,7 @@ export async function deleteComment(
 export async function deleteThread(threadId: string): Promise<void> {
   await docmd.call('threads:delete-thread', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
   });
 }
@@ -105,7 +105,7 @@ export async function resolveThread(
 ): Promise<Thread> {
   return docmd.call('threads:resolve-thread', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
     ...payload,
   });
@@ -118,7 +118,7 @@ export async function toggleReaction(
 ): Promise<Reaction[]> {
   return docmd.call('threads:toggle-reaction', {
     file: getSourceFile(),
-    ...identity(),
+    ...getIdentityPayload(),
     threadId,
     commentId,
     ...payload,

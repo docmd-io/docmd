@@ -5,6 +5,7 @@ type Call = { action: string; payload: Record<string, unknown> };
 const calls: Call[] = [];
 const storage = new Map<string, string>();
 let prompts = 0;
+let promptAnswer = 'Prompted';
 const g = globalThis as Record<string, unknown>;
 const saved: Record<string, unknown> = {};
 const STUBS: Record<string, unknown> = {
@@ -14,7 +15,7 @@ const STUBS: Record<string, unknown> = {
     getItem: (k: string) => storage.get(k) ?? null,
     setItem: (k: string, v: string) => void storage.set(k, v),
   },
-  prompt: () => { prompts++; return 'Prompted'; },
+  prompt: () => { prompts++; return promptAnswer; },
 };
 
 type Api = typeof import('../src/client/lib/api.ts');
@@ -74,4 +75,14 @@ test('fetchThreads without a stored identity sends only the file and never promp
   await api.fetchThreads();
   assert.deepEqual(calls[0].payload, { file: 'docs/index.md' });
   assert.equal(prompts, 0);
+});
+
+test('a mutation without a stored identity prompts once and sends the prompted identity', async () => {
+  await api.deleteThread('t-1');
+  assert.equal(prompts, 1);
+  assert.equal(calls[0].payload.author, 'Prompted');
+  assert.equal(calls[0].payload.authorKey, 'prompted');
+  await api.deleteComment('t-1', 'c-1');
+  assert.equal(prompts, 1, 'the prompted name is stored');
+  assert.equal(calls[1].payload.authorKey, 'prompted');
 });
