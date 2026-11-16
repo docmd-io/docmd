@@ -3,7 +3,7 @@
  * the dispatcher returns plain error messages, and clients read the prefix.
  */
 
-export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config';
+export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config' | 'no-identity';
 
 export class ThreadsError extends Error {
   readonly code: ThreadsErrorCode;

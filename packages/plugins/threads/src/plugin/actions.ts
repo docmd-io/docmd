@@ -1,19 +1,14 @@
-import crypto from 'crypto';
-import path from 'path';
-import fs from 'fs';
+import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
+import type { ActionContext } from '@docmd/api';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
-import type { Thread, Comment, Reaction } from '../types.js';
-
-// TODO(0.7.0): Import ActionContext from @docmd/api once types package is extracted
-interface ActionContext {
-  projectRoot: string;
-  config: any;
-  readFile(relativePath: string): Promise<string>;
-  writeFile(relativePath: string, content: string): Promise<void>;
-  readFileLines(relativePath: string): Promise<string[]>;
-  broadcast(event: string, data: any): void;
-}
+import { safePath } from '@docmd/utils';
+import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
+import { overlay } from './overlay.js';
+import { findCaller, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
+import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp } from '../types.js';
 
 interface AuthorsMap {
   [key: string]: { name: string; avatarUrl: string };
@@ -25,7 +20,7 @@ interface AuthorsMap {
  */
 function getThreadsDir(ctx: ActionContext): string {
   const srcDir = ctx.config?.src || '';
-  return path.join(ctx.projectRoot, srcDir, '.threads');
+  return path.join(srcDir, '.threads');
 }
 
 /**
@@ -33,12 +28,12 @@ function getThreadsDir(ctx: ActionContext): string {
  * Returns {} if file doesn't exist.
  */
 async function readAuthors(ctx: ActionContext): Promise<AuthorsMap> {
-  const filePath = path.join(getThreadsDir(ctx), 'authors.json');
+  const filePath = safePath(ctx.projectRoot, path.join(getThreadsDir(ctx), 'authors.json'));
   try {
     const content = await fs.promises.readFile(filePath, 'utf8');
     return JSON.parse(content) as AuthorsMap;
-  } catch (e: any) {
-    if (e.code === 'ENOENT') return {};
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return {};
     throw e;
   }
 }
@@ -48,8 +43,8 @@ async function readAuthors(ctx: ActionContext): Promise<AuthorsMap> {
  * Creates the directory if needed.
  */
 async function writeAuthors(ctx: ActionContext, authors: AuthorsMap): Promise<void> {
-  const dirPath = getThreadsDir(ctx);
-  const filePath = path.join(dirPath, 'authors.json');
+  const dirPath = safePath(ctx.projectRoot, getThreadsDir(ctx));
+  const filePath = safePath(ctx.projectRoot, path.join(getThreadsDir(ctx), 'authors.json'));
   await fs.promises.mkdir(dirPath, { recursive: true });
   await fs.promises.writeFile(filePath, JSON.stringify(authors, null, 2) + '\n');
 }
@@ -67,316 +62,218 @@ async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string,
   await writeAuthors(ctx, authors);
 }
 
-/**
- * Generate a thread ID: "t-" + 8 random hex chars.
- */
-function generateThreadId(): string {
-  return 't-' + crypto.randomBytes(4).toString('hex');
+const generateThreadId = () => 't-' + crypto.randomBytes(4).toString('hex');
+const generateCommentId = () => 'c-' + crypto.randomBytes(4).toString('hex');
+
+/** One store per docs root, so its lock covers every caller; `Date.now` is the production clock. */
+const stores = new Map<string, DraftStore>();
+function getStore(ctx: ActionContext): DraftStore {
+  const root = path.join(ctx.projectRoot, ctx.config?.src || '');
+  let store = stores.get(root);
+  if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
+  return store;
 }
 
-/**
- * Generate a comment ID: "c-" + 8 random hex chars.
- */
-function generateCommentId(): string {
-  return 'c-' + crypto.randomBytes(4).toString('hex');
+/** Wire payload; `requireFields` has checked the fields an action needs. */
+interface Payload {
+  file: string;
+  threadId: string;
+  commentId: string;
+  parentId?: string | null;
+  body: string;
+  emoji: string;
+  [key: string]: unknown;
 }
 
-/**
- * Get today's date in YYYY-MM-DD format.
- */
-function todayDate(): string {
-  return new Date().toISOString().split('T')[0];
+/** Validate that required string fields are present and non-empty. */
+function requireFields(action: string, payload: Record<string, unknown>, fields: string[]): void {
+  for (const field of fields) {
+    const value = payload[field];
+    if (!value || (typeof value === 'string' && !value.trim())) {
+      throw new ThreadsError('invalid', `${action}: ${field} is required`);
+    }
+  }
 }
 
-/**
- * Read a file's content and parse its threads.
- */
-async function readAndParse(file: string, ctx: ActionContext): Promise<{ content: string; threads: Thread[] }> {
-  const content = await ctx.readFile(file);
-  const threads = parser.parseThreadsFromContent(content);
-  return { content, threads };
-}
-
-/**
- * Write threads back to a file, replacing the existing threads block.
- */
-async function writeBack(file: string, content: string, threads: Thread[], ctx: ActionContext): Promise<void> {
-  const updated = parser.replaceThreadsBlock(content, threads);
-  await ctx.writeFile(file, updated);
-}
-
-/**
- * Find a thread by ID, throwing if not found.
- */
-function findThread(threads: Thread[], threadId: string): Thread {
-  const thread = threads.find((t) => t.id === threadId);
+function findThread(view: Thread[], threadId: string): Thread {
+  const thread = view.find((t) => t.id === threadId);
   if (!thread) throw new ThreadsError('not-found', `Thread not found: ${threadId}`);
   return thread;
 }
 
-/**
- * Find a comment by ID within a thread, throwing if not found.
- */
 function findComment(thread: Thread, commentId: string): Comment {
   const comment = thread.comments.find((c) => c.id === commentId);
   if (!comment) throw new ThreadsError('not-found', `Comment not found: ${commentId}`);
   return comment;
 }
 
-/**
- * Validate that required string fields are present and non-empty.
- */
-function requireFields(action: string, payload: Record<string, any>, fields: string[]): void {
-  for (const field of fields) {
-    if (!payload[field] || (typeof payload[field] === 'string' && !payload[field].trim())) {
-      throw new ThreadsError('invalid', `${action}: ${field} is required`);
-    }
-  }
+/** The state a mutation decides on, inside one locked read-modify-write of the caller's journal. */
+interface Tx {
+  j: Journal;
+  at: string;
+  file: string;
+  /** Published threads with the caller's drafts applied, as of the start of this cycle. */
+  view: Thread[];
 }
 
-export const actions: Record<string, (payload: any, ctx: ActionContext) => Promise<any>> = {
-  /**
-   * Get the authors map. Read-only, no reload.
-   */
-  'threads:get-authors': async (payload: any, ctx: ActionContext): Promise<AuthorsMap> => {
-    return readAuthors(ctx);
-  },
+const fileOps = (tx: Tx) => tx.j.ops.filter((o) => o.file === tx.file);
+const draftedThreadOp = (tx: Tx, threadId: string) =>
+  fileOps(tx).find((o) => o.kind === 'add-thread' && o.threadId === threadId);
+const draftedCommentOp = (tx: Tx, commentId: string) =>
+  fileOps(tx).find((o) => (o.kind === 'add-thread' || o.kind === 'add-comment') && o.commentId === commentId);
+const opsOnThread = (tx: Tx, threadId: string) => fileOps(tx).filter((o) => o.threadId === threadId);
+const opsOnComment = (tx: Tx, commentId: string) =>
+  fileOps(tx).filter((o) => 'commentId' in o && o.commentId === commentId);
+const push = (tx: Tx, op: NewDraftOp) => void tx.j.ops.push(makeOp(op, tx.at));
+const drop = (tx: Tx, ops: DraftOp[]) => {
+  const gone = new Set(ops.map((o) => o.opId));
+  tx.j.ops = tx.j.ops.filter((o) => !gone.has(o.opId));
+};
+/** Ops on a comment plus, transitively, the caller's drafted replies to it (deleting a comment deletes those replies). */
+function opsOnCommentTree(tx: Tx, commentId: string): DraftOp[] {
+  const out = new Set<DraftOp>();
+  const queue = [commentId];
+  while (queue.length) {
+    const id = queue.pop() as string;
+    for (const o of opsOnComment(tx, id)) out.add(o);
+    for (const o of fileOps(tx)) if (o.kind === 'add-comment' && o.parentId === id) queue.push(o.commentId);
+  }
+  return [...out];
+}
 
-  /**
-   * Upsert an author entry directly.
-   */
-  'threads:upsert-author': async (payload: any, ctx: ActionContext): Promise<{ ok: boolean }> => {
+/**
+ * Resolve the caller (a serve call without a trusted identity is refused here,
+ * before anything is written), then run `fn` as one locked read-modify-write
+ * of their journal. Returns the published threads with the drafts applied.
+ */
+async function transact(ctx: ActionContext, payload: Payload, fn: (tx: Tx) => void): Promise<Thread[]> {
+  const caller = resolveCaller(ctx, payload);
+  const file = payload.file;
+  const published = parser.parseThreadsFromContent(await ctx.readFile(file));
+  const journal = await getStore(ctx).transact(caller.key, (j, at) =>
+    fn({ j, at, file, view: overlay(published, j.ops, file, caller) }),
+  );
+  return overlay(published, journal.ops, file, caller);
+}
+
+/** Author profiles are written straight to authors.json, as before. */
+async function recordProfile(ctx: ActionContext, caller: Caller, payload: Payload): Promise<void> {
+  const profile = payloadProfile(ctx, caller, payload);
+  if (profile) await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl);
+}
+
+export const actions: Record<string, (payload: Payload, ctx: ActionContext) => Promise<unknown>> = {
+  'threads:get-authors': async (_payload, ctx): Promise<AuthorsMap> => readAuthors(ctx),
+
+  'threads:upsert-author': async (payload, ctx): Promise<{ ok: boolean }> => {
     requireFields('threads:upsert-author', payload, ['authorKey', 'name']);
-    await upsertAuthor(ctx, payload.authorKey, payload.name, payload.avatarUrl);
+    const profile = profileFromPayload(payload);
+    await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl);
     return { ok: true };
   },
 
-  /**
-   * Get all threads from a file. Read-only, no reload.
-   */
-  'threads:get-threads': async (payload: any, ctx: ActionContext): Promise<Thread[]> => {
+  /** Published threads plus the caller's own drafts. */
+  'threads:get-threads': async (payload, ctx): Promise<Thread[]> => {
     requireFields('threads:get-threads', payload, ['file']);
-    const content = await ctx.readFile(payload.file);
-    return parser.parseThreadsFromContent(content);
+    const published = parser.parseThreadsFromContent(await ctx.readFile(payload.file));
+    const caller = findCaller(ctx, payload);
+    if (!caller) return published;
+    const journal = await getStore(ctx).load(caller.key);
+    return overlay(published, journal.ops, payload.file, caller);
   },
 
-  /**
-   * Add a new thread with its first comment.
-   */
-  'threads:add-thread': async (payload: any, ctx: ActionContext): Promise<Thread> => {
+  'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     requireFields('threads:add-thread', payload, ['file', 'author', 'body']);
-    const { file, author, body, anchor, authorKey, avatarUrl } = payload;
-
-    // Upsert author profile if key provided
-    if (authorKey) {
-      await upsertAuthor(ctx, authorKey, author, avatarUrl);
-    }
-    const { content, threads } = await readAndParse(file, ctx);
-
+    await recordProfile(ctx, resolveCaller(ctx, payload), payload);
     const threadId = generateThreadId();
-    const commentId = generateCommentId();
-    const date = todayDate();
-
-    const thread: Thread = {
-      id: threadId,
-      resolved: false,
-      resolved_by: null,
-      resolved_at: null,
-      comments: [
-        {
-          id: commentId,
-          thread_id: threadId,
-          parent_id: null,
-          author,
-          date,
-          edited_at: null,
-          body,
-          reactions: [],
-        },
-      ],
-    };
-
-    threads.push(thread);
-
-    // If anchor has a quote, wrap it with highlight markup in the document body
-    let contentForWrite = content;
-    if (anchor && anchor.quote) {
-      const quote = anchor.quote as string;
-      // Split at ::: threads boundary to avoid matching inside the threads block
-      const threadsIdx = content.indexOf('\n::: threads');
-      let bodyContent: string;
-      let rest: string;
-      if (threadsIdx >= 0) {
-        bodyContent = content.slice(0, threadsIdx);
-        rest = content.slice(threadsIdx);
-      } else {
-        bodyContent = content;
-        rest = '';
-      }
-
-      const quoteIdx = bodyContent.indexOf(quote);
-      if (quoteIdx >= 0) {
-        bodyContent =
-          bodyContent.slice(0, quoteIdx) +
-          `==${quote}=={${threadId}}` +
-          bodyContent.slice(quoteIdx + quote.length);
-      }
-
-      contentForWrite = bodyContent + rest;
-    }
-
-    const updated = parser.replaceThreadsBlock(contentForWrite, threads);
-    await ctx.writeFile(file, updated);
-    return thread;
+    const view = await transact(ctx, payload, (tx) =>
+      push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), body: payload.body }),
+    );
+    return findThread(view, threadId);
   },
 
-  /**
-   * Add a comment to an existing thread.
-   */
-  'threads:add-comment': async (payload: any, ctx: ActionContext): Promise<Comment> => {
+  'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     requireFields('threads:add-comment', payload, ['file', 'threadId', 'author', 'body']);
-    const { file, threadId, author, body, parentId, authorKey, avatarUrl } = payload;
-
-    // Upsert author profile if key provided
-    if (authorKey) {
-      await upsertAuthor(ctx, authorKey, author, avatarUrl);
-    }
-    const { content, threads } = await readAndParse(file, ctx);
-    const thread = findThread(threads, threadId);
-
+    await recordProfile(ctx, resolveCaller(ctx, payload), payload);
     const commentId = generateCommentId();
-    const date = todayDate();
-
-    const comment: Comment = {
-      id: commentId,
-      thread_id: threadId,
-      parent_id: parentId || null,
-      author,
-      date,
-      edited_at: null,
-      body,
-      reactions: [],
-    };
-
-    thread.comments.push(comment);
-    await writeBack(file, content, threads, ctx);
-    return comment;
+    const view = await transact(ctx, payload, (tx) => {
+      findThread(tx.view, payload.threadId);
+      push(tx, {
+        kind: 'add-comment', file: tx.file, threadId: payload.threadId, commentId,
+        parentId: payload.parentId || null, body: payload.body,
+      });
+    });
+    return findComment(findThread(view, payload.threadId), commentId);
   },
 
-  /**
-   * Edit an existing comment's body.
-   */
-  'threads:edit-comment': async (payload: any, ctx: ActionContext): Promise<Comment> => {
+  'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     requireFields('threads:edit-comment', payload, ['file', 'threadId', 'commentId', 'body']);
-    const { file, threadId, commentId, body } = payload;
-    const { content, threads } = await readAndParse(file, ctx);
-    const thread = findThread(threads, threadId);
-    const comment = findComment(thread, commentId);
-
-    comment.body = body;
-    comment.edited_at = todayDate();
-
-    await writeBack(file, content, threads, ctx);
-    return comment;
+    const { threadId, commentId, body } = payload;
+    const view = await transact(ctx, payload, (tx) => {
+      findComment(findThread(tx.view, threadId), commentId);
+      const drafted = draftedCommentOp(tx, commentId);
+      if (drafted) Object.assign(drafted, { body });
+      else push(tx, { kind: 'edit-comment', file: tx.file, threadId, commentId, body });
+    });
+    return findComment(findThread(view, threadId), commentId);
   },
 
-  /**
-   * Delete a comment from a thread.
-   */
-  'threads:delete-comment': async (payload: any, ctx: ActionContext): Promise<{ deleted: boolean }> => {
+  'threads:delete-comment': async (payload, ctx): Promise<{ deleted: boolean }> => {
     requireFields('threads:delete-comment', payload, ['file', 'threadId', 'commentId']);
-    const { file, threadId, commentId } = payload;
-    const { content, threads } = await readAndParse(file, ctx);
-    const thread = findThread(threads, threadId);
-
-    const idx = thread.comments.findIndex((c) => c.id === commentId);
-    if (idx === -1) throw new ThreadsError('not-found', `Comment not found: ${commentId}`);
-    thread.comments.splice(idx, 1);
-
-    await writeBack(file, content, threads, ctx);
-    return { deleted: true };
-  },
-
-  /**
-   * Delete an entire thread.
-   */
-  'threads:delete-thread': async (payload: any, ctx: ActionContext): Promise<{ deleted: boolean }> => {
-    requireFields('threads:delete-thread', payload, ['file', 'threadId']);
-    const { file, threadId } = payload;
-    const parsed = await readAndParse(file, ctx);
-    const { threads } = parsed;
-    let { content } = parsed;
-
-    const idx = threads.findIndex((t) => t.id === threadId);
-    if (idx === -1) throw new ThreadsError('not-found', `Thread not found: ${threadId}`);
-    threads.splice(idx, 1);
-
-    // Remove orphaned ==highlight=={threadId} markup from the body,
-    // keeping just the inner text
-    const highlightRe = new RegExp(`==((?:(?!==).)+)==\\{${threadId}\\}`, 'g');
-    content = content.replace(highlightRe, '$1');
-
-    await writeBack(file, content, threads, ctx);
-    return { deleted: true };
-  },
-
-  /**
-   * Toggle resolved status on a thread.
-   */
-  'threads:resolve-thread': async (payload: any, ctx: ActionContext): Promise<Thread> => {
-    requireFields('threads:resolve-thread', payload, ['file', 'threadId', 'resolved_by']);
-    const { file, threadId, resolved_by } = payload;
-    const { content, threads } = await readAndParse(file, ctx);
-    const thread = findThread(threads, threadId);
-
-    if (thread.resolved) {
-      thread.resolved = false;
-      thread.resolved_by = null;
-      thread.resolved_at = null;
-    } else {
-      thread.resolved = true;
-      thread.resolved_by = resolved_by;
-      thread.resolved_at = todayDate();
-    }
-
-    await writeBack(file, content, threads, ctx);
-    return thread;
-  },
-
-  /**
-   * Toggle a reaction emoji on a comment.
-   */
-  'threads:toggle-reaction': async (payload: any, ctx: ActionContext): Promise<Reaction[]> => {
-    requireFields('threads:toggle-reaction', payload, ['file', 'threadId', 'commentId', 'emoji', 'author']);
-    const { file, threadId, commentId, emoji, author } = payload;
-    const { content, threads } = await readAndParse(file, ctx);
-    const thread = findThread(threads, threadId);
-    const comment = findComment(thread, commentId);
-
-    if (!comment.reactions) comment.reactions = [];
-
-    const reaction = comment.reactions.find((r) => r.emoji === emoji);
-
-    if (reaction) {
-      const authorIdx = reaction.authors.indexOf(author);
-      if (authorIdx >= 0) {
-        // Remove author from this reaction
-        reaction.authors.splice(authorIdx, 1);
-        // If no authors left, remove the reaction entirely
-        if (reaction.authors.length === 0) {
-          const reactionIdx = comment.reactions.indexOf(reaction);
-          comment.reactions.splice(reactionIdx, 1);
-        }
-      } else {
-        // Add author to existing reaction
-        reaction.authors.push(author);
+    const { threadId, commentId } = payload;
+    await transact(ctx, payload, (tx) => {
+      findComment(findThread(tx.view, threadId), commentId);
+      const drafted = draftedCommentOp(tx, commentId);
+      if (drafted?.kind === 'add-thread') {
+        // The first comment of a drafted thread: the thread goes with it.
+        drop(tx, opsOnThread(tx, threadId));
+        return;
       }
-    } else {
-      // Create new reaction
-      comment.reactions.push({ emoji, authors: [author] });
-    }
+      drop(tx, opsOnCommentTree(tx, commentId));
+      if (!drafted) push(tx, { kind: 'delete-comment', file: tx.file, threadId, commentId });
+    });
+    return { deleted: true };
+  },
 
-    await writeBack(file, content, threads, ctx);
-    return comment.reactions;
+  'threads:delete-thread': async (payload, ctx): Promise<{ deleted: boolean }> => {
+    requireFields('threads:delete-thread', payload, ['file', 'threadId']);
+    const { threadId } = payload;
+    await transact(ctx, payload, (tx) => {
+      findThread(tx.view, threadId);
+      const drafted = draftedThreadOp(tx, threadId);
+      drop(tx, opsOnThread(tx, threadId));
+      if (!drafted) push(tx, { kind: 'delete-thread', file: tx.file, threadId });
+    });
+    return { deleted: true };
+  },
+
+  'threads:resolve-thread': async (payload, ctx): Promise<Thread> => {
+    requireFields('threads:resolve-thread', payload, ['file', 'threadId']);
+    const { threadId } = payload;
+    const view = await transact(ctx, payload, (tx) => {
+      findThread(tx.view, threadId);
+      // A drafted thread has no resolved field to flip: a second toggle cancels the first.
+      const pending = draftedThreadOp(tx, threadId)
+        ? opsOnThread(tx, threadId).find((o) => o.kind === 'resolve-thread')
+        : undefined;
+      if (pending) drop(tx, [pending]);
+      else push(tx, { kind: 'resolve-thread', file: tx.file, threadId });
+    });
+    return findThread(view, threadId);
+  },
+
+  'threads:toggle-reaction': async (payload, ctx): Promise<Reaction[]> => {
+    requireFields('threads:toggle-reaction', payload, ['file', 'threadId', 'commentId', 'emoji']);
+    const { threadId, commentId, emoji } = payload;
+    const view = await transact(ctx, payload, (tx) => {
+      findComment(findThread(tx.view, threadId), commentId);
+      // On a drafted comment a second toggle of the same emoji cancels the first.
+      const pending = draftedCommentOp(tx, commentId)
+        ? opsOnComment(tx, commentId).find((o) => o.kind === 'toggle-reaction' && o.emoji === emoji)
+        : undefined;
+      if (pending) drop(tx, [pending]);
+      else push(tx, { kind: 'toggle-reaction', file: tx.file, threadId, commentId, emoji });
+    });
+    return findComment(findThread(view, threadId), commentId).reactions;
   },
 };

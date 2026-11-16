@@ -1,0 +1,103 @@
+import { test, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { safePath } from '@docmd/utils';
+import { tempProject, type TempProject } from './helpers.ts';
+import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
+import { ThreadsError } from '../src/plugin/errors.ts';
+
+let project: TempProject;
+let docsRoot: string;
+let clock = Date.parse('2026-03-10T12:00:00.000Z');
+const store = () => createDraftStore(docsRoot, { now: () => clock });
+const rd = (p: string) => fs.readFileSync(safePath(path.dirname(p), path.basename(p)), 'utf8');
+const rdBytes = (p: string) => fs.readFileSync(safePath(path.dirname(p), path.basename(p)));
+const wr = (p: string, text: string) => fs.writeFileSync(safePath(path.dirname(p), path.basename(p)), text);
+const ls = (p: string) => fs.readdirSync(safePath(p, '.'));
+const draftsDir = () => path.join(docsRoot, '.threads', 'drafts');
+const addThread = { kind: 'add-thread', file: 'docs/index.md', threadId: 't-1', commentId: 'c-1', body: 'hi' } as const;
+const append = (s: DraftStore, key: string) => s.transact(key, (j, at) => void j.ops.push(makeOp(addThread, at)));
+
+before(() => {
+  project = tempProject();
+  docsRoot = path.join(project.root, 'docs');
+  execFileSync('git', ['init', '-q'], { cwd: project.root });
+});
+after(() => project.cleanup());
+beforeEach(() => {
+  fs.rmSync(path.join(docsRoot, '.threads'), { recursive: true, force: true });
+  clock = Date.parse('2026-03-10T12:00:00.000Z');
+});
+
+test('a write creates <slug>.json holding only version and ops, atomically; git ignores it; .gitignore is written once', async () => {
+  const key = 'alice smith/1';
+  assert.equal(slug(key), 'alice_20smith_2F1');
+  const s = store();
+  await append(s, key);
+  const file = path.join(draftsDir(), 'alice_20smith_2F1.json');
+  const journal = JSON.parse(rd(file));
+  assert.deepEqual(Object.keys(journal).sort(), ['ops', 'version']);
+  assert.equal(journal.version, 1);
+  assert.equal(journal.ops.length, 1);
+
+  const ignore = path.join(draftsDir(), '.gitignore');
+  assert.equal(rd(ignore), '*\n!.gitignore\n');
+  assert.equal(spawnSync('git', ['check-ignore', '-q', file], { cwd: project.root }).status, 0);
+  wr(ignore, '# operator edit\n');
+  await append(s, key);
+  assert.equal(rd(ignore), '# operator edit\n', '.gitignore is written once, never overwritten');
+  assert.deepEqual(ls(draftsDir()).filter((f) => f.endsWith('.tmp')), []);
+});
+
+test('a journal survives a new store instance', async () => {
+  await append(store(), 'bob');
+  const loaded = await store().load('bob');
+  assert.deepEqual(loaded.ops.map((o) => o.kind), ['add-thread']);
+});
+
+test('a corrupt journal is moved aside and a fresh one is returned', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+  const file = path.join(draftsDir(), 'bob.json');
+  wr(file, '{ not json');
+  const journal = await store().load('bob');
+  assert.deepEqual(journal, { version: 1, ops: [] });
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(rd(`${file}.corrupt-${clock}`), '{ not json');
+});
+
+test('a missing journal loads fresh without writing', async () => {
+  assert.deepEqual(await store().load('x'), { version: 1, ops: [] });
+  assert.equal(fs.existsSync(draftsDir()), false);
+});
+
+test('ops are stamped from the injected clock', async () => {
+  const s = store();
+  await append(s, 'k');
+  clock += 5000;
+  await append(s, 'k');
+  const j = await s.load('k');
+  assert.deepEqual(j.ops.map((o) => o.at), ['2026-03-10T12:00:00.000Z', '2026-03-10T12:00:05.000Z']);
+  assert.match(j.ops[0].opId, /^o-[0-9a-f]{8}$/);
+});
+
+test('a throwing transact rejects and leaves the journal file untouched', async () => {
+  const s = store();
+  await append(s, 'k');
+  const file = path.join(draftsDir(), 'k.json');
+  const bytes = rdBytes(file);
+  await assert.rejects(
+    s.transact('k', (j) => { j.ops = []; throw new ThreadsError('not-found', 'x'); }),
+    /threads\/not-found: x/,
+  );
+  assert.deepEqual(rdBytes(file), bytes);
+  assert.deepEqual(ls(draftsDir()).filter((f) => f.endsWith('.tmp')), []);
+  assert.equal((await s.load('k')).ops.length, 1, 'the store still works after a failed cycle');
+});
+
+test('concurrent transact calls on one store keep both ops', async () => {
+  const s = store();
+  await Promise.all([append(s, 'k'), append(s, 'k')]);
+  assert.equal((await s.load('k')).ops.length, 2);
+});

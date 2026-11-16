@@ -1,3 +1,18 @@
+/**
+ * Coverage map. Every threads mutation now lands in the caller's draft journal
+ * instead of the markdown, so the old immediate-write cases became drafts cases:
+ *
+ *  - "add-thread creates a thread", "add-comment appends"          → "add-thread and add-comment draft..."
+ *  - "get-threads reads the threads of the fixture page"            → "get-threads returns published threads plus the caller's own drafts"
+ *  - "edit-comment", "delete-comment", "delete-thread",
+ *    "resolve-thread", "toggle-reaction"                            → "mutations on published and drafted targets" (table)
+ *  - delete-comment on a drafted comment, replies, first comment    → "deleting a drafted comment removes its drafted replies" and "deleting a drafted first comment removes the thread"
+ *  - "add-thread with an anchor wraps the quote in highlight
+ *    markup", "add-thread anchor does not match text inside the
+ *    threads block", "delete-thread removes the highlight markup"   → moved to publish (drafts never write markdown)
+ *  - input validation, threads/<code> prefixes                      → kept
+ *  - plugin surface                                                 → kept, plus the ten action names
+ */
 import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -5,14 +20,17 @@ import path from 'node:path';
 import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, MarkdownIt, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
+import { slug } from '../src/plugin/drafts.ts';
 import * as plugin from '../src/index.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
-import type { Thread, Comment } from '../src/types.ts';
+import type { Thread, Comment, DraftOp, Reaction } from '../src/types.ts';
 
 let project: TempProject;
+let docsRoot: string;
 before(() => {
   mock.timers.enable({ apis: ['Date'], now: new Date('2026-03-10T12:00:00Z') });
   project = tempProject();
+  docsRoot = path.join(project.root, 'docs');
 });
 after(() => {
   mock.timers.reset();
@@ -20,226 +38,268 @@ after(() => {
 });
 beforeEach(() => {
   project.reset();
-  stripThreads();
+  fs.rmSync(path.join(docsRoot, '.threads'), { recursive: true, force: true });
 });
 
-/** The fixture ships with a threads block; most flows start from the page without it. */
-function stripThreads() {
-  const file = safePath(project.root, project.file);
-  const content = fs.readFileSync(file, 'utf8');
-  const idx = content.indexOf('::: threads');
-  assert.ok(idx >= 0, 'fixture has a threads block');
-  fs.writeFileSync(file, content.slice(0, idx));
-}
+const ALICE = { author: 'Alice', authorKey: 'alice' };
+const BOB = { author: 'Bob', authorKey: 'bob' };
+const journalPath = (key: string) => path.join(docsRoot, '.threads', 'drafts', `${slug(key)}.json`);
+const readJson = (p: string) => JSON.parse(fs.readFileSync(safePath(path.dirname(p), path.basename(p)), 'utf8'));
+const journalOps = (key: string): DraftOp[] => readJson(journalPath(key)).ops;
+const read = () => fs.readFileSync(safePath(project.root, project.file), 'utf8');
 
-/** Actions return threads, a thread, a comment or a small status object; tests read the shape they expect. */
-type ActionResult = Thread & Thread[] & Comment & Record<string, unknown>;
-
-/** Call an action like the dispatcher does and report whether it asked for a reload. */
-async function call(name: string, payload: Record<string, unknown>) {
-  const handler = (actions as Record<string, (payload: unknown, ctx: TestCtx) => Promise<unknown>>)[name];
+type Handler = (payload: Record<string, unknown>, ctx: TestCtx) => Promise<unknown>;
+/** Call an action like the dispatcher does. */
+async function call<T = unknown>(name: string, payload: Record<string, unknown>, extra: Partial<TestCtx> = {}) {
+  const handler = (actions as unknown as Record<string, Handler>)[name];
   assert.ok(handler, `Unknown action: ${name}`);
-  const ctx = makeCtx(project.root);
-  const result = (await handler(payload, ctx)) as ActionResult;
-  return { result, reload: ctx.source._modified === true };
+  const ctx = makeCtx(project.root, { config: { src: 'docs' }, ...extra });
+  return { result: (await handler(payload, ctx)) as T, ctx };
 }
+const as = (who: Record<string, string>, payload: Record<string, unknown>) => ({ file: project.file, ...who, ...payload });
 
-const read = (rel: string = project.file) => fs.readFileSync(safePath(project.root, rel), 'utf8');
+const addThread = async (who = ALICE, body = 'draft thread') =>
+  (await call<Thread>('threads:add-thread', as(who, { body }))).result;
+const addComment = async (threadId: string, extra: Record<string, unknown> = {}, who = ALICE) =>
+  (await call<Comment>('threads:add-comment', as(who, { threadId, body: 'draft reply', ...extra }))).result;
+const getThreads = async (payload: Record<string, unknown>, extra: Partial<TestCtx> = {}) =>
+  (await call<Thread[]>('threads:get-threads', { file: project.file, ...payload }, extra)).result;
 
-async function addThread(extra: Record<string, unknown> = {}) {
-  const { result } = await call('threads:add-thread', {
-    file: project.file, author: 'alice', body: 'This needs to be reworded.', anchor: '#section-1', ...extra,
+test('add-thread and add-comment draft without touching the markdown', async () => {
+  const before = fs.readFileSync(safePath(project.root, project.file));
+  const { result: thread, ctx: threadCtx } = await call<Thread>('threads:add-thread', as(ALICE, { body: 'draft thread' }));
+  const { result: comment, ctx } = await call<Comment>('threads:add-comment', as(ALICE, { threadId: 't-thread1', parentId: 'c1-1', body: 'reply' }));
+
+  assert.deepEqual(fs.readFileSync(safePath(project.root, project.file)), before);
+  assert.deepEqual([threadCtx.source._modified, ctx.source._modified], [false, false]);
+  assert.match(thread.id, /^t-[0-9a-f]{8}$/);
+  assert.match(comment.id, /^c-[0-9a-f]{8}$/);
+
+  const ops = journalOps('alice');
+  assert.equal(ops.length, 2);
+  assert.deepEqual(ops[0], {
+    kind: 'add-thread', opId: ops[0].opId, at: '2026-03-10T12:00:00.000Z', file: project.file,
+    threadId: thread.id, commentId: thread.comments[0].id, body: 'draft thread',
   });
-  return result;
-}
+  assert.deepEqual(ops[1], {
+    kind: 'add-comment', opId: ops[1].opId, at: '2026-03-10T12:00:00.000Z', file: project.file,
+    threadId: 't-thread1', commentId: comment.id, parentId: 'c1-1', body: 'reply',
+  });
+  assert.equal(thread.comments[0].author, 'Alice');
+  assert.equal(thread.comments[0].date, '2026-03-10');
+  assert.equal(comment.parent_id, 'c1-1');
+  assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['ops', 'version']);
+});
 
 // Depends on e2e/fixtures/playground-index.md: update together if that fixture's threads change.
-test('get-threads reads the threads of the fixture page without reloading', async () => {
-  project.reset();
-  const { result, reload } = await call('threads:get-threads', { file: project.file });
-  assert.equal(reload, false);
-  assert.deepEqual(result.map((t: Thread) => t.id), ['t-thread1', 't-thread2', 't-thread3']);
-  assert.deepEqual(result.map((t: Thread) => t.resolved), [false, false, true]);
-  assert.deepEqual(result[0].comments.map((c: Comment) => c.author), ['Alice', 'Bob']);
-  assert.equal(result[2].resolved_by, 'Alice');
-});
-
-test('get-threads on a file without threads returns [] and does not reload', async () => {
-  const { result, reload } = await call('threads:get-threads', { file: project.file });
-  assert.ok(Array.isArray(result));
-  assert.equal(result.length, 0);
-  assert.equal(reload, false);
-});
-
-test('add-thread creates a thread with ids and reloads', async () => {
-  const { result: thread, reload } = await call('threads:add-thread', {
-    file: project.file, author: 'alice', body: 'This needs to be reworded.', anchor: '#section-1',
-  });
-  assert.equal(reload, true);
-  assert.ok(thread.id.startsWith('t-'));
-  assert.equal(thread.id.length, 10);
-  assert.equal(thread.resolved, false);
-  assert.equal(thread.comments.length, 1);
-  assert.equal(thread.comments[0].author, 'alice');
-  assert.equal(thread.comments[0].body, 'This needs to be reworded.');
-  assert.equal(thread.comments[0].date, '2026-03-10');
-  assert.ok(thread.comments[0].id.startsWith('c-'));
-  assert.equal(thread.comments[0].id.length, 10);
-});
-
-test('add-comment appends to the thread and get-threads returns both', async () => {
+test("get-threads returns published threads plus the caller's own drafts", async () => {
   const thread = await addThread();
-  const { result: comment, reload } = await call('threads:add-comment', {
-    file: project.file, threadId: thread.id, author: 'bob', body: 'I agree, let me fix it.',
+  const reply = await addComment('t-thread2');
+  const ids = (ts: Thread[]) => ts.map((t) => t.id);
+
+  const mine = await getThreads(ALICE);
+  assert.deepEqual(ids(mine), ['t-thread1', 't-thread2', 't-thread3', thread.id]);
+  assert.deepEqual(mine[1].comments.map((c) => c.id), ['c2-1', reply.id]);
+  assert.deepEqual(await getThreads(ALICE), mine, 'read back from disk, same result');
+
+  for (const other of [BOB, {}]) {
+    const theirs = await getThreads(other);
+    assert.deepEqual(ids(theirs), ['t-thread1', 't-thread2', 't-thread3']);
+    assert.deepEqual(theirs[0].comments.map((c) => c.author), ['Alice', 'Bob']);
+    assert.equal(theirs[2].resolved_by, 'Alice');
+    assert.equal(theirs[1].comments.length, 1);
+  }
+});
+
+test('get-threads on a file without threads returns [] and does not write', async () => {
+  fs.writeFileSync(safePath(project.root, project.file), '# Plain\n');
+  const { result, ctx } = await call<Thread[]>('threads:get-threads', as(ALICE, {}));
+  assert.deepEqual(result, []);
+  assert.equal(ctx.source._modified, false);
+  assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false);
+});
+
+/** A published target and a drafted one for each of the five handlers. */
+interface Row {
+  name: string;
+  action: string;
+  published: (extra?: Record<string, unknown>) => Record<string, unknown>;
+  /** From a fresh drafted thread t (first comment c) and a drafted reply r. */
+  drafted: (t: Thread, r: Comment) => Record<string, unknown>;
+  /** Kinds in the journal after the call on a published target (journal holds one unrelated op beforehand). */
+  kind: string;
+  /** After the call on a drafted target: the check on ops (count is unchanged unless `shrinks`). */
+  check: (ops: DraftOp[], t: Thread, r: Comment) => void;
+  shrinks?: number;
+}
+const rows: Row[] = [
+  {
+    name: 'edit-comment', action: 'threads:edit-comment', kind: 'edit-comment',
+    published: () => ({ threadId: 't-thread1', commentId: 'c1-2', body: 'edited' }),
+    drafted: (t, r) => ({ threadId: t.id, commentId: r.id, body: 'edited' }),
+    check: (ops, _t, r) => assert.equal((ops.find((o) => o.kind === 'add-comment' && o.commentId === r.id) as { body: string }).body, 'edited'),
+  },
+  {
+    name: 'delete-comment', action: 'threads:delete-comment', kind: 'delete-comment',
+    published: () => ({ threadId: 't-thread1', commentId: 'c1-2' }),
+    drafted: (t, r) => ({ threadId: t.id, commentId: r.id }),
+    check: (ops, _t, r) => assert.ok(!ops.some((o) => 'commentId' in o && o.commentId === r.id)),
+    shrinks: 1,
+  },
+  {
+    name: 'delete-thread', action: 'threads:delete-thread', kind: 'delete-thread',
+    published: () => ({ threadId: 't-thread2' }),
+    drafted: (t) => ({ threadId: t.id }),
+    check: (ops, t) => assert.ok(!ops.some((o) => o.threadId === t.id)),
+    shrinks: 2,
+  },
+  {
+    name: 'resolve-thread', action: 'threads:resolve-thread', kind: 'resolve-thread',
+    published: () => ({ threadId: 't-thread2' }),
+    drafted: (t) => ({ threadId: t.id }),
+    check: (ops) => assert.ok(!ops.some((o) => o.kind === 'resolve-thread')),
+  },
+  {
+    name: 'toggle-reaction', action: 'threads:toggle-reaction', kind: 'toggle-reaction',
+    published: () => ({ threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }),
+    drafted: (t, r) => ({ threadId: t.id, commentId: r.id, emoji: '👍' }),
+    check: (ops) => assert.ok(!ops.some((o) => o.kind === 'toggle-reaction')),
+  },
+];
+
+for (const row of rows) {
+  test(`${row.name}: a published target appends one op`, async () => {
+    await addThread(); // one unrelated op
+    await call(row.action, as(ALICE, row.published()));
+    const ops = journalOps('alice');
+    assert.equal(ops.length, 2);
+    assert.equal(ops[1].kind, row.kind);
+    assert.equal(read().includes('c1-2'), true, 'markdown untouched');
   });
-  assert.equal(reload, true);
-  assert.ok(comment.id.startsWith('c-'));
-  assert.equal(comment.author, 'bob');
-  assert.equal(comment.body, 'I agree, let me fix it.');
-  assert.equal(comment.date, '2026-03-10');
-  assert.equal(comment.thread_id, thread.id);
 
-  const { result: threads } = await call('threads:get-threads', { file: project.file });
-  assert.equal(threads.length, 1);
-  assert.equal(threads[0].comments.length, 2);
-  assert.equal(threads[0].comments[0].author, 'alice');
-  assert.equal(threads[0].comments[1].author, 'bob');
-});
-
-test('edit-comment updates body and edited_at', async () => {
-  const thread = await addThread();
-  await call('threads:add-comment', { file: project.file, threadId: thread.id, author: 'bob', body: 'first try' });
-  const { result: before } = await call('threads:get-threads', { file: project.file });
-  const commentId = before[0].comments[1].id;
-
-  const { result, reload } = await call('threads:edit-comment', {
-    file: project.file, threadId: thread.id, commentId, body: 'Updated: I will fix it tomorrow.',
+  test(`${row.name}: a drafted target is changed in place`, async () => {
+    const t = await addThread();
+    const r = await addComment(t.id);
+    // toggle-reaction and resolve-thread need a first op to cancel.
+    if (row.name === 'toggle-reaction' || row.name === 'resolve-thread') {
+      await call(row.action, as(ALICE, row.drafted(t, r)));
+      assert.equal(journalOps('alice').length, 3, 'first call appends');
+    }
+    const count = journalOps('alice').length;
+    await call(row.action, as(ALICE, row.drafted(t, r)));
+    const ops = journalOps('alice');
+    if (row.name === 'toggle-reaction' || row.name === 'resolve-thread') assert.equal(ops.length, count - 1, 'second call cancels the first');
+    else assert.equal(ops.length, count - (row.shrinks ?? 0));
+    row.check(ops, t, r);
   });
-  assert.equal(reload, true);
-  assert.equal(result.body, 'Updated: I will fix it tomorrow.');
-  assert.equal(result.edited_at, '2026-03-10');
+}
 
-  const { result: after } = await call('threads:get-threads', { file: project.file });
-  assert.equal(after[0].comments[1].body, 'Updated: I will fix it tomorrow.');
-  assert.equal(after[0].comments[1].edited_at, '2026-03-10');
+test('toggle-reaction returns the overlaid reactions and edit-comment the overlaid comment', async () => {
+  const t = await addThread();
+  const { result: reactions } = await call<Reaction[]>('threads:toggle-reaction', as(ALICE, { threadId: 't-thread1', commentId: 'c1-1', emoji: '🎉' }));
+  assert.deepEqual(reactions, [{ emoji: '🎉', authors: ['Alice'] }]);
+  const { result: edited } = await call<Comment>('threads:edit-comment', as(ALICE, { threadId: t.id, commentId: t.comments[0].id, body: 'v2' }));
+  assert.deepEqual([edited.body, edited.author], ['v2', 'Alice']);
+  const { result: resolved } = await call<Thread>('threads:resolve-thread', as(ALICE, { threadId: 't-thread1' }));
+  assert.deepEqual([resolved.resolved, resolved.resolved_by, resolved.resolved_at], [true, 'Alice', '2026-03-10']);
 });
 
-test('toggle-reaction adds authors and removes the reaction when the last leaves', async () => {
-  const thread = await addThread();
-  const { result: threads } = await call('threads:get-threads', { file: project.file });
-  const commentId = threads[0].comments[0].id;
-  const react = (author: string) => call('threads:toggle-reaction', {
-    file: project.file, threadId: thread.id, commentId, emoji: '👍', author,
+test('deleting a drafted comment removes its drafted replies, transitively, and ops on them', async () => {
+  const t = await addThread();
+  const mid = await addComment(t.id);
+  const leaf = await addComment(t.id, { parentId: mid.id });
+  const sibling = await addComment(t.id);
+  await call('threads:toggle-reaction', as(ALICE, { threadId: t.id, commentId: leaf.id, emoji: '👍' }));
+
+  await call('threads:delete-comment', as(ALICE, { threadId: t.id, commentId: mid.id }));
+  const ops = journalOps('alice');
+  assert.deepEqual(ops.map((o) => o.kind), ['add-thread', 'add-comment']);
+  assert.equal((ops[1] as { commentId: string }).commentId, sibling.id);
+});
+
+test('deleting a drafted first comment removes the thread and every op on it', async () => {
+  const t = await addThread();
+  await addComment(t.id);
+  const keep = await addThread(ALICE, 'other');
+  await call('threads:delete-comment', as(ALICE, { threadId: t.id, commentId: t.comments[0].id }));
+  assert.deepEqual(journalOps('alice').map((o) => o.threadId), [keep.id]);
+});
+
+test('deleting a published comment or thread first drops the caller\'s earlier ops on it', async () => {
+  await call('threads:edit-comment', as(ALICE, { threadId: 't-thread1', commentId: 'c1-2', body: 'x' }));
+  await call('threads:toggle-reaction', as(ALICE, { threadId: 't-thread1', commentId: 'c1-2', emoji: '👍' }));
+  await call('threads:delete-comment', as(ALICE, { threadId: 't-thread1', commentId: 'c1-2' }));
+  assert.deepEqual(journalOps('alice').map((o) => o.kind), ['delete-comment']);
+
+  await call('threads:resolve-thread', as(ALICE, { threadId: 't-thread2' }));
+  await addComment('t-thread2');
+  await call('threads:delete-thread', as(ALICE, { threadId: 't-thread2' }));
+  assert.deepEqual(journalOps('alice').map((o) => o.kind), ['delete-comment', 'delete-thread']);
+});
+
+test('concurrent calls are one locked read-modify-write each', async () => {
+  const t = await addThread();
+  const toggle = () => call('threads:toggle-reaction', as(ALICE, { threadId: t.id, commentId: t.comments[0].id, emoji: '👍' }));
+  await Promise.all([toggle(), toggle()]);
+  assert.deepEqual(journalOps('alice').map((o) => o.kind), ['add-thread']);
+
+  await Promise.all([addComment(t.id), addComment(t.id)]);
+  assert.equal(journalOps('alice').filter((o) => o.kind === 'add-comment').length, 2);
+});
+
+const MUTATIONS: Array<[string, Record<string, unknown>]> = [
+  ['threads:add-thread', { body: 'b' }],
+  ['threads:add-comment', { threadId: 't-thread1', body: 'b' }],
+  ['threads:edit-comment', { threadId: 't-thread1', commentId: 'c1-1', body: 'b' }],
+  ['threads:delete-comment', { threadId: 't-thread1', commentId: 'c1-2' }],
+  ['threads:delete-thread', { threadId: 't-thread3' }],
+  ['threads:resolve-thread', { threadId: 't-thread2' }],
+  ['threads:toggle-reaction', { threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }],
+];
+
+test('serve without a trusted identity refuses every mutation; dev succeeds; get-threads works in both', async () => {
+  for (const [name, payload] of MUTATIONS) {
+    await assert.rejects(
+      call(name, as(ALICE, payload), { mode: 'serve', caller: { identity: null } }),
+      (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /no trusted identity/.test(e.message),
+      name,
+    );
+    assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false, `${name} wrote nothing`);
+  }
+  for (const [name, payload] of MUTATIONS) {
+    await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
+  }
+  for (const mode of ['serve', 'dev'] as const) {
+    const out = await getThreads(mode === 'dev' ? BOB : {}, { mode, caller: { identity: null } });
+    assert.deepEqual(out.map((t) => t.id).slice(0, 3), ['t-thread1', 't-thread2', 't-thread3'], mode);
+  }
+});
+
+test('serve keys journals on the trusted identity, not the payload', async () => {
+  const serve = (identity: string): Partial<TestCtx> => ({ mode: 'serve', caller: { identity } });
+  const t = (await call<Thread>('threads:add-thread', as({ author: 'Mallory', authorKey: 'bob' }, { body: 'mine' }), serve('alice'))).result;
+  assert.equal(fs.existsSync(journalPath('bob')), false);
+  assert.equal(journalOps('alice').length, 1);
+  assert.equal(t.comments[0].author, 'Mallory', 'the payload still supplies the display name');
+
+  const asBob = await getThreads({ author: 'Bob', authorKey: 'alice' }, serve('bob'));
+  assert.ok(!asBob.some((x) => x.id === t.id), "bob does not see alice's drafts");
+  const asAlice = await getThreads({}, serve('alice'));
+  assert.ok(asAlice.some((x) => x.id === t.id));
+});
+
+test('upsert-author and drafting calls with an authorKey write authors.json', async () => {
+  const authors = () => readJson(path.join(docsRoot, '.threads', 'authors.json'));
+  await call('threads:upsert-author', { authorKey: 'zed', name: 'Zed', avatarUrl: 'http://z/a.png' });
+  assert.deepEqual(authors(), { zed: { name: 'Zed', avatarUrl: 'http://z/a.png' } });
+  await call('threads:add-thread', as({ ...ALICE, avatarUrl: 'http://a/a.png' }, { body: 'b' }));
+  await call('threads:add-comment', as({ ...BOB }, { threadId: 't-thread1', body: 'b' }));
+  assert.deepEqual(authors(), {
+    zed: { name: 'Zed', avatarUrl: 'http://z/a.png' },
+    alice: { name: 'Alice', avatarUrl: 'http://a/a.png' },
+    bob: { name: 'Bob', avatarUrl: '' },
   });
-
-  const first = await react('bob');
-  assert.equal(first.reload, true);
-  assert.equal(first.result.length, 1);
-  assert.equal(first.result[0].emoji, '👍');
-  assert.deepEqual(first.result[0].authors, ['bob']);
-
-  const second = await react('charlie');
-  assert.equal(second.result.length, 1);
-  assert.deepEqual(second.result[0].authors, ['bob', 'charlie']);
-
-  const third = await react('bob');
-  assert.equal(third.result.length, 1);
-  assert.deepEqual(third.result[0].authors, ['charlie']);
-
-  const fourth = await react('charlie');
-  assert.equal(fourth.result.length, 0);
-});
-
-test('resolve-thread toggles resolved state', async () => {
-  const thread = await addThread();
-  const resolve = () => call('threads:resolve-thread', { file: project.file, threadId: thread.id, resolved_by: 'alice' });
-
-  const resolved = await resolve();
-  assert.equal(resolved.reload, true);
-  assert.equal(resolved.result.resolved, true);
-  assert.equal(resolved.result.resolved_by, 'alice');
-  assert.equal(resolved.result.resolved_at, '2026-03-10');
-
-  const unresolved = await resolve();
-  assert.equal(unresolved.result.resolved, false);
-  assert.equal(unresolved.result.resolved_by, null);
-  assert.equal(unresolved.result.resolved_at, null);
-});
-
-test('delete-comment removes the comment', async () => {
-  const thread = await addThread();
-  await call('threads:add-comment', { file: project.file, threadId: thread.id, author: 'bob', body: 'reply' });
-  const { result: before } = await call('threads:get-threads', { file: project.file });
-
-  const { result, reload } = await call('threads:delete-comment', {
-    file: project.file, threadId: thread.id, commentId: before[0].comments[1].id,
-  });
-  assert.equal(reload, true);
-  assert.deepEqual(result, { deleted: true });
-
-  const { result: after } = await call('threads:get-threads', { file: project.file });
-  assert.equal(after[0].comments.length, 1);
-  assert.equal(after[0].comments[0].author, 'alice');
-});
-
-test('delete-thread removes the thread and the threads block', async () => {
-  const thread = await addThread();
-  const { result, reload } = await call('threads:delete-thread', { file: project.file, threadId: thread.id });
-  assert.equal(reload, true);
-  assert.deepEqual(result, { deleted: true });
-
-  const { result: after } = await call('threads:get-threads', { file: project.file });
-  assert.equal(after.length, 0);
-  const content = read();
-  assert.ok(content.includes('Threads Plugin Test'));
-  assert.ok(!content.includes('::: threads'));
-});
-
-test('add-thread with an anchor wraps the quote in highlight markup before the block', async () => {
-  const { result: thread, reload } = await call('threads:add-thread', {
-    file: project.file,
-    author: 'alice',
-    body: 'This is important',
-    anchor: {
-      quote: 'verify core engine changes',
-      prefix: 'used to ',
-      suffix: ' in real-time',
-      selector: 'p',
-      offset: 0,
-      blockText: 'This playground is used to verify core engine changes in real-time.',
-    },
-  });
-  assert.equal(reload, true);
-  const content = read();
-  const mark = `==verify core engine changes=={${thread.id}}`;
-  assert.ok(content.includes(mark), content);
-  assert.ok(content.includes('::: threads'));
-  assert.ok(content.indexOf(mark) < content.indexOf('::: threads'));
-});
-
-test('add-thread anchor does not match text inside an existing threads block', async () => {
-  fs.writeFileSync(safePath(project.root, project.file), [
-    '# Test', '', 'Some unique phrase here.', '',
-    '::: threads', '### t-existing', '- resolved: false', '',
-    '#### c-existing', '- author: bob', '- date: 2026-01-01', '',
-    'Some unique phrase here.', '', ':::', '',
-  ].join('\n'));
-
-  const thread = await addThread({ body: 'Noting this phrase', anchor: { quote: 'unique phrase' } });
-  const content = read();
-  const mark = `==unique phrase=={${thread.id}}`;
-  assert.ok(content.indexOf(mark) >= 0, content);
-  assert.ok(content.indexOf(mark) < content.indexOf('::: threads'));
-});
-
-test('delete-thread removes the highlight markup but keeps the text', async () => {
-  const thread = await addThread({ anchor: { quote: 'verify core engine changes' } });
-  assert.ok(read().includes(`==verify core engine changes=={${thread.id}}`));
-
-  await call('threads:delete-thread', { file: project.file, threadId: thread.id });
-  const content = read();
-  assert.ok(!content.includes('==verify core engine changes=={'));
-  assert.ok(content.includes('verify core engine changes'));
+  assert.deepEqual((await call('threads:get-authors', {})).result, authors());
 });
 
 test('input validation rejects missing fields', async () => {
@@ -250,18 +310,20 @@ test('input validation rejects missing fields', async () => {
   await rejects('threads:add-thread', { file: '', author: 'alice', body: 'hi' }, 'file is required');
   await rejects('threads:add-thread', { file: project.file, author: '', body: 'hi' }, 'author is required');
   await rejects('threads:add-thread', { file: project.file, author: 'alice', body: '   ' }, 'body is required');
+  await rejects('threads:edit-comment', { file: project.file, threadId: 't-thread1', commentId: 'c1-1', body: 'x' },
+    'threads/invalid: caller identity is required');
+  assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false);
 });
 
 test('lookup and validation failures carry the threads/<code> prefix', async () => {
   const rejects = (name: string, payload: Record<string, unknown>, msg: string) =>
-    assert.rejects(call(name, payload), (e: Error) => e.message === msg);
-  await rejects('threads:edit-comment', { file: project.file, threadId: 't-nope', commentId: 'c-1', body: 'x' },
+    assert.rejects(call(name, as(ALICE, payload)), (e: Error) => e.message === msg);
+  await rejects('threads:edit-comment', { threadId: 't-nope', commentId: 'c-1', body: 'x' },
     'threads/not-found: Thread not found: t-nope');
-  const thread = await addThread(); // beforeEach strips the fixture's threads
-  await rejects('threads:edit-comment', { file: project.file, threadId: thread.id, commentId: 'c-nope', body: 'x' },
+  await rejects('threads:edit-comment', { threadId: 't-thread1', commentId: 'c-nope', body: 'x' },
     'threads/not-found: Comment not found: c-nope');
-  await rejects('threads:delete-thread', { file: project.file, threadId: 't-nope' },
-    'threads/not-found: Thread not found: t-nope');
+  await rejects('threads:delete-thread', { threadId: 't-nope' }, 'threads/not-found: Thread not found: t-nope');
+  assert.equal(fs.existsSync(journalPath('alice')), false, 'a failed mutation writes no journal');
 });
 
 test('plugin surface: descriptor, hooks and action names', () => {
@@ -272,9 +334,11 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.equal(typeof plugin.generateScripts, 'function');
   assert.equal(typeof plugin.getAssets, 'function');
   assert.equal(typeof plugin.actions, 'object');
-  for (const name of ['add-thread', 'add-comment', 'toggle-reaction', 'get-threads']) {
-    assert.equal(typeof plugin.actions[`threads:${name}`], 'function', name);
-  }
+  assert.deepEqual(Object.keys(plugin.actions).sort(), [
+    'threads:add-comment', 'threads:add-thread', 'threads:delete-comment', 'threads:delete-thread',
+    'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:resolve-thread',
+    'threads:toggle-reaction', 'threads:upsert-author',
+  ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
   assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true};'));
