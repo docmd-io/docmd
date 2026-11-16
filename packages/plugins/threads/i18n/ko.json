@@ -40,5 +40,17 @@
   "commentsCount": "댓글",
   "by": "작성:",
   "and": "및",
-  "more": "명 더"
+  "more": "명 더",
+  "publish": "게시",
+  "autoPublishing": "자동 게시",
+  "pause": "자동 게시 일시중지",
+  "play": "자동 게시 재개",
+  "unpublishedCount": "게시되지 않은 댓글 {n}개",
+  "unpublishedCountOne": "게시되지 않은 댓글 {n}개",
+  "publishFailed": "게시 실패",
+  "skippedOps": "변경 {n}건을 적용할 수 없습니다",
+  "skippedOpsOne": "변경 {n}건을 적용할 수 없습니다",
+  "modeFailed": "게시 모드를 변경할 수 없습니다",
+  "loadFailed": "댓글을 불러올 수 없습니다",
+  "draft": "초안"
 }

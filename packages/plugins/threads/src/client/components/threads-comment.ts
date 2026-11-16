@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { getThreadSvg } from '../lib/icons';
+import { t } from '../lib/i18n';
 import type { Comment } from '../../types';
 
 import '@shoelace-style/shoelace/dist/components/button/button.js';
@@ -155,6 +156,7 @@ export class ThreadsComment extends LitElement {
           <div class="tc-comment__meta">
             <span class="tc-comment__author">${c.author}</span>
             <span class="tc-comment__time">${this.formatTime(c.date)}${c.edited_at ? ' (edited)' : ''}</span>
+            ${c.draft ? html`<span class="tc-comment__draft" data-testid="tc-draft-badge">${t('draft')}</span>` : nothing}
           </div>
           ${this.isOwn && !this.editing ? html`
             <div class="tc-comment__menu">

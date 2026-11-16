@@ -47,6 +47,18 @@ const defaults: Record<string, string> = {
   by: 'by',
   and: 'and',
   more: 'more',
+  publish: 'Publish',
+  autoPublishing: 'Auto-publishing',
+  pause: 'Pause auto-publishing',
+  play: 'Resume auto-publishing',
+  unpublishedCount: '{n} unpublished comments',
+  unpublishedCountOne: '{n} unpublished comment',
+  publishFailed: 'Publish failed',
+  skippedOps: '{n} changes could not be applied',
+  skippedOpsOne: '{n} change could not be applied',
+  modeFailed: 'Could not change publishing mode',
+  loadFailed: 'Could not load your comments',
+  draft: 'Draft',
 };
 
 /**
