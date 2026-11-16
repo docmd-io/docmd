@@ -523,11 +523,13 @@ test('two callers publishing to one page at once both land, each with a manifest
   const logging = (name: string): Partial<TestCtx> => ({
     async readFile(rel: string) {
       if (rel === FILE) log.push(`read:${name}`);
-      return fs.readFileSync(safePath(project.root, rel), 'utf8');
+      return fs.promises.readFile(safePath(project.root, rel), 'utf8');
     },
     async writeFile(rel: string, content: string) {
+      // Let the other publish run as far as it can before this one writes: only the lock holds it back.
+      if (name === 'alice') for (let i = 0; i < 25; i++) await new Promise((r) => setImmediate(r));
       log.push(`write:${name}`);
-      fs.writeFileSync(safePath(project.root, rel), content);
+      await fs.promises.writeFile(safePath(project.root, rel), content);
     },
   });
   const [a, b] = await Promise.all([
