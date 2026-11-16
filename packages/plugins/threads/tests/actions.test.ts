@@ -46,7 +46,6 @@ const BOB = { author: 'Bob', authorKey: 'bob' };
 const journalPath = (key: string) => path.join(docsRoot, '.threads', 'drafts', `${slug(key)}.json`);
 const readJson = (p: string) => JSON.parse(fs.readFileSync(safePath(path.dirname(p), path.basename(p)), 'utf8'));
 const journalOps = (key: string): DraftOp[] => readJson(journalPath(key)).ops;
-const read = () => fs.readFileSync(safePath(project.root, project.file), 'utf8');
 
 type Handler = (payload: Record<string, unknown>, ctx: TestCtx) => Promise<unknown>;
 /** Call an action like the dispatcher does. */
