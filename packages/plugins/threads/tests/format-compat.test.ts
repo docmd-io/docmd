@@ -1,15 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { safePath } from '@docmd/utils';
+import { playground } from './helpers.ts';
 import { parseThreadsFromContent, replaceThreadsBlock } from '../src/plugin/parser.ts';
 import { parseCommentInfo } from '../src/plugin/containers.ts';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const pluginRoot = path.resolve(here, '..');
-const playground = fs.readFileSync(safePath(pluginRoot, 'e2e/fixtures/playground-index.md'), 'utf8');
 
 const withIds = `# Doc
 
@@ -61,10 +55,11 @@ test('id-less legacy content keeps its structure through a round-trip', () => {
   assert.deepEqual(shape(out), shape(withoutIds));
 });
 
-test('playground fixture keeps its structure through a round-trip', () => {
+// Structural rather than byte-identical: the fixture's indentation is not the serialiser's canonical form.
+test('playground fixture keeps its threads and ids through a round-trip', () => {
   const threads = parseThreadsFromContent(playground);
   assert.equal(threads.length, 3);
-  assert.deepEqual(shape(replaceThreadsBlock(playground, threads)), shape(playground));
+  assert.deepEqual(parseThreadsFromContent(replaceThreadsBlock(playground, threads)), threads);
   for (const t of threads) {
     assert.equal(t.anchor, undefined);
     for (const c of t.comments) {

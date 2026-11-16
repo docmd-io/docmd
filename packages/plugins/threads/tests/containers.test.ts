@@ -264,3 +264,7 @@ test('thread without anchor renders no anchor element', () => {
 `);
   lacks(html, 'threads-anchor');
 });
+
+test('::: anchor outside a thread is not turned into an anchor blockquote', () => {
+  lacks(md.render('::: anchor\nplain\n:::\n'), 'threads-anchor');
+});

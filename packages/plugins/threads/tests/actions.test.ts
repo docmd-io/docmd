@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, MarkdownIt, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import * as plugin from '../src/index.ts';
+import { ThreadsError } from '../src/plugin/errors.ts';
 import type { Thread, Comment } from '../src/types.ts';
 
 let project: TempProject;
@@ -245,6 +246,7 @@ test('input validation rejects missing fields', async () => {
   const rejects = (name: string, payload: Record<string, unknown>, msg: string) =>
     assert.rejects(call(name, payload), (e: Error) => e.message.includes(msg));
 
+  await rejects('threads:get-threads', {}, 'threads/invalid: threads:get-threads: file is required');
   await rejects('threads:add-thread', { file: '', author: 'alice', body: 'hi' }, 'file is required');
   await rejects('threads:add-thread', { file: project.file, author: '', body: 'hi' }, 'author is required');
   await rejects('threads:add-thread', { file: project.file, author: 'alice', body: '   ' }, 'body is required');
@@ -253,7 +255,6 @@ test('input validation rejects missing fields', async () => {
 test('lookup and validation failures carry the threads/<code> prefix', async () => {
   const rejects = (name: string, payload: Record<string, unknown>, msg: string) =>
     assert.rejects(call(name, payload), (e: Error) => e.message === msg);
-  await rejects('threads:get-threads', {}, 'threads/invalid: threads:get-threads: file is required');
   await rejects('threads:edit-comment', { file: project.file, threadId: 't-nope', commentId: 'c-1', body: 'x' },
     'threads/not-found: Thread not found: t-nope');
   const thread = await addThread(); // beforeEach strips the fixture's threads
@@ -276,6 +277,24 @@ test('plugin surface: descriptor, hooks and action names', () => {
   }
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  assert.ok(scripts.bodyScriptsHtml.includes('"sidebar":true'));
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true};'));
+  for (const opts of [{}, undefined]) {
+    const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
+    assert.ok(out.bodyScriptsHtml.includes('window.__threads_config={"sidebar":false};'));
+  }
+  // An invalid value surfaces as a config error, once; later pages fall back to defaults.
+  const bad = { sidebar: 'yes' };
+  assert.throws(
+    () => plugin.generateScripts({ src: path.join(project.root, 'docs') }, bad),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'config',
+  );
+  assert.ok(plugin.generateScripts({ src: path.join(project.root, 'docs') }, bad)
+    .bodyScriptsHtml.includes('window.__threads_config={"sidebar":false};'));
+  // markdownSetup wires containers and the highlight rule together.
+  const md = MarkdownIt();
+  plugin.markdownSetup(md);
+  const html = md.render('==x=={t-1}\n\n::: threads\n  ::: thread t-1\n    ::: comment c-1 "a" "2026-01-01"\n      hi\n    :::\n  :::\n:::\n');
+  assert.ok(html.includes('threads-thread'));
+  assert.ok(html.includes('<mark'));
   assert.deepEqual(assets.map((a: { dest: string }) => a.dest), ['assets/js/threads.js', 'assets/css/threads.css']);
 });

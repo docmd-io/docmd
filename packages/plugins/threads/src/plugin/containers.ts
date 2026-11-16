@@ -121,7 +121,11 @@ function setupSafeCommentContainer(md: any): void {
 
 /**
  * `::: anchor` - the quoted text a thread was anchored to. Rendered as plain
- * escaped text in a blockquote (no inner markdown).
+ * escaped text in a blockquote (no inner markdown). Only recognised inside a
+ * container body (where threads render their children); a top-level
+ * `::: anchor` is left to other rules. A quote line that is exactly `:::`
+ * would close the block early, so the writer of anchors must reject or escape
+ * it (TODO: enforce when drafts write anchors).
  */
 interface AnchorBlockState {
   src: string;
@@ -129,6 +133,7 @@ interface AnchorBlockState {
   tShift: number[];
   eMarks: number[];
   line: number;
+  env: { isInsideContainer?: boolean };
   push(type: string, tag: string, nesting: number): { content: string };
 }
 
@@ -151,6 +156,9 @@ function setupAnchorContainer(md: AnchorMarkdown): void {
     const start = state.bMarks[startLine] + state.tShift[startLine];
     const lineContent = state.src.slice(start, state.eMarks[startLine]).trim();
     if (!/^:::\s*anchor$/.test(lineContent)) return false;
+    // Container bodies are rendered recursively with this flag set; a top-level
+    // `::: anchor` is not part of a thread and is left alone.
+    if (!state.env.isInsideContainer) return false;
 
     let nextLine = startLine + 1;
     while (nextLine < endLine) {

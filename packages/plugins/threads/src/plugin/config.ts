@@ -2,7 +2,6 @@ import { ThreadsError } from './errors.js';
 
 export interface ThreadsOptions {
   sidebar: boolean;
-  devOnly: boolean;
 }
 
 const bad = (key: string, why: string): never => {
@@ -31,6 +30,5 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
 
   return {
     sidebar: optionalBoolean(raw, 'sidebar', false),
-    devOnly: optionalBoolean(raw, 'devOnly', true),
   };
 }

@@ -7,6 +7,8 @@ import { safePath } from '@docmd/utils';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = safePath(path.resolve(here, '..'), 'e2e/fixtures/playground-index.md');
+/** The playground page, read once. */
+export const playground = fs.readFileSync(FIXTURE, 'utf8');
 
 /** markdown-it is a dependency of @docmd/parser, not of this plugin. */
 function loadMarkdownIt() {

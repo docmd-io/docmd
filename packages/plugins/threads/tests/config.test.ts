@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeOptions } from '../src/plugin/config.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
-const DEFAULTS = { sidebar: false, devOnly: true };
+const DEFAULTS = { sidebar: false };
 
 test('absent, true and empty options all normalise to the defaults', () => {
   for (const raw of [{}, undefined, true]) {
@@ -12,7 +12,7 @@ test('absent, true and empty options all normalise to the defaults', () => {
 });
 
 test('valid values are kept', () => {
-  assert.deepEqual(normalizeOptions({ sidebar: true, devOnly: false }), { sidebar: true, devOnly: false });
+  assert.deepEqual(normalizeOptions({ sidebar: true }), { sidebar: true });
 });
 
 test('invalid values throw threads/config', () => {
@@ -20,7 +20,6 @@ test('invalid values throw threads/config', () => {
     ['nope', /^threads\/config: plugins\.threads must be an object$/],
     [[], /^threads\/config: plugins\.threads must be an object$/],
     [{ sidebar: 'yes' }, /plugins\.threads\.sidebar must be a boolean/],
-    [{ devOnly: 1 }, /plugins\.threads\.devOnly must be a boolean/],
   ];
   for (const [raw, naming] of cases) {
     assert.throws(
