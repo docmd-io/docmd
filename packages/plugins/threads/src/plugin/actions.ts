@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
 import fs from 'node:fs';
 import type { ActionContext } from '@docmd/api';
 import * as parser from './parser.js';
@@ -14,13 +13,9 @@ interface AuthorsMap {
   [key: string]: { name: string; avatarUrl: string };
 }
 
-/**
- * Resolve the .threads directory inside the docs source folder.
- * Falls back to projectRoot if config.src is not available.
- */
-function getThreadsDir(ctx: ActionContext): string {
-  const srcDir = ctx.config?.src || '';
-  return path.join(srcDir, '.threads');
+/** The docs root, validated against the project root: authors.json and the drafts share it. */
+function docsRootOf(ctx: ActionContext): string {
+  return safePath(ctx.projectRoot, ctx.config?.src || '.');
 }
 
 /**
@@ -28,7 +23,7 @@ function getThreadsDir(ctx: ActionContext): string {
  * Returns {} if file doesn't exist.
  */
 async function readAuthors(ctx: ActionContext): Promise<AuthorsMap> {
-  const filePath = safePath(ctx.projectRoot, path.join(getThreadsDir(ctx), 'authors.json'));
+  const filePath = safePath(safePath(docsRootOf(ctx), '.threads'), 'authors.json');
   try {
     const content = await fs.promises.readFile(filePath, 'utf8');
     return JSON.parse(content) as AuthorsMap;
@@ -43,8 +38,8 @@ async function readAuthors(ctx: ActionContext): Promise<AuthorsMap> {
  * Creates the directory if needed.
  */
 async function writeAuthors(ctx: ActionContext, authors: AuthorsMap): Promise<void> {
-  const dirPath = safePath(ctx.projectRoot, getThreadsDir(ctx));
-  const filePath = safePath(ctx.projectRoot, path.join(getThreadsDir(ctx), 'authors.json'));
+  const dirPath = safePath(docsRootOf(ctx), '.threads');
+  const filePath = safePath(dirPath, 'authors.json');
   await fs.promises.mkdir(dirPath, { recursive: true });
   await fs.promises.writeFile(filePath, JSON.stringify(authors, null, 2) + '\n');
 }
@@ -68,7 +63,7 @@ const generateCommentId = () => 'c-' + crypto.randomBytes(4).toString('hex');
 /** One store per docs root, so its lock covers every caller; `Date.now` is the production clock. */
 const stores = new Map<string, DraftStore>();
 function getStore(ctx: ActionContext): DraftStore {
-  const root = path.join(ctx.projectRoot, ctx.config?.src || '');
+  const root = docsRootOf(ctx);
   let store = stores.get(root);
   if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
   return store;
@@ -184,17 +179,18 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     requireFields('threads:add-thread', payload, ['file', 'author', 'body']);
-    await recordProfile(ctx, resolveCaller(ctx, payload), payload);
+    const caller = resolveCaller(ctx, payload);
     const threadId = generateThreadId();
     const view = await transact(ctx, payload, (tx) =>
       push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), body: payload.body }),
     );
+    await recordProfile(ctx, caller, payload);
     return findThread(view, threadId);
   },
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     requireFields('threads:add-comment', payload, ['file', 'threadId', 'author', 'body']);
-    await recordProfile(ctx, resolveCaller(ctx, payload), payload);
+    const caller = resolveCaller(ctx, payload);
     const commentId = generateCommentId();
     const view = await transact(ctx, payload, (tx) => {
       findThread(tx.view, payload.threadId);
@@ -203,6 +199,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
         parentId: payload.parentId || null, body: payload.body,
       });
     });
+    await recordProfile(ctx, caller, payload);
     return findComment(findThread(view, payload.threadId), commentId);
   },
 

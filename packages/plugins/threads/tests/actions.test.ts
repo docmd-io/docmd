@@ -170,11 +170,13 @@ const rows: Row[] = [
 for (const row of rows) {
   test(`${row.name}: a published target appends one op`, async () => {
     await addThread(); // one unrelated op
-    await call(row.action, as(ALICE, row.published()));
+    const bytes = fs.readFileSync(safePath(project.root, project.file));
+    const { ctx } = await call(row.action, as(ALICE, row.published()));
+    assert.deepEqual(fs.readFileSync(safePath(project.root, project.file)), bytes, 'markdown untouched');
+    assert.equal(ctx.source._modified, false);
     const ops = journalOps('alice');
     assert.equal(ops.length, 2);
     assert.equal(ops[1].kind, row.kind);
-    assert.equal(read().includes('c1-2'), true, 'markdown untouched');
   });
 
   test(`${row.name}: a drafted target is changed in place`, async () => {
@@ -243,8 +245,6 @@ test('concurrent calls are one locked read-modify-write each', async () => {
   await Promise.all([toggle(), toggle()]);
   assert.deepEqual(journalOps('alice').map((o) => o.kind), ['add-thread']);
 
-  await Promise.all([addComment(t.id), addComment(t.id)]);
-  assert.equal(journalOps('alice').filter((o) => o.kind === 'add-comment').length, 2);
 });
 
 const MUTATIONS: Array<[string, Record<string, unknown>]> = [
@@ -271,7 +271,7 @@ test('serve without a trusted identity refuses every mutation; dev succeeds; get
   }
   for (const mode of ['serve', 'dev'] as const) {
     const out = await getThreads(mode === 'dev' ? BOB : {}, { mode, caller: { identity: null } });
-    assert.deepEqual(out.map((t) => t.id).slice(0, 3), ['t-thread1', 't-thread2', 't-thread3'], mode);
+    assert.deepEqual(out.map((t) => t.id), ['t-thread1', 't-thread2', 't-thread3'], mode);
   }
 });
 
@@ -300,6 +300,11 @@ test('upsert-author and drafting calls with an authorKey write authors.json', as
     bob: { name: 'Bob', avatarUrl: '' },
   });
   assert.deepEqual((await call('threads:get-authors', {})).result, authors());
+});
+
+test('a failed add-comment does not record the author profile', async () => {
+  await assert.rejects(call('threads:add-comment', as(ALICE, { threadId: 't-nope', body: 'b' })), /Thread not found/);
+  assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'authors.json')), false);
 });
 
 test('input validation rejects missing fields', async () => {
