@@ -75,6 +75,22 @@ function getLock(ctx: ActionContext): Lock {
   return lock;
 }
 
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+/** The anchor a client sent, reduced to the Anchor fields; null when it has no quote. */
+function anchorFrom(sent: unknown): Anchor | null {
+  const a = (sent ?? {}) as Record<string, unknown>;
+  if (typeof a.quote !== 'string' || !a.quote) return null;
+  return {
+    quote: a.quote,
+    prefix: strOrNull(a.prefix),
+    suffix: strOrNull(a.suffix),
+    selector: strOrNull(a.selector),
+    offset: typeof a.offset === 'number' && Number.isFinite(a.offset) ? a.offset : null,
+    blockText: strOrNull(a.blockText),
+  };
+}
+
 /** Wire payload; `requireFields` has checked the fields an action needs. */
 interface Payload {
   file: string;
@@ -192,8 +208,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     requireFields('threads:add-thread', payload, ['file', 'author', 'body']);
     const caller = resolveCaller(ctx, payload);
     const threadId = generateThreadId();
-    const sent = payload.anchor as Anchor | null | undefined;
-    const anchor = typeof sent?.quote === 'string' && sent.quote ? sent : null;
+    const anchor = anchorFrom(payload.anchor);
     const view = await transact(ctx, payload, (tx) =>
       push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), anchor, body: payload.body }),
     );

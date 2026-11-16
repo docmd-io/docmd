@@ -90,6 +90,15 @@ test('add-thread and add-comment draft without touching the markdown', async () 
   assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['ops', 'review', 'version']);
 });
 
+test('add-thread keeps only the anchor fields the client sent, typed', async () => {
+  const sent = { quote: 'inline', prefix: 'a ', suffix: 5, selector: null, offset: 7, extra: 'dropped', blockText: 'whole block' };
+  await call('threads:add-thread', as(ALICE, { body: 'x', anchor: sent }));
+  await call('threads:add-thread', as(ALICE, { body: 'y', anchor: { quote: '' } }));
+  const [withAnchor, without] = journalOps('alice') as Array<DraftOp & { anchor: unknown }>;
+  assert.deepEqual(withAnchor.anchor, { quote: 'inline', prefix: 'a ', suffix: null, selector: null, offset: 7, blockText: 'whole block' });
+  assert.equal(without.anchor, null);
+});
+
 // Depends on e2e/fixtures/playground-index.md: update together if that fixture's threads change.
 test("get-threads returns published threads plus the caller's own drafts", async () => {
   const thread = await addThread();

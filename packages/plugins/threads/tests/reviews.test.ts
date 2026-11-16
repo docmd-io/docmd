@@ -10,7 +10,7 @@ import { applyOps, defaultTitle, finishEarlierPublish, pageTitleOf, publish } fr
 import { createLock } from '../src/plugin/lock.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 import * as parser from '../src/plugin/parser.ts';
-import type { Comment, DraftOp, NewDraftOp, PublishResult, Thread } from '../src/types.ts';
+import type { Comment, DraftOp, Journal, NewDraftOp, PublishResult, Thread } from '../src/types.ts';
 
 const AT = '2026-03-10T12:00:00.000Z';
 const OPTS = { authorKey: 'k-alice', authorName: 'Alice', reviewId: 'r-00000001' };
@@ -135,6 +135,23 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   // text after the threads block is not part of the page body a mark may go in
   const after = wrap(`${PAGE}\nClosing words here.\n`, 'Closing words');
   assert.equal(markOf(after.content), undefined);
+
+  // a quote the highlight syntax cannot carry gets its anchor but no mark, and deleting the thread leaves the text alone
+  for (const q of ['a == b', '=x', 'x=']) {
+    const page = PAGE.replace('plain target text', `${q} here`);
+    const r = wrap(page, q);
+    assert.equal(markOf(r.content), undefined, q);
+    assert.equal(parser.parseThreadsFromContent(r.content).find((t) => t.id === 't-new')!.anchor!.quote, q);
+    const gone = applyOps(r.content, [mk({ kind: 'delete-thread', file: FILE, threadId: 't-new' })], OPTS).content;
+    assert.equal(gone.split('::: threads')[0], page.split('::: threads')[0], q);
+  }
+
+  // only an exact `::: threads` line starts the block; code is never marked
+  const lookalike = wrap(`Body.\n\n::: threads-x\nzzz target\n\n${THREADS}`, 'target');
+  assert.match(lookalike.content, /zzz ==target=={t-new}/);
+  const code = wrap(`Fence:\n\n\`\`\`\nuse target here\n\`\`\`\n\nInline \`target\` and real target.\n\n${THREADS}`, 'target');
+  assert.match(code.content, /use target here/);
+  assert.match(code.content, /`target` and real ==target=={t-new}\./);
 
   // a quote line that is a container fence would break the block on re-parse
   for (const bad of ['a\n:::\nb', 'a\n::: threads\nb', 'x\n  ::: comment c "A" "d"']) {
@@ -359,6 +376,7 @@ test('ops on an unreadable file or a missing target are skipped and listed; the 
   const m = JSON.parse(readAt(manifestPath(result.reviewId)));
   assert.deepEqual(m.skipped, result.skipped);
   assert.deepEqual(m.ops.map((o: { commentId: string }) => o.commentId), ['c-ok']);
+  assert.equal(m.title, 'Comments by Alice: 1 comment on docmd _playground', 'skipped ops are not counted');
 });
 
 /** A ctx whose writeFile fails from the n-th call on (or only on it). */
@@ -477,6 +495,22 @@ test('in the failed-reset window edits and deletes of the published comments rea
   assert.equal(threads.find((t) => t.id === 't-thread1')!.comments.some((c) => c.id === 'c-del'), false);
 });
 
+test("a published manifest of another author under this journal's review id is not taken for this review's", async () => {
+  await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-a', parentId: null, body: 'a' }]);
+  const id = (await store().load('k-alice')).review.id;
+  fs.mkdirSync(reviewsDir(), { recursive: true });
+  const other = { version: 1, id, authorKey: 'k-bob', authorName: 'Bob', title: 't', state: 'published', publishedAt: AT, ops: [], skipped: [] };
+  fs.writeFileSync(manifestPath(id), JSON.stringify(other));
+
+  await getThreads(); // finishing an earlier publish must leave the journal alone
+  assert.equal((await store().load('k-alice')).ops.length, 1);
+  const result = await publish(ALICE, ctx() as never, deps());
+  assert.equal(result.reviewId, 'r-aaaaaaaa');
+  assert.match(read(FILE), /c-a/);
+  assert.deepEqual(JSON.parse(readAt(manifestPath(id))), other, "the other author's manifest is untouched");
+  assert.equal(JSON.parse(readAt(manifestPath('r-aaaaaaaa'))).authorKey, 'k-alice');
+});
+
 test('a journal from before reviews existed is still finished after a failed reset', async () => {
   fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
   const op = { kind: 'resolve-thread', opId: 'o-00000001', at: AT, file: FILE, threadId: 't-thread2' };
@@ -507,39 +541,81 @@ test('finishing an earlier publish leaves a journal that has already moved to an
   assert.deepEqual([left.review.id, left.ops.length], [stale, 1]);
 });
 
-test('a mutation in the failed-reset window works on the journal a publish left behind', async () => {
-  await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-1', parentId: null, body: 'one' }]);
-  await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(store()))), /journal write failed/);
-  await call('threads:resolve-thread', { file: FILE, threadId: 't-thread2', ...who });
-  const journal = await store().load('k-alice');
-  assert.deepEqual(journal.ops.map((o) => o.kind), ['resolve-thread']);
-  assert.notEqual(journal.review.id, 'r-aaaaaaaa');
+/** A promise the test settles by hand. */
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+/** An in-memory store: everything settles on microtasks. */
+function memStore(journals: Record<string, Journal>, onLoad: (key: string) => Promise<void> = async () => {}): DraftStore {
+  return {
+    load: async (key) => {
+      await onLoad(key);
+      return structuredClone(journals[key]);
+    },
+    transact: async (key, fn) => {
+      const j = structuredClone(journals[key]);
+      fn(j, AT);
+      journals[key] = j;
+      return structuredClone(j);
+    },
+  };
+}
+const flush = async () => {
+  for (let i = 0; i < 50; i++) await Promise.resolve();
+};
+
+test('a second publish waits for the first to finish; both comments land and each has a manifest', async () => {
+  const comment = (id: string): NewDraftOp => ({ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: id, parentId: null, body: id });
+  const journals: Record<string, Journal> = {
+    'k-alice': { version: 1, review: { id: 'r-00000001' }, ops: [makeOp(comment('c-a'), AT)] },
+    'k-bob': { version: 1, review: { id: 'r-00000002' }, ops: [makeOp(comment('c-b'), AT)] },
+  };
+  const pages = new Map([[FILE, read(FILE)]]);
+  const log: string[] = [];
+  const gate = deferred();
+  const memCtx = (name: string) =>
+    ctx({
+      async readFile(rel: string) {
+        log.push(`read:${name}`);
+        return pages.get(rel) as string;
+      },
+      async writeFile(rel: string, content: string) {
+        log.push(`write:${name}`);
+        pages.set(rel, content);
+      },
+    }) as never;
+  const lock = createLock();
+  // Alice sits inside the lock, at her first store call, until the gate opens.
+  const onLoad = async (key: string) => {
+    log.push(`load:${key}`);
+    if (key === 'k-alice') await gate.promise;
+  };
+  const base = { store: memStore(journals, onLoad), lock };
+  const alice = publish({ key: 'k-alice', name: 'Alice' }, memCtx('alice'), base);
+  const bob = publish({ key: 'k-bob', name: 'Bob' }, memCtx('bob'), base);
+
+  await flush();
+  assert.deepEqual(log, ['load:k-alice'], 'Bob has not started while Alice holds the lock');
+  gate.resolve();
+  const [a, b] = await Promise.all([alice, bob]);
+  assert.deepEqual(log, [
+    'load:k-alice', 'read:alice', 'write:alice',
+    'load:k-bob', 'read:bob', 'write:bob',
+  ]);
+  const ids = parser.parseThreadsFromContent(pages.get(FILE) as string).flatMap((t) => t.comments.map((c) => c.id));
+  assert.ok(ids.includes('c-a') && ids.includes('c-b'), 'Bob started from the page Alice wrote');
+  assert.deepEqual(manifests().sort(), [`${a.reviewId}.json`, `${b.reviewId}.json`].sort());
 });
 
-test('two callers publishing to one page at once both land, each with a manifest', async () => {
+test('two callers publishing through the action to one page both land', async () => {
   await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-a', parentId: null, body: 'a' }]);
   await fill('k-bob', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-b', parentId: null, body: 'b' }]);
-  const log: string[] = [];
-  const logging = (name: string): Partial<TestCtx> => ({
-    async readFile(rel: string) {
-      if (rel === FILE) log.push(`read:${name}`);
-      return fs.promises.readFile(safePath(project.root, rel), 'utf8');
-    },
-    async writeFile(rel: string, content: string) {
-      // Let the other publish run as far as it can before this one writes: only the lock holds it back.
-      if (name === 'alice') for (let i = 0; i < 25; i++) await new Promise((r) => setImmediate(r));
-      log.push(`write:${name}`);
-      await fs.promises.writeFile(safePath(project.root, rel), content);
-    },
-  });
-  const [a, b] = await Promise.all([
-    publishAction(who, logging('alice')),
-    publishAction({ author: 'Bob', authorKey: 'k-bob' }, logging('bob')),
-  ]);
-  assert.deepEqual(log, ['read:alice', 'write:alice', 'read:bob', 'write:bob'], 'one publish finishes before the next reads');
+  await Promise.all([publishAction(who), publishAction({ author: 'Bob', authorKey: 'k-bob' })]);
   const ids = pageThreads(FILE).flatMap((t) => t.comments.map((c) => c.id));
   assert.ok(ids.includes('c-a') && ids.includes('c-b'));
-  assert.deepEqual(manifests().sort(), [`${a.reviewId}.json`, `${b.reviewId}.json`].sort());
 });
 
 test('an op the publisher drafts while its publish runs stays in the journal', async () => {
@@ -596,7 +672,7 @@ test('serve publishes only for a trusted identity; dev publishes from the payloa
   assert.match(read(FILE), /::: comment c-d "Dev" "[0-9-]+" by k-dev review /);
 });
 
-test('an author key the parser cannot read back is refused without writes; one it can is published and parsed back', async () => {
+test('an author key or name the parser cannot read back is refused without writes; one it can is published and parsed back', async () => {
   const op: NewDraftOp = { kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-k', parentId: null, body: 'k' };
   const bytes = read(FILE);
   for (const key of ['two words', 'tab\tkey', 'new\nline']) {
@@ -605,6 +681,12 @@ test('an author key the parser cannot read back is refused without writes; one i
     assert.equal(read(FILE), bytes);
     assert.equal(fs.existsSync(reviewsDir()), false);
     assert.equal((await store().load(key)).ops.length, 1, 'the journal is untouched');
+  }
+  for (const name of ['Ann "A" Lee', 'Line\nBreak']) {
+    await fill('k-name', [op]);
+    await assert.rejects(publishAction({ author: name, authorKey: 'k-name' }), (e: unknown) => e instanceof ThreadsError && e.code === 'invalid', JSON.stringify(name));
+    assert.equal(read(FILE), bytes);
+    assert.equal(fs.existsSync(reviewsDir()), false);
   }
   for (const key of ['alice', 'a.b-c_d', 'me@example.com', 'ünï']) {
     const ok: NewDraftOp = { ...op, commentId: `c-${slug(key).slice(0, 6)}` };

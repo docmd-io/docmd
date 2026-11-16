@@ -71,6 +71,8 @@ test('a corrupt journal is moved aside and a fresh one is returned', async () =>
 
 test('a missing journal loads fresh without writing', async () => {
   const fresh = await store().load('x');
+  assert.deepEqual(Object.keys(fresh).sort(), ['ops', 'review', 'version']);
+  assert.match(fresh.review.id, /^r-[0-9a-f]{8}$/);
   assert.deepEqual([fresh.version, fresh.ops], [1, []]);
   assert.equal(fs.existsSync(draftsDir()), false);
 });
