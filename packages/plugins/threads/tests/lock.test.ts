@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createLock } from '../src/plugin/lock.ts';
+import { createLock, lockFor } from '../src/plugin/lock.ts';
 
 /** A promise the test settles by hand. */
 const deferred = () => {
@@ -35,4 +35,9 @@ test('a rejected callback rejects its caller but does not block the queue', asyn
   await assert.rejects(failing, /boom/);
   assert.equal(await next, 'ran');
   assert.equal(await lock.withLock(async () => 'again'), 'again');
+});
+
+test('lockFor gives one lock per docs root', () => {
+  assert.equal(lockFor('/a'), lockFor('/a'));
+  assert.notEqual(lockFor('/a'), lockFor('/b'));
 });

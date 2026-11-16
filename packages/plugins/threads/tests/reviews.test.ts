@@ -140,7 +140,7 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   for (const q of ['a == b', '=x', 'x=']) {
     const page = PAGE.replace('plain target text', `${q} here`);
     const r = wrap(page, q);
-    assert.equal(markOf(r.content), undefined, q);
+    assert.equal(r.content.split('::: threads')[0], page.split('::: threads')[0], q);
     assert.equal(parser.parseThreadsFromContent(r.content).find((t) => t.id === 't-new')!.anchor!.quote, q);
     const gone = applyOps(r.content, [mk({ kind: 'delete-thread', file: FILE, threadId: 't-new' })], OPTS).content;
     assert.equal(gone.split('::: threads')[0], page.split('::: threads')[0], q);
@@ -608,14 +608,6 @@ test('a second publish waits for the first to finish; both comments land and eac
   const ids = parser.parseThreadsFromContent(pages.get(FILE) as string).flatMap((t) => t.comments.map((c) => c.id));
   assert.ok(ids.includes('c-a') && ids.includes('c-b'), 'Bob started from the page Alice wrote');
   assert.deepEqual(manifests().sort(), [`${a.reviewId}.json`, `${b.reviewId}.json`].sort());
-});
-
-test('two callers publishing through the action to one page both land', async () => {
-  await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-a', parentId: null, body: 'a' }]);
-  await fill('k-bob', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-b', parentId: null, body: 'b' }]);
-  await Promise.all([publishAction(who), publishAction({ author: 'Bob', authorKey: 'k-bob' })]);
-  const ids = pageThreads(FILE).flatMap((t) => t.comments.map((c) => c.id));
-  assert.ok(ids.includes('c-a') && ids.includes('c-b'));
 });
 
 test('an op the publisher drafts while its publish runs stays in the journal', async () => {

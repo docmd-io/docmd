@@ -13,3 +13,11 @@ export function createLock(): Lock {
     },
   };
 }
+
+/** One lock per docs root, so every caller's publish queues behind the same chain. */
+const locks = new Map<string, Lock>();
+export function lockFor(docsRoot: string): Lock {
+  let lock = locks.get(docsRoot);
+  if (!lock) locks.set(docsRoot, (lock = createLock()));
+  return lock;
+}

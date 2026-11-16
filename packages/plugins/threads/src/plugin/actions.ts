@@ -6,7 +6,7 @@ import { ThreadsError } from './errors.js';
 import { safePath } from '@docmd/utils';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
-import { createLock, type Lock } from './lock.js';
+import { lockFor } from './lock.js';
 import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
 import { findCaller, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor } from '../types.js';
@@ -64,15 +64,6 @@ function getStore(ctx: ActionContext): DraftStore {
   let store = stores.get(root);
   if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
   return store;
-}
-
-/** One publish lock per docs root, so every caller's publish queues behind the same chain. */
-const locks = new Map<string, Lock>();
-function getLock(ctx: ActionContext): Lock {
-  const root = docsRootOf(ctx);
-  let lock = locks.get(root);
-  if (!lock) locks.set(root, (lock = createLock()));
-  return lock;
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -304,5 +295,5 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
   'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
-    publish(resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: getLock(ctx) }),
+    publish(resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
 };
