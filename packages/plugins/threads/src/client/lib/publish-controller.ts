@@ -118,12 +118,8 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
     onChange();
   }
 
-  timer?.onFire(() => {
-    // Fired: nothing is scheduled until the next edit, so the ring must go.
-    remaining = null;
-    ringKey = null;
-    void publish();
-  });
+  // Publishing re-syncs the timer when it ends, which drops the ring: nothing is scheduled after a fire.
+  timer?.onFire(() => void publish());
 
   return {
     refresh,

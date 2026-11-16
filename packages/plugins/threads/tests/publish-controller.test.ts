@@ -215,6 +215,24 @@ test('auto: the timer fire publishes once; collect never does', async () => {
   assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1, 'collect mode never auto-publishes');
 });
 
+test('auto: a failed auto publish shows its error, drops the ring and does not retry until the journal changes', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  s.publishError = new ThreadsClientError('invalid', 'author key cannot be written');
+  advance(SECONDS * 1000);
+  await settle();
+  assert.deepEqual([c.view().state.errorLine, c.view().ring], ['author key cannot be written', null]);
+  advance(SECONDS * 10_000);
+  await settle();
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1);
+  s.journal = journal(2, 'auto', new Date(clock).toISOString());
+  await c.refresh();
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 2, 'a new edit arms the timer again');
+});
+
 test('collect-only (no autoPublish): no play/pause, no timer, Publish works', async () => {
   const { c } = build(false);
   s.journal = journal(1, 'auto');
