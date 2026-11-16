@@ -6,7 +6,7 @@ import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
-import { applyOps, defaultTitle, pageTitleOf, publish } from '../src/plugin/reviews.ts';
+import { applyOps, defaultTitle, finishEarlierPublish, pageTitleOf, publish } from '../src/plugin/reviews.ts';
 import { createLock } from '../src/plugin/lock.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 import * as parser from '../src/plugin/parser.ts';
@@ -131,6 +131,10 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   const block = wrap(PAGE, 'Other.');
   assert.equal(markOf(block.content), undefined);
   assert.equal(parser.parseThreadsFromContent(block.content).length, 3);
+
+  // text after the threads block is not part of the page body a mark may go in
+  const after = wrap(`${PAGE}\nClosing words here.\n`, 'Closing words');
+  assert.equal(markOf(after.content), undefined);
 
   // a quote line that is a container fence would break the block on re-parse
   for (const bad of ['a\n:::\nb', 'a\n::: threads\nb', 'x\n  ::: comment c "A" "d"']) {
@@ -339,8 +343,16 @@ test('ops on an unreadable file or a missing target are skipped and listed; the 
     { kind: 'edit-comment', file: FILE, threadId: 't-thread2', commentId: 'c-gone', body: 'dangling' },
     { kind: 'add-comment', file: 'docs/missing.md', threadId: 't-x', commentId: 'c-x', parentId: null, body: 'nowhere' },
   ]);
-  const result = await publishAction();
-  assert.equal(result.skipped.length, 2);
+  await fill('k-alice', [{ kind: 'edit-comment', file: OTHER, threadId: 't-none', commentId: 'c-none', body: 'dangling' }]);
+  const written: string[] = [];
+  const result = await publishAction(who, {
+    async writeFile(rel: string, content: string) {
+      written.push(rel);
+      fs.writeFileSync(safePath(project.root, rel), content);
+    },
+  });
+  assert.deepEqual(written, [FILE], 'a page none of whose ops applied is not rewritten');
+  assert.equal(result.skipped.length, 3);
   assert.match(result.skipped[0].reason, /c-gone/);
   assert.match(result.skipped[1].reason, /not readable/);
   assert.match(read(FILE), /c-ok/);
@@ -465,6 +477,36 @@ test('in the failed-reset window edits and deletes of the published comments rea
   assert.equal(threads.find((t) => t.id === 't-thread1')!.comments.some((c) => c.id === 'c-del'), false);
 });
 
+test('a journal from before reviews existed is still finished after a failed reset', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+  const op = { kind: 'resolve-thread', opId: 'o-00000001', at: AT, file: FILE, threadId: 't-thread2' };
+  const file = journalFile('k-alice');
+  fs.writeFileSync(safePath(path.dirname(file), path.basename(file)), JSON.stringify({ version: 1, ops: [op] }));
+  const real = store();
+  await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(real))), /journal write failed/);
+  const published = read(FILE);
+  await publish(ALICE, ctx() as never, deps(real));
+  assert.equal(read(FILE), published, 'the resolve was not applied a second time');
+  assert.deepEqual((await real.load('k-alice')).ops, []);
+});
+
+test('finishing an earlier publish leaves a journal that has already moved to another review alone', async () => {
+  const op = { kind: 'resolve-thread', opId: 'o-00000001', at: AT, file: FILE, threadId: 't-thread2' } as DraftOp;
+  await fill('k-alice', [{ kind: 'resolve-thread', file: FILE, threadId: 't-thread2' }]);
+  await publish(ALICE, ctx() as never, deps()); // publishes review r-?, journal now on r-aaaaaaaa
+  const stale = (await store().load('k-alice')).review.id;
+  await store().transact('k-alice', (j) => void j.ops.push(op));
+  const published = JSON.parse(readAt(path.join(reviewsDir(), fs.readdirSync(safePath(reviewsDir(), '.'))[0])));
+  published.ops.push(op);
+  fs.writeFileSync(safePath(reviewsDir(), `${published.id}.json`), JSON.stringify(published));
+  const real = store();
+  // load reports the published review, the journal on disk has moved on
+  const behind = { ...real, load: async (key: string) => ({ ...(await real.load(key)), review: { id: published.id } }) };
+  await finishEarlierPublish(ctx() as never, behind, 'k-alice');
+  const left = await real.load('k-alice');
+  assert.deepEqual([left.review.id, left.ops.length], [stale, 1]);
+});
+
 test('a mutation in the failed-reset window works on the journal a publish left behind', async () => {
   await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-1', parentId: null, body: 'one' }]);
   await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(store()))), /journal write failed/);
@@ -477,7 +519,22 @@ test('a mutation in the failed-reset window works on the journal a publish left 
 test('two callers publishing to one page at once both land, each with a manifest', async () => {
   await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-a', parentId: null, body: 'a' }]);
   await fill('k-bob', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-b', parentId: null, body: 'b' }]);
-  const [a, b] = await Promise.all([publishAction(who), publishAction({ author: 'Bob', authorKey: 'k-bob' })]);
+  const log: string[] = [];
+  const logging = (name: string): Partial<TestCtx> => ({
+    async readFile(rel: string) {
+      if (rel === FILE) log.push(`read:${name}`);
+      return fs.readFileSync(safePath(project.root, rel), 'utf8');
+    },
+    async writeFile(rel: string, content: string) {
+      log.push(`write:${name}`);
+      fs.writeFileSync(safePath(project.root, rel), content);
+    },
+  });
+  const [a, b] = await Promise.all([
+    publishAction(who, logging('alice')),
+    publishAction({ author: 'Bob', authorKey: 'k-bob' }, logging('bob')),
+  ]);
+  assert.deepEqual(log, ['read:alice', 'write:alice', 'read:bob', 'write:bob'], 'one publish finishes before the next reads');
   const ids = pageThreads(FILE).flatMap((t) => t.comments.map((c) => c.id));
   assert.ok(ids.includes('c-a') && ids.includes('c-b'));
   assert.deepEqual(manifests().sort(), [`${a.reviewId}.json`, `${b.reviewId}.json`].sort());
