@@ -109,6 +109,18 @@ const emoji = (emojiPkg as any).full || emojiPkg;
 // The Feature Registry
 import { registerFeatures } from './features/index.js';
 
+// Iteratively strip HTML tags to prevent incomplete multi-character sanitization bypasses
+function stripHtmlTags(input: string): string {
+  if (!input || !input.includes('<')) return input || '';
+  let previous = '';
+  let result = input;
+  while (result !== previous) {
+    previous = result;
+    result = result.replace(/<[^>]+>/g, '');
+  }
+  return result;
+}
+
 // Custom Heading ID & Anchor Logic
 const headingIdPlugin = (md, options: any = {}) => {
   const uiStrings = options.uiStrings || {};
@@ -140,10 +152,9 @@ const headingIdPlugin = (md, options: any = {}) => {
         let id = token.attrGet('id');
         if (!id && inlineToken && inlineToken.content && !inContainer) {
           if (headingStyle === 'github') {
-            const slug = inlineToken.content
+            const slug = stripHtmlTags(inlineToken.content)
               .toLowerCase()
               .trim()
-              .replace(/<[^>]+>/g, '')
               .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\p{Pd}\s]/gu, '')
               .replace(/\s/g, '-')
               .replace(/^-+/, '')
@@ -547,7 +558,7 @@ function customHtmlBlock(state: any, startLine: number, endLine: number, silent:
 
 function stripHtml(html: any) {
   if (!html) return '';
-  return html.replace(/<[^>]*>?/gm, '');
+  return stripHtmlTags(html);
 }
 
 function decodeHtmlEntities(str: string): string {
