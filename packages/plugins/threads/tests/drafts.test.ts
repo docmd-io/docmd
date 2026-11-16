@@ -31,14 +31,15 @@ beforeEach(() => {
   clock = Date.parse('2026-03-10T12:00:00.000Z');
 });
 
-test('a write creates <slug>.json holding only version and ops, atomically; git ignores it; .gitignore is written once', async () => {
+test('a write creates <slug>.json holding only version, review and ops, atomically; git ignores it; .gitignore is written once', async () => {
   const key = 'alice smith/1';
   assert.equal(slug(key), 'alice_20smith_2F1');
   const s = store();
   await append(s, key);
   const file = path.join(draftsDir(), 'alice_20smith_2F1.json');
   const journal = JSON.parse(rd(file));
-  assert.deepEqual(Object.keys(journal).sort(), ['ops', 'version']);
+  assert.deepEqual(Object.keys(journal).sort(), ['ops', 'review', 'version']);
+  assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
   assert.equal(journal.version, 1);
   assert.equal(journal.ops.length, 1);
 
@@ -62,14 +63,32 @@ test('a corrupt journal is moved aside and a fresh one is returned', async () =>
   const file = path.join(draftsDir(), 'bob.json');
   wr(file, '{ not json');
   const journal = await store().load('bob');
-  assert.deepEqual(journal, { version: 1, ops: [] });
+  assert.deepEqual({ ...journal, review: undefined }, { version: 1, review: undefined, ops: [] });
+  assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
   assert.equal(fs.existsSync(file), false);
   assert.equal(rd(`${file}.corrupt-${clock}`), '{ not json');
 });
 
 test('a missing journal loads fresh without writing', async () => {
-  assert.deepEqual(await store().load('x'), { version: 1, ops: [] });
+  const fresh = await store().load('x');
+  assert.deepEqual([fresh.version, fresh.ops], [1, []]);
   assert.equal(fs.existsSync(draftsDir()), false);
+});
+
+test('a journal saved without a review or an anchor loads as valid, and the next write keeps its ops and adds a review', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+  const file = path.join(draftsDir(), 'bob.json');
+  wr(file, JSON.stringify({ version: 1, ops: [{ ...addThread, opId: 'o-00000001', at: '2026-03-10T12:00:00.000Z' }] }));
+  const s = store();
+  const loaded = await s.load('bob');
+  assert.deepEqual(loaded.ops.map((o) => o.opId), ['o-00000001']);
+  assert.match(loaded.review.id, /^r-[0-9a-f]{8}$/);
+  assert.deepEqual(ls(draftsDir()).filter((f) => f.includes('.corrupt-')), []);
+
+  await append(s, 'bob');
+  const saved = JSON.parse(rd(file));
+  assert.equal(saved.ops.length, 2);
+  assert.match(saved.review.id, /^r-[0-9a-f]{8}$/);
 });
 
 test('ops are stamped from the injected clock', async () => {

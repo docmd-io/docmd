@@ -6,16 +6,13 @@ import { ThreadsError } from './errors.js';
 import { safePath } from '@docmd/utils';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { createLock, type Lock } from './lock.js';
+import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
 import { findCaller, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
-import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp } from '../types.js';
+import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor } from '../types.js';
 
 interface AuthorsMap {
   [key: string]: { name: string; avatarUrl: string };
-}
-
-/** The docs root, validated against the project root: authors.json and the drafts share it. */
-function docsRootOf(ctx: ActionContext): string {
-  return safePath(ctx.projectRoot, ctx.config?.src || '.');
 }
 
 /**
@@ -67,6 +64,15 @@ function getStore(ctx: ActionContext): DraftStore {
   let store = stores.get(root);
   if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
   return store;
+}
+
+/** One publish lock per docs root, so every caller's publish queues behind the same chain. */
+const locks = new Map<string, Lock>();
+function getLock(ctx: ActionContext): Lock {
+  const root = docsRootOf(ctx);
+  let lock = locks.get(root);
+  if (!lock) locks.set(root, (lock = createLock()));
+  return lock;
 }
 
 /** Wire payload; `requireFields` has checked the fields an action needs. */
@@ -143,9 +149,11 @@ function opsOnCommentTree(tx: Tx, commentId: string): DraftOp[] {
  */
 async function transact(ctx: ActionContext, payload: Payload, fn: (tx: Tx) => void): Promise<Thread[]> {
   const caller = resolveCaller(ctx, payload);
+  const store = getStore(ctx);
+  await finishEarlierPublish(ctx, store, caller.key);
   const file = payload.file;
   const published = parser.parseThreadsFromContent(await ctx.readFile(file));
-  const journal = await getStore(ctx).transact(caller.key, (j, at) =>
+  const journal = await store.transact(caller.key, (j, at) =>
     fn({ j, at, file, view: overlay(published, j.ops, file, caller) }),
   );
   return overlay(published, journal.ops, file, caller);
@@ -173,7 +181,10 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     const published = parser.parseThreadsFromContent(await ctx.readFile(payload.file));
     const caller = findCaller(ctx, payload);
     if (!caller) return published;
-    const journal = await getStore(ctx).load(caller.key);
+    // After a publish whose journal reset failed, the journal still holds ops the file already has.
+    const store = getStore(ctx);
+    await finishEarlierPublish(ctx, store, caller.key);
+    const journal = await store.load(caller.key);
     return overlay(published, journal.ops, payload.file, caller);
   },
 
@@ -181,8 +192,10 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     requireFields('threads:add-thread', payload, ['file', 'author', 'body']);
     const caller = resolveCaller(ctx, payload);
     const threadId = generateThreadId();
+    const sent = payload.anchor as Anchor | null | undefined;
+    const anchor = typeof sent?.quote === 'string' && sent.quote ? sent : null;
     const view = await transact(ctx, payload, (tx) =>
-      push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), body: payload.body }),
+      push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), anchor, body: payload.body }),
     );
     await recordProfile(ctx, caller, payload);
     return findThread(view, threadId);
@@ -273,4 +286,8 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     });
     return findComment(findThread(view, threadId), commentId).reactions;
   },
+
+  /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
+  'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
+    publish(resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: getLock(ctx) }),
 };
