@@ -27,6 +27,8 @@ export interface Comment {
   reviewId?: string;
   body: string;
   reactions: Reaction[];
+  /** Set on the caller's own unpublished comments. */
+  draft?: true;
 }
 
 export interface Reaction {
@@ -101,9 +103,22 @@ export type NewDraftOp = DraftOp extends infer O ? (O extends DraftOp ? Omit<O, 
 /** One user's private, unpublished changes (`<docsRoot>/.threads/drafts/<slug>.json`). */
 export interface Journal {
   version: 1;
+  /** `auto` publishes on a timer after the last edit; `collect` waits for the Publish button. */
+  mode: DraftMode;
   /** The review these ops belong to; a journal saved without it gets one on load. */
-  review: { id: string };
+  review: {
+    id: string;
+    /** ISO time of the last change to the journal: the auto-publish countdown runs from it. */
+    updatedAt: string;
+  };
   ops: DraftOp[];
+}
+
+export type DraftMode = 'auto' | 'collect';
+
+/** What `threads:whoami` returns: the caller's journal, or null when the call carries no identity. */
+export interface WhoAmI {
+  journal: Journal | null;
 }
 
 /** A published op as a manifest records it: what a later reversal or listing needs. */

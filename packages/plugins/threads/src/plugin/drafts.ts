@@ -2,22 +2,27 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import type { DraftOp, Journal, NewDraftOp } from '../types.js';
+import type { DraftMode, DraftOp, Journal, NewDraftOp } from '../types.js';
 
 export interface DraftStore {
   /** The caller's journal; a fresh (unsaved) one when none exists. */
   load(key: string): Promise<Journal>;
   /**
    * One locked read-modify-write cycle: `fn` sees the journal and the cycle's
-   * timestamp and may change `ops`. A throw leaves the file untouched. Use it
-   * whenever a decision depends on the journal's current content.
+   * timestamp and may change `ops`; `review.updatedAt` is stamped after it. A
+   * throw leaves the file untouched. Use it whenever a decision depends on the
+   * journal's current content.
    */
   transact(key: string, fn: (journal: Journal, at: string) => void): Promise<Journal>;
+  /** Change the caller's mode (also stamps `review.updatedAt`). */
+  setMode(key: string, mode: DraftMode): Promise<Journal>;
 }
 
 export interface DraftStoreOptions {
   /** Clock, epoch ms. */
   now?: () => number;
+  /** Mode of a new journal and of a loaded one that has none; a function is read each time. */
+  defaultMode?: DraftMode | (() => DraftMode);
 }
 
 /** File name stem for a key. */
@@ -30,7 +35,10 @@ export const makeOp = (op: NewDraftOp, at: string): DraftOp =>
 const isNotFound = (e: unknown): boolean => (e as NodeJS.ErrnoException)?.code === 'ENOENT';
 const isExists = (e: unknown): boolean => (e as NodeJS.ErrnoException)?.code === 'EEXIST';
 
-export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStoreOptions = {}): DraftStore {
+export function createDraftStore(
+  docsRoot: string,
+  { now = Date.now, defaultMode = 'collect' }: DraftStoreOptions = {},
+): DraftStore {
   const dir = safePath(docsRoot, path.join('.threads', 'drafts'));
   const nameOf = (key: string) => `${slug(key)}.json`;
   const iso = () => new Date(now()).toISOString();
@@ -43,7 +51,13 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
     return run;
   };
 
-  const fresh = (): Journal => ({ version: 1, review: { id: 'r-' + crypto.randomBytes(4).toString('hex') }, ops: [] });
+  const modeByDefault = (): DraftMode => (typeof defaultMode === 'function' ? defaultMode() : defaultMode);
+  const fresh = (): Journal => ({
+    version: 1,
+    mode: modeByDefault(),
+    review: { id: 'r-' + crypto.randomBytes(4).toString('hex'), updatedAt: iso() },
+    ops: [],
+  });
 
   async function read(key: string): Promise<Journal> {
     const file = safePath(dir, nameOf(key));
@@ -63,7 +77,14 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
           typeof j.review?.id === 'string' && j.review.id
             ? j.review.id
             : 'r-' + crypto.createHash('sha256').update(JSON.stringify(j.ops)).digest('hex').slice(0, 8);
-        return { version: 1, review: { id }, ops: j.ops };
+        // Journals saved before modes existed have no mode or updatedAt: the configured default mode,
+        // and the file's own modification time so two loads without a write agree.
+        const mode: DraftMode = j.mode === 'auto' || j.mode === 'collect' ? j.mode : modeByDefault();
+        const updatedAt =
+          typeof j.review?.updatedAt === 'string' && Number.isFinite(Date.parse(j.review.updatedAt))
+            ? j.review.updatedAt
+            : new Date((await fs.promises.stat(file)).mtimeMs).toISOString();
+        return { version: 1, mode, review: { id, updatedAt }, ops: j.ops };
       }
     } catch {
       // fall through: corrupt
@@ -90,14 +111,23 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
     }
   }
 
+  /** Read, change, stamp `review.updatedAt`, save. A throw in `fn` saves nothing. */
+  const mutate = (key: string, fn: (j: Journal, at: string) => void): Promise<Journal> =>
+    locked(async () => {
+      const journal = await read(key);
+      const at = iso();
+      fn(journal, at);
+      journal.review.updatedAt = at;
+      await write(key, journal);
+      return journal;
+    });
+
   return {
     load: (key) => locked(() => read(key)),
-    transact: (key, fn) =>
-      locked(async () => {
-        const journal = await read(key);
-        fn(journal, iso());
-        await write(key, journal);
-        return journal;
+    transact: mutate,
+    setMode: (key, mode) =>
+      mutate(key, (j) => {
+        j.mode = mode;
       }),
   };
 }

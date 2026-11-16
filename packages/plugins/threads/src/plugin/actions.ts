@@ -7,9 +7,10 @@ import { safePath } from '@docmd/utils';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { lockFor } from './lock.js';
+import { getOptions } from './config.js';
 import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
 import { findCaller, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
-import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor } from '../types.js';
+import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 interface AuthorsMap {
   [key: string]: { name: string; avatarUrl: string };
@@ -57,13 +58,22 @@ async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string,
 const generateThreadId = () => 't-' + crypto.randomBytes(4).toString('hex');
 const generateCommentId = () => 'c-' + crypto.randomBytes(4).toString('hex');
 
-/** One store per docs root, so its lock covers every caller; `Date.now` is the production clock. */
-const stores = new Map<string, DraftStore>();
+/**
+ * One store per docs root, so its lock covers every caller whatever the config; `Date.now` is the
+ * production clock. The mode of a new journal follows the config of the latest call.
+ */
+const stores = new Map<string, { store: DraftStore; mode: DraftMode }>();
 function getStore(ctx: ActionContext): DraftStore {
   const root = docsRootOf(ctx);
-  let store = stores.get(root);
-  if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
-  return store;
+  let entry = stores.get(root);
+  if (!entry) {
+    const e = { store: undefined as unknown as DraftStore, mode: 'collect' as DraftMode };
+    e.store = createDraftStore(root, { now: Date.now, defaultMode: () => e.mode });
+    stores.set(root, (entry = e));
+  }
+  const { autoPublish } = getOptions(ctx);
+  entry.mode = autoPublish && autoPublish.startOn ? 'auto' : 'collect';
+  return entry.store;
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -193,6 +203,27 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     await finishEarlierPublish(ctx, store, caller.key);
     const journal = await store.load(caller.key);
     return overlay(published, journal.ops, payload.file, caller);
+  },
+
+  /**
+   * The caller's journal, or `{ journal: null }` when the call carries no identity. A caller with
+   * no journal file gets a fresh, unsaved journal: nothing is written, and its review id and
+   * timestamp change on every call until the first write.
+   */
+  'threads:whoami': async (payload, ctx): Promise<WhoAmI> => {
+    const caller = findCaller(ctx, payload);
+    if (!caller) return { journal: null };
+    const store = getStore(ctx);
+    // After a publish whose journal reset failed, the journal still holds ops the file already has.
+    await finishEarlierPublish(ctx, store, caller.key);
+    return { journal: await store.load(caller.key) };
+  },
+
+  'threads:set-mode': async (payload, ctx): Promise<Journal> => {
+    if (payload?.mode !== 'auto' && payload?.mode !== 'collect') {
+      throw new ThreadsError('invalid', "threads:set-mode: mode must be 'auto' or 'collect'");
+    }
+    return getStore(ctx).setMode(resolveCaller(ctx, payload).key, payload.mode);
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {

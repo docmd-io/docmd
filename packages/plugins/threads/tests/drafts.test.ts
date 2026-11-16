@@ -31,14 +31,17 @@ beforeEach(() => {
   clock = Date.parse('2026-03-10T12:00:00.000Z');
 });
 
-test('a write creates <slug>.json holding only version, review and ops, atomically; git ignores it; .gitignore is written once', async () => {
+test('a write creates <slug>.json holding only version, mode, review and ops, atomically; git ignores it; .gitignore is written once', async () => {
   const key = 'alice smith/1';
   assert.equal(slug(key), 'alice_20smith_2F1');
   const s = store();
   await append(s, key);
   const file = path.join(draftsDir(), 'alice_20smith_2F1.json');
   const journal = JSON.parse(rd(file));
-  assert.deepEqual(Object.keys(journal).sort(), ['ops', 'review', 'version']);
+  assert.deepEqual(Object.keys(journal).sort(), ['mode', 'ops', 'review', 'version']);
+  assert.deepEqual(Object.keys(journal.review).sort(), ['id', 'updatedAt']);
+  assert.equal(journal.review.updatedAt, '2026-03-10T12:00:00.000Z');
+  assert.equal(journal.mode, 'collect');
   assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
   assert.equal(journal.version, 1);
   assert.equal(journal.ops.length, 1);
@@ -63,7 +66,7 @@ test('a corrupt journal is moved aside and a fresh one is returned', async () =>
   const file = path.join(draftsDir(), 'bob.json');
   wr(file, '{ not json');
   const journal = await store().load('bob');
-  assert.deepEqual({ ...journal, review: undefined }, { version: 1, review: undefined, ops: [] });
+  assert.deepEqual({ ...journal, review: undefined }, { version: 1, mode: 'collect', review: undefined, ops: [] });
   assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
   assert.equal(fs.existsSync(file), false);
   assert.equal(rd(`${file}.corrupt-${clock}`), '{ not json');
@@ -71,26 +74,77 @@ test('a corrupt journal is moved aside and a fresh one is returned', async () =>
 
 test('a missing journal loads fresh without writing', async () => {
   const fresh = await store().load('x');
-  assert.deepEqual(Object.keys(fresh).sort(), ['ops', 'review', 'version']);
+  assert.deepEqual(Object.keys(fresh).sort(), ['mode', 'ops', 'review', 'version']);
   assert.match(fresh.review.id, /^r-[0-9a-f]{8}$/);
   assert.deepEqual([fresh.version, fresh.ops], [1, []]);
   assert.equal(fs.existsSync(draftsDir()), false);
 });
 
-test('a journal saved without a review or an anchor loads as valid, and the next write keeps its ops and adds a review', async () => {
-  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
-  const file = path.join(draftsDir(), 'bob.json');
-  wr(file, JSON.stringify({ version: 1, ops: [{ ...addThread, opId: 'o-00000001', at: '2026-03-10T12:00:00.000Z' }] }));
-  const s = store();
-  const loaded = await s.load('bob');
-  assert.deepEqual(loaded.ops.map((o) => o.opId), ['o-00000001']);
-  assert.match(loaded.review.id, /^r-[0-9a-f]{8}$/);
-  assert.deepEqual(ls(draftsDir()).filter((f) => f.includes('.corrupt-')), []);
+test('a new journal takes its mode from defaultMode: a value, or a function read for each new journal', async () => {
+  assert.equal((await createDraftStore(docsRoot, { now: () => clock, defaultMode: 'auto' }).load('a')).mode, 'auto');
+  let next: 'auto' | 'collect' = 'auto';
+  const s = createDraftStore(docsRoot, { now: () => clock, defaultMode: () => next });
+  assert.equal((await s.load('a')).mode, 'auto');
+  next = 'collect';
+  assert.equal((await s.load('b')).mode, 'collect');
+  await append(s, 'a');
+  next = 'auto';
+  assert.equal((await s.load('a')).mode, 'collect', 'a saved journal keeps the mode it was created with');
+});
 
-  await append(s, 'bob');
-  const saved = JSON.parse(rd(file));
-  assert.equal(saved.ops.length, 2);
-  assert.match(saved.review.id, /^r-[0-9a-f]{8}$/);
+const legacyOp = { ...addThread, opId: 'o-00000001', at: '2026-03-10T12:00:00.000Z' };
+const legacy: Array<[string, Record<string, unknown>, string | null]> = [
+  ['without a review or a mode (no review id yet)', { version: 1, ops: [legacyOp] }, null],
+  ['with a review id and no mode or updatedAt', { version: 1, review: { id: 'r-0badcafe' }, ops: [legacyOp] }, 'r-0badcafe'],
+];
+for (const [name, content, id] of legacy) {
+  for (const defaultMode of ['auto', 'collect'] as const) {
+    test(`a journal saved ${name} loads as valid in ${defaultMode} mode with a stable updatedAt; the next write keeps its ops`, async () => {
+      fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+      const file = path.join(draftsDir(), 'bob.json');
+      wr(file, JSON.stringify(content));
+      const s = createDraftStore(docsRoot, { now: () => clock, defaultMode });
+      const first = await s.load('bob');
+      clock += 60_000;
+      const second = await s.load('bob');
+      assert.deepEqual(first.ops.map((o) => o.opId), ['o-00000001']);
+      assert.equal(first.mode, defaultMode);
+      assert.match(first.review.id, /^r-[0-9a-f]{8}$/);
+      if (id) assert.equal(first.review.id, id);
+      assert.match(first.review.updatedAt, /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
+      assert.equal(second.review.updatedAt, first.review.updatedAt, 'two loads without a write agree');
+      assert.deepEqual(ls(draftsDir()).filter((f) => f.includes('.corrupt-')), []);
+
+      await append(s, 'bob');
+      const saved = JSON.parse(rd(file));
+      assert.deepEqual(saved.ops.map((o: { opId: string }) => o.opId).slice(0, 1), ['o-00000001']);
+      assert.equal(saved.ops.length, 2);
+      assert.equal(saved.mode, defaultMode);
+      assert.equal(saved.review.id, first.review.id);
+      assert.equal(saved.review.updatedAt, new Date(clock).toISOString());
+    });
+  }
+}
+
+test('transact and setMode stamp review.updatedAt from the clock; a throwing transact leaves it as it was', async () => {
+  const s = store();
+  const file = path.join(draftsDir(), 'k.json');
+  await append(s, 'k');
+  assert.equal(JSON.parse(rd(file)).review.updatedAt, '2026-03-10T12:00:00.000Z');
+  clock += 5000;
+  await s.setMode('k', 'auto');
+  const moded = JSON.parse(rd(file));
+  assert.deepEqual([moded.mode, moded.review.updatedAt, moded.ops.length], ['auto', '2026-03-10T12:00:05.000Z', 1]);
+  clock += 5000;
+  await assert.rejects(s.transact('k', () => { throw new ThreadsError('invalid', 'x'); }), /threads\/invalid: x/);
+  assert.equal(JSON.parse(rd(file)).review.updatedAt, '2026-03-10T12:00:05.000Z');
+  assert.equal((await s.load('k')).review.updatedAt, '2026-03-10T12:00:05.000Z');
+});
+
+test('setMode on a missing journal creates it with that mode', async () => {
+  const j = await store().setMode('new', 'auto');
+  assert.deepEqual([j.mode, j.ops], ['auto', []]);
+  assert.equal(JSON.parse(rd(path.join(draftsDir(), 'new.json'))).mode, 'auto');
 });
 
 test('ops are stamped from the injected clock', async () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, failingReset, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
 import { applyOps, defaultTitle, finishEarlierPublish, pageTitleOf, publish } from '../src/plugin/reviews.ts';
@@ -266,19 +266,6 @@ const call = (name: string, payload: Record<string, unknown>) =>
 const pageThreads = (rel: string) => parser.parseThreadsFromContent(read(rel));
 const deps = (s: DraftStore = store()) => ({ store: s, lock: createLock(), now: () => Date.parse('2030-01-02T03:04:05.000Z'), newId: () => 'r-aaaaaaaa' });
 
-/** A store whose first journal write fails: the reset that follows the files and the manifest. */
-function failingReset(real: DraftStore): DraftStore {
-  let fail = true;
-  return {
-    ...real,
-    transact: (key, fn) => {
-      if (!fail) return real.transact(key, fn);
-      fail = false;
-      return Promise.reject(new Error('journal write failed'));
-    },
-  };
-}
-
 /** The projection published and drafted views must agree on. */
 const shape = (threads: Thread[]) =>
   threads.map((t) => ({
@@ -288,7 +275,7 @@ const shape = (threads: Thread[]) =>
 
 test('publish-review writes two pages and a manifest; the journal is emptied; get-threads is unchanged by it', async () => {
   const added = (await call('threads:add-thread', { file: FILE, ...who, body: 'New on index', anchor: anchor('parser rules') })) as Thread;
-  await call('threads:add-comment', { file: FILE, threadId: 't-thread2', parentId: 'c2-1', body: 'Reply', ...who });
+  const reply = (await call('threads:add-comment', { file: FILE, threadId: 't-thread2', parentId: 'c2-1', body: 'Reply', ...who })) as Comment;
   await call('threads:add-thread', { file: OTHER, ...who, body: 'New on other' });
   await call('threads:edit-comment', { file: FILE, threadId: 't-thread1', commentId: 'c1-2', body: 'Bob, edited', ...who });
   await call('threads:resolve-thread', { file: FILE, threadId: 't-thread2', ...who });
@@ -296,6 +283,11 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   await call('threads:delete-comment', { file: FILE, threadId: 't-thread3', commentId: 'c3-2', ...who });
   const drafted = { [FILE]: shape(await getThreads(FILE)), [OTHER]: shape(await getThreads(OTHER)) };
   const reviewBefore = (await store().load('k-alice')).review.id;
+  const draftIds = (threads: Thread[]) => threads.flatMap((t) => t.comments).filter((c) => c.draft).map((c) => c.id).sort();
+  const beforeView = await getThreads(FILE);
+  assert.deepEqual(draftIds(beforeView), [added.comments[0].id, reply.id].sort(), 'only the drafted comments are flagged');
+  assert.ok(beforeView.every((t) => !Object.hasOwn(t, 'draft')), 'no thread carries draft');
+  await call('threads:set-mode', { ...who, mode: 'auto' });
 
   const result = await publishAction();
   assert.match(result.reviewId, /^r-[0-9a-f]{8}$/);
@@ -327,7 +319,10 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   const journal = await store().load('k-alice');
   assert.deepEqual(journal.ops, []);
   assert.notEqual(journal.review.id, result.reviewId);
+  assert.equal(journal.mode, 'auto', 'publish keeps the mode');
+  assert.ok(!Number.isNaN(Date.parse(journal.review.updatedAt)));
   const after = { [FILE]: await getThreads(FILE), [OTHER]: await getThreads(OTHER) };
+  assert.deepEqual(draftIds(after[FILE]), [], 'published comments are no longer drafts');
   assert.deepEqual({ [FILE]: shape(after[FILE]), [OTHER]: shape(after[OTHER]) }, drafted);
   const ids = after[FILE].flatMap((t) => t.comments.map((c) => c.id));
   assert.equal(new Set(ids).size, ids.length, 'each comment once');
@@ -433,6 +428,7 @@ test('after a failed journal reset the next publish does not apply again; it ret
     { kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-1', parentId: null, body: 'one' },
     { kind: 'edit-comment', file: FILE, threadId: 't-thread2', commentId: 'c-gone', body: 'dangling' },
   ]);
+  await call('threads:set-mode', { ...who, mode: 'auto' });
   const real = store();
   await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(real))), /journal write failed/);
   const id = (await real.load('k-alice')).review.id;
@@ -448,6 +444,8 @@ test('after a failed journal reset the next publish does not apply again; it ret
   const journal = await real.load('k-alice');
   assert.deepEqual(journal.ops, []);
   assert.notEqual(journal.review.id, id);
+  assert.equal(journal.mode, 'auto', 'finishing an earlier publish keeps the mode');
+  assert.ok(!Number.isNaN(Date.parse(journal.review.updatedAt)));
 });
 
 test('an op drafted after a failed journal reset keeps its place under a new review and is published next', async () => {

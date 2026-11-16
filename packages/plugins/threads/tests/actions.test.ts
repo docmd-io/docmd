@@ -11,19 +11,21 @@
  *    markup", "add-thread anchor does not match text inside the
  *    threads block", "delete-thread removes the highlight markup"   → moved to publish: tests/reviews.test.ts, "applyOps places marks…" and "applyOps removes…"
  *  - input validation, threads/<code> prefixes                      → kept
- *  - plugin surface                                                 → kept, plus the eleven action names
+ *  - plugin surface                                                 → kept, plus the thirteen action names
  */
 import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, MarkdownIt, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, MarkdownIt, failingReset, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
-import { slug } from '../src/plugin/drafts.ts';
+import { createDraftStore, slug } from '../src/plugin/drafts.ts';
+import { createLock } from '../src/plugin/lock.ts';
+import { publish } from '../src/plugin/reviews.ts';
 import * as plugin from '../src/index.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
-import type { Thread, Comment, DraftOp, Reaction } from '../src/types.ts';
+import type { Thread, Comment, DraftOp, Journal, Reaction, WhoAmI } from '../src/types.ts';
 
 let project: TempProject;
 let docsRoot: string;
@@ -87,7 +89,9 @@ test('add-thread and add-comment draft without touching the markdown', async () 
   assert.equal(thread.comments[0].author, 'Alice');
   assert.equal(thread.comments[0].date, '2026-03-10');
   assert.equal(comment.parent_id, 'c1-1');
-  assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['ops', 'review', 'version']);
+  assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['mode', 'ops', 'review', 'version']);
+  assert.deepEqual([thread.comments[0].draft, comment.draft], [true, true], 'drafted comments are flagged');
+  assert.equal(Object.hasOwn(thread, 'draft'), false);
 });
 
 test('add-thread keeps only the anchor fields the client sent, typed', async () => {
@@ -296,6 +300,104 @@ test('serve keys journals on the trusted identity, not the payload', async () =>
   assert.ok(asAlice.some((x) => x.id === t.id));
 });
 
+const whoami = async (payload: Record<string, unknown>, extra: Partial<TestCtx> = {}) =>
+  (await call<WhoAmI>('threads:whoami', payload, extra)).result;
+const setMode = async (payload: Record<string, unknown>, extra: Partial<TestCtx> = {}) =>
+  (await call<Journal>('threads:set-mode', payload, extra)).result;
+const withPlugin = (threads: unknown): Partial<TestCtx> => ({ config: { src: 'docs', plugins: { threads } } });
+
+test('a new journal starts in the mode the autoPublish config asks for, and whoami writes nothing', async () => {
+  const table: Array<[string, unknown, 'auto' | 'collect']> = [
+    ['no plugin config', undefined, 'auto'],
+    ['true', true, 'auto'],
+    ['autoPublish default', {}, 'auto'],
+    ['startOn false', { autoPublish: { startOn: false } }, 'collect'],
+    ['autoPublish false', { autoPublish: false }, 'collect'],
+  ];
+  for (const [name, threads, mode] of table) {
+    const journal = (await whoami(ALICE, withPlugin(threads))).journal;
+    assert.equal(journal?.mode, mode, name);
+    assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false, `${name}: whoami wrote nothing`);
+  }
+  await call('threads:add-thread', as(ALICE, { body: 'first' }), withPlugin({ autoPublish: { startOn: false } }));
+  assert.equal(readJson(journalPath('alice')).mode, 'collect', 'the first write saves the configured mode');
+});
+
+test('set-mode persists the mode per user and a new store reads it back', async () => {
+  await addThread(BOB);
+  const bobBytes = fs.readFileSync(safePath(path.dirname(journalPath('bob')), path.basename(journalPath('bob'))));
+  for (const mode of ['collect', 'auto'] as const) {
+    const journal = await setMode({ ...ALICE, mode });
+    assert.equal(journal.mode, mode);
+    assert.equal(readJson(journalPath('alice')).mode, mode);
+    assert.equal((await createDraftStore(docsRoot).load('alice')).mode, mode);
+  }
+  assert.deepEqual(fs.readFileSync(safePath(path.dirname(journalPath('bob')), path.basename(journalPath('bob')))), bobBytes, "bob's journal is untouched");
+});
+
+test('set-mode rejects any mode but auto and collect with threads/invalid and leaves the journal as it was', async () => {
+  await addThread();
+  const file = safePath(path.dirname(journalPath('alice')), path.basename(journalPath('alice')));
+  const bytes = fs.readFileSync(file);
+  for (const mode of [undefined, 'nope', 1, null, '']) {
+    await assert.rejects(setMode({ ...ALICE, mode }), /^ThreadsError: threads\/invalid: |^threads\/invalid: /, String(mode));
+    assert.deepEqual(fs.readFileSync(file), bytes, String(mode));
+  }
+});
+
+test('whoami returns the caller\'s journal, or null without an identity, and nothing else', async () => {
+  await addThread();
+  await addThread();
+  await addThread(BOB);
+  const mine = await whoami(ALICE);
+  assert.deepEqual(Object.keys(mine), ['journal']);
+  assert.equal(mine.journal?.ops.length, 2);
+  assert.equal((await whoami(BOB)).journal?.ops.length, 1);
+  assert.deepEqual(await whoami({}), { journal: null });
+  assert.deepEqual(await whoami({ author: '  ' }), { journal: null });
+});
+
+test('whoami in the window after a publish whose journal reset failed leaves out the ops it published', async () => {
+  await addThread();
+  await addComment('t-thread1');
+  const real = createDraftStore(docsRoot);
+  const ctx = makeCtx(project.root, { config: { src: 'docs' } });
+  await assert.rejects(
+    publish({ key: 'alice', name: 'Alice' }, ctx as never, {
+      store: failingReset(real), lock: createLock(), now: Date.now, newId: (prefix) => prefix + 'aaaaaaaa',
+    }),
+    /journal write failed/,
+  );
+  assert.equal((await real.load('alice')).ops.length, 2, 'the journal still lists them');
+  await addThread(BOB, 'unrelated'); // another caller's journal does not matter
+
+  const me = await whoami(ALICE);
+  assert.deepEqual(me.journal?.ops, []);
+  assert.deepEqual((await real.load('alice')).ops, [], 'the earlier publish was finished');
+});
+
+test('serve: set-mode needs a trusted identity and keys on it; whoami follows; dev uses the payload', async () => {
+  const serve = (identity: string | null): Partial<TestCtx> => ({ mode: 'serve', caller: { identity } });
+  await assert.rejects(
+    setMode({ ...ALICE, mode: 'collect' }, serve(null)),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity',
+  );
+  assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false, 'nothing was written');
+  assert.deepEqual(await whoami(ALICE, serve(null)), { journal: null });
+
+  const set = await setMode({ author: 'Mallory', authorKey: 'bob', mode: 'collect' }, serve('alice'));
+  assert.equal(set.mode, 'collect');
+  assert.equal(fs.existsSync(journalPath('alice')), true);
+  assert.equal(fs.existsSync(journalPath('bob')), false, 'the payload key is ignored');
+  const seen = (await whoami({ author: 'Mallory', authorKey: 'bob' }, serve('alice'))).journal;
+  assert.deepEqual(seen, set);
+
+  const dev = await setMode({ ...BOB, mode: 'collect' }, { mode: 'dev', caller: { identity: 'alice' } });
+  assert.equal(dev.mode, 'collect');
+  assert.equal(fs.existsSync(journalPath('bob')), true, 'in dev the payload names the journal');
+  assert.deepEqual((await whoami(BOB, { mode: 'dev', caller: { identity: null } })).journal, dev);
+});
+
 test('upsert-author and drafting calls with an authorKey write authors.json', async () => {
   const authors = () => readJson(path.join(docsRoot, '.threads', 'authors.json'));
   await call('threads:upsert-author', { authorKey: 'zed', name: 'Zed', avatarUrl: 'http://z/a.png' });
@@ -350,16 +452,26 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.deepEqual(Object.keys(plugin.actions).sort(), [
     'threads:add-comment', 'threads:add-thread', 'threads:delete-comment', 'threads:delete-thread',
     'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:publish-review',
-    'threads:resolve-thread',
-    'threads:toggle-reaction', 'threads:upsert-author',
+    'threads:resolve-thread', 'threads:set-mode',
+    'threads:toggle-reaction', 'threads:upsert-author', 'threads:whoami',
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true};'));
+  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true}';
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true}};'));
   for (const opts of [{}, undefined]) {
     const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
-    assert.ok(out.bodyScriptsHtml.includes('window.__threads_config={"sidebar":false};'));
+    assert.ok(out.bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));
   }
+  // Only the options the client reads are injected; the rest of the plugin config stays on the server.
+  const secret = plugin.generateScripts(
+    { src: path.join(project.root, 'docs') },
+    { autoPublish: { seconds: 60, startOn: false }, identityHeader: 'X-A', permissions: { admins: ['a'] } },
+  ).bodyScriptsHtml;
+  assert.ok(secret.includes('"autoPublish":{"seconds":60,"startOn":false}'));
+  for (const leak of ['admins', 'identityHeader', 'X-A']) assert.ok(!secret.includes(leak), leak);
+  assert.ok(plugin.generateScripts({ src: path.join(project.root, 'docs') }, { autoPublish: false })
+    .bodyScriptsHtml.includes('"autoPublish":false'));
   // An invalid value surfaces as a config error, once; later pages fall back to defaults.
   const bad = { sidebar: 'yes' };
   assert.throws(
@@ -367,7 +479,7 @@ test('plugin surface: descriptor, hooks and action names', () => {
     (e: unknown) => e instanceof ThreadsError && e.code === 'config',
   );
   assert.ok(plugin.generateScripts({ src: path.join(project.root, 'docs') }, bad)
-    .bodyScriptsHtml.includes('window.__threads_config={"sidebar":false};'));
+    .bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));
   // markdownSetup wires containers and the highlight rule together.
   const md = MarkdownIt();
   plugin.markdownSetup(md);

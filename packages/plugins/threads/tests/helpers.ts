@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { safePath } from '@docmd/utils';
+import type { DraftStore } from '../src/plugin/drafts.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = safePath(path.resolve(here, '..'), 'e2e/fixtures/playground-index.md');
@@ -74,4 +75,17 @@ export function makeCtx(root: string, extra: Partial<TestCtx> = {}): TestCtx {
     ...extra,
   };
   return ctx;
+}
+
+/** A store whose first journal write fails: the reset that follows the files and the manifest. */
+export function failingReset(real: DraftStore): DraftStore {
+  let fail = true;
+  return {
+    ...real,
+    transact: (key, fn) => {
+      if (!fail) return real.transact(key, fn);
+      fail = false;
+      return Promise.reject(new Error('journal write failed'));
+    },
+  };
 }
