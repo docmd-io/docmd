@@ -75,16 +75,17 @@ export function resolveHref(href: string): NormalizedHref {
   // This info can be used separately if needed, but we don't set isExternal here
   // to give users control over their own docs links
 
-  // 4. Pass through: all protocols (mailto:, tel:, ftp:, etc.), hash-only, asset paths
+  // 4. Pass through: all protocols (mailto:, tel:, ftp:, etc.), hash-only, query-only, asset paths
   if (
     href.match(/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i) ||  // http:, https:, mailto:, tel:, ftp:, //
     href.startsWith('#') ||
+    href.startsWith('?') ||
     href.match(/(^|\/)assets\//)
   ) {
     return { href, isExternal, isRaw: false };
   }
 
-  // 5. Separate hash fragment
+  // 5. Separate hash and query fragments
   let hash = '';
   const hashIndex = href.indexOf('#');
   if (hashIndex >= 0) {
@@ -92,24 +93,39 @@ export function resolveHref(href: string): NormalizedHref {
     href = href.substring(0, hashIndex);
   }
 
-  // 6. Strip .md, .html, .htm, and .ejs extensions
-  if (href.endsWith('.md')) {
-    href = href.slice(0, -3);
-  } else if (href.endsWith('.html')) {
-    href = href.slice(0, -5);
-  } else if (href.endsWith('.htm')) {
-    href = href.slice(0, -4);
-  } else if (href.endsWith('.ejs')) {
-    href = href.slice(0, -4);
+  let query = '';
+  const queryIndex = href.indexOf('?');
+  if (queryIndex >= 0) {
+    query = href.substring(queryIndex);
+    href = href.substring(0, queryIndex);
   }
 
-  // 6.5 Check for other file extensions. If present, treat as raw and do not normalise.
-  const lastSlash = href.lastIndexOf('/');
-  const filename = lastSlash >= 0 ? href.substring(lastSlash + 1) : href;
-  const lastDot = filename.lastIndexOf('.');
-  const hasUnmodifiedExtension = lastDot > 0 && lastDot < filename.length - 1;
-  if (hasUnmodifiedExtension) {
-    return { href: href + hash, isExternal, isRaw: true };
+  // 6. Strip .md, .html, .htm, and .ejs extensions
+  let strippedExtension = false;
+  if (href.endsWith('.md')) {
+    href = href.slice(0, -3);
+    strippedExtension = true;
+  } else if (href.endsWith('.html')) {
+    href = href.slice(0, -5);
+    strippedExtension = true;
+  } else if (href.endsWith('.htm')) {
+    href = href.slice(0, -4);
+    strippedExtension = true;
+  } else if (href.endsWith('.ejs')) {
+    href = href.slice(0, -4);
+    strippedExtension = true;
+  }
+
+  // 6.5 Check for other file extensions. If present and we did not strip a known page extension,
+  // treat as raw asset and do not normalise (e.g. download.zip, style.css, diagram.svg).
+  if (!strippedExtension) {
+    const lastSlash = href.lastIndexOf('/');
+    const filename = lastSlash >= 0 ? href.substring(lastSlash + 1) : href;
+    const lastDot = filename.lastIndexOf('.');
+    const hasUnmodifiedExtension = lastDot > 0 && lastDot < filename.length - 1;
+    if (hasUnmodifiedExtension) {
+      return { href: href + query + hash, isExternal, isRaw: true };
+    }
   }
 
   // 7. Strip trailing /index or /README (the page is the folder root)
@@ -134,7 +150,7 @@ export function resolveHref(href: string): NormalizedHref {
   // 9. Collapse any accidental double slashes (preserve leading // caught above)
   href = href.replace(/([^:])\/{2,}/g, '$1/');
 
-  return { href: href + hash, isExternal, isRaw: false };
+  return { href: href + query + hash, isExternal, isRaw: false };
 }
 
 /**
@@ -146,15 +162,21 @@ export function processHref(rawLink: string, state: any): { href: string; isExte
 
   // `index.md#setup` resolves to `#setup`. That is a section of the folder
   // index, not an anchor on the current page, so a non-index page still needs
-  // the depth shift. Only a link that was written as a hash skips it.
-  const rawIsHashOnly = typeof rawLink === 'string' && rawLink.startsWith('#');
-  if (!result.isRaw && !result.isExternal && !rawIsHashOnly) {
+  // the depth shift. Only a link that was written as a hash or query skips it.
+  const rawIsHashOrQueryOnly = typeof rawLink === 'string' && (rawLink.startsWith('#') || rawLink.startsWith('?'));
+  if (!result.isRaw && !result.isExternal && !rawIsHashOrQueryOnly) {
     let hashPart = '';
+    let queryPart = '';
     let pathPart = href;
-    const hashIdx = href.indexOf('#');
+    const hashIdx = pathPart.indexOf('#');
     if (hashIdx >= 0) {
-      hashPart = href.substring(hashIdx);
-      pathPart = href.substring(0, hashIdx);
+      hashPart = pathPart.substring(hashIdx);
+      pathPart = pathPart.substring(0, hashIdx);
+    }
+    const queryIdx = pathPart.indexOf('?');
+    if (queryIdx >= 0) {
+      queryPart = pathPart.substring(queryIdx);
+      pathPart = pathPart.substring(0, queryIdx);
     }
 
     const isProtocol = pathPart.match(/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i);
@@ -169,7 +191,7 @@ export function processHref(rawLink: string, state: any): { href: string; isExte
       }
     }
 
-    href = pathPart + hashPart;
+    href = pathPart + queryPart + hashPart;
   }
 
   return { href, isExternal: result.isExternal };

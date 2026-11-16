@@ -67,3 +67,41 @@ test('index page: index.md#setup stays an anchor on this page', async () => {
   assert.match(r.htmlContent, /<a href="#setup">Setup<\/a>/);
   assert.match(r.htmlContent, /<a href="#local">Here<\/a>/);
 });
+
+test('issue #284: pages with dots in stem and query strings normalize and shift correctly', async () => {
+  const r = await render(
+    [
+      '# Guide',
+      '',
+      '[Release](release-1.0.md)',
+      '',
+      '[Config](docmd.config.md)',
+      '',
+      '[Query](other.md?tab=npm)',
+      '',
+      '[IndexQuery](index.md?tab=npm)',
+      '',
+      '[IndexQueryHash](index.md?tab=npm#setup)',
+      '',
+      '[CurrentPageQuery](?tab=npm)',
+      '',
+      '[RawAsset](download.zip?v=2)',
+      '',
+      '::: button "Release 1.0" url:release-1.0.md',
+      '',
+      '::: button "Query" url:other.md?tab=npm',
+      ''
+    ].join('\n'),
+    { isIndex: false, relativePathToRoot: '../../', filePath: 'docs/guide.md' }
+  );
+
+  assert.match(r.htmlContent, /<a href="\.\.\/release-1\.0\/">Release<\/a>/);
+  assert.match(r.htmlContent, /<a href="\.\.\/docmd\.config\/">Config<\/a>/);
+  assert.match(r.htmlContent, /<a href="\.\.\/other\/\?tab=npm">Query<\/a>/);
+  assert.match(r.htmlContent, /<a href="\.\.\/\?tab=npm">IndexQuery<\/a>/);
+  assert.match(r.htmlContent, /<a href="\.\.\/\?tab=npm#setup">IndexQueryHash<\/a>/);
+  assert.match(r.htmlContent, /<a href="\?tab=npm">CurrentPageQuery<\/a>/);
+  assert.match(r.htmlContent, /<a href="download\.zip\?v=2">RawAsset<\/a>/);
+  assert.match(r.htmlContent, /<a href="\.\.\/release-1\.0\/" class="docmd-button"/);
+  assert.match(r.htmlContent, /<a href="\.\.\/other\/\?tab=npm" class="docmd-button"/);
+});

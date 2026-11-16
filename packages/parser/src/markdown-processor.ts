@@ -460,19 +460,25 @@ function customHtmlBlock(state: any, startLine: number, endLine: number, silent:
         return self.renderToken(tokens, idx, options);
       }
 
-      const isHashOnly = href.startsWith('#');
+      const isHashOrQueryOnly = href.startsWith('#') || href.startsWith('?');
       const isAsset = href.match(/(^|\/)assets\//);
 
-      if (!isHashOnly && !isAsset) {
+      if (!isHashOrQueryOnly && !isAsset) {
         const result = resolveHref(href);
 
         if (!result.isRaw) {
           let pathPart = result.href;
           let hashPart = '';
+          let queryPart = '';
           const hi = pathPart.indexOf('#');
           if (hi >= 0) {
             hashPart = pathPart.substring(hi);
             pathPart = pathPart.substring(0, hi);
+          }
+          const qi = pathPart.indexOf('?');
+          if (qi >= 0) {
+            queryPart = pathPart.substring(qi);
+            pathPart = pathPart.substring(0, qi);
           }
 
           // Depth adjustment for clean URLs (non-index pages are shifted into subfolders).
@@ -488,7 +494,7 @@ function customHtmlBlock(state: any, startLine: number, endLine: number, silent:
             }
           }
 
-          token.attrs[hrefIndex][1] = pathPart + hashPart;
+          token.attrs[hrefIndex][1] = pathPart + queryPart + hashPart;
         } else {
           token.attrs[hrefIndex][1] = result.href;
         }
