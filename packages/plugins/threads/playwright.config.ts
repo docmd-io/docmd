@@ -8,6 +8,7 @@ process.env["THREADS_E2E_SITE"] = path.join(os.tmpdir(), "docmd-threads-e2e");
 
 export default defineConfig({
   testDir: "e2e",
+  globalSetup: "./e2e/global-setup.ts",
   timeout: 30_000,
   retries: 0,
   workers: 1,
