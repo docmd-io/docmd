@@ -5,7 +5,7 @@
  * Changes from old plugin:
  * - No sidebar panel; threads are inline server-rendered cards
  * - Reply button on thread footer (not an always-visible reply textarea)
- * - Delete confirmation via wa-dialog#delete-dialog (same as before)
+ * - Delete confirmation via sl-dialog#delete-dialog (same as before)
  * - Seeding via docmd.call() instead of HTTP API
  * - Comment editing now handled by threads-comment Lit component with tc-* classes
  */
@@ -108,7 +108,7 @@ test.describe("thread deletion", () => {
     // However, the delete functionality exists via the delete-dialog.
 
     // For now, verify the delete dialog mechanism works:
-    const dialog = user.page.locator("wa-dialog#delete-dialog");
+    const dialog = user.page.locator("sl-dialog#delete-dialog");
     await expect(dialog).toBeAttached();
   });
 

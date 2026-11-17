@@ -58,7 +58,7 @@ async function openInlineEditor(textToSelect: string): Promise<void> {
 async function typeInEditor(text: string): Promise<void> {
   const textarea = user.page
     .locator("threads-inline-editor")
-    .locator("wa-textarea")
+    .locator("sl-textarea")
     .locator("textarea");
   await textarea.fill(text);
 }
@@ -85,7 +85,7 @@ test.describe("inline editor basics", () => {
     await typeInEditor("Inline comment via selection");
 
     const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("wa-button[variant='brand']");
+    const submitBtn = editor.locator("sl-button[variant='primary']");
     await submitBtn.click();
 
     await editor.waitFor({ state: "detached", timeout: 10_000 });
@@ -99,7 +99,7 @@ test.describe("inline editor basics", () => {
     expect(await user.ask(TheInlineEditor.isVisible())).toBe(true);
 
     const editor = user.page.locator("threads-inline-editor");
-    const cancelBtn = editor.locator("wa-button[appearance='outlined']");
+    const cancelBtn = editor.locator("sl-button[variant='neutral']");
     await cancelBtn.click();
 
     await editor.waitFor({ state: "detached", timeout: 5_000 });
@@ -112,7 +112,7 @@ test.describe("inline editor basics", () => {
     await openInlineEditor(textToSelect);
 
     const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("wa-button[variant='brand']");
+    const submitBtn = editor.locator("sl-button[variant='primary']");
     await expect(submitBtn).toHaveAttribute("disabled", { timeout: 3_000 });
   });
 });
@@ -175,13 +175,13 @@ test.describe("inline editor validation", () => {
 
     const textarea = user.page
       .locator("threads-inline-editor")
-      .locator("wa-textarea")
+      .locator("sl-textarea")
       .locator("textarea");
     await textarea.fill("   ");
 
     const submitBtn = user.page
       .locator("threads-inline-editor")
-      .locator("wa-button[variant='brand']");
+      .locator("sl-button[variant='primary']");
     await expect(submitBtn).toHaveAttribute("disabled");
   });
 
@@ -193,7 +193,7 @@ test.describe("inline editor validation", () => {
 
     const textarea = user.page
       .locator("threads-inline-editor")
-      .locator("wa-textarea")
+      .locator("sl-textarea")
       .locator("textarea");
 
     await expect(textarea).toBeFocused({ timeout: 3_000 });
@@ -213,7 +213,7 @@ test.describe("inline editor submitting state", () => {
     await typeInEditor("Some comment text");
 
     const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("wa-button[variant='brand']");
+    const submitBtn = editor.locator("sl-button[variant='primary']");
 
     await expect(submitBtn).toContainText("Submit");
   });
@@ -239,7 +239,7 @@ test.describe("inline editor submitting state", () => {
     await typeInEditor("Double-submit test comment");
 
     const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("wa-button[variant='brand']");
+    const submitBtn = editor.locator("sl-button[variant='primary']");
 
     await submitBtn.click();
     await submitBtn.click({ force: true }).catch(() => {});
@@ -259,7 +259,7 @@ test.describe("inline editor placeholder text", () => {
     await openInlineEditor(await getTextToSelect());
 
     const editor = user.page.locator("threads-inline-editor");
-    const textarea = editor.locator("wa-textarea").locator("textarea");
+    const textarea = editor.locator("sl-textarea").locator("textarea");
 
     await expect(textarea).toHaveAttribute("placeholder", "Write your comment...");
   });
