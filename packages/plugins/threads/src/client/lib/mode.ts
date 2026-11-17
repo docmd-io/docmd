@@ -4,7 +4,7 @@
  * `schedule` are injected so tests drive time by hand.
  */
 
-export type PublishMode = 'auto' | 'collect';
+import type { DraftMode } from '../../types';
 
 export interface PublishTimerOptions {
   /** Seconds of quiet after the last edit before an auto publish. */
@@ -16,7 +16,7 @@ export interface PublishTimerOptions {
 }
 
 export interface PublishTimerInput {
-  mode: PublishMode;
+  mode: DraftMode;
   /** The journal's `review.updatedAt` (ISO string or epoch ms). */
   updatedAt: string | number;
   pendingCount: number;
@@ -74,7 +74,7 @@ export function createPublishTimer({ seconds, now, schedule }: PublishTimerOptio
 
 export interface WidgetStateInput {
   autoPublish: boolean;
-  mode: PublishMode;
+  mode: DraftMode;
   /** `null` while the count is unknown (the last `whoami` failed); no journal is a count of 0. */
   pendingCount: number | null;
   publishing: boolean;

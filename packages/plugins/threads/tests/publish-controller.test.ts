@@ -29,16 +29,22 @@ const s = {
   publishError: null as unknown,
   skipped: 0,
   gate: null as Promise<void> | null,
+  whoamiGates: [] as Array<Promise<void> | null>,
+  setModeGate: null as Promise<void> | null,
   calls: [] as string[],
 };
 const api = {
   async whoami(): Promise<WhoAmI> {
     s.calls.push('whoami');
+    const answer = { journal: s.journal };
+    const gate = s.whoamiGates.shift();
+    if (gate) await gate;
     if (s.whoamiError) throw s.whoamiError;
-    return { journal: s.journal };
+    return answer;
   },
   async setMode(mode: DraftMode): Promise<Journal> {
     s.calls.push(`setMode:${mode}`);
+    if (s.setModeGate) await s.setModeGate;
     if (s.setModeError) throw s.setModeError;
     s.journal = { ...(s.journal as Journal), mode };
     return s.journal;
@@ -80,7 +86,7 @@ function build(autoPublish = true) {
 }
 
 beforeEach(() => {
-  Object.assign(s, { journal: null, whoamiError: null, setModeError: null, publishError: null, skipped: 0, gate: null, calls: [] });
+  Object.assign(s, { journal: null, whoamiError: null, setModeError: null, publishError: null, skipped: 0, gate: null, whoamiGates: [], setModeGate: null, calls: [] });
   clock = T0;
   scheduled.clear();
 });
@@ -142,6 +148,35 @@ test('play/pause: a rejection shows the error text or the mode-failed line and k
   s.setModeError = new Error('socket closed');
   await c.toggleMode();
   assert.deepEqual([c.view().mode, c.view().state.errorLine], ['auto', EN.modeFailed]);
+});
+
+test('refresh: an older whoami resolving after a newer one does not bring back its count', async () => {
+  const { c } = build();
+  let open!: () => void;
+  s.journal = journal(3);
+  s.whoamiGates = [new Promise<void>((r) => (open = r))];
+  const slow = c.refresh();
+  s.journal = journal(0);
+  await c.refresh();
+  open();
+  await slow;
+  assert.equal(c.view().state.label, '0 unpublished comments');
+});
+
+test('play/pause: a second click while setMode is in flight sends nothing', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  let open!: () => void;
+  s.setModeGate = new Promise<void>((r) => (open = r));
+  const first = c.toggleMode();
+  await c.toggleMode();
+  open();
+  await first;
+  assert.equal(s.calls.filter((x) => x.startsWith('setMode')).length, 1);
+  s.setModeGate = null;
+  await c.toggleMode();
+  assert.equal(s.calls.filter((x) => x.startsWith('setMode')).length, 2, 'a later click works again');
 });
 
 test('Publish calls publishReview then whoami, and the label becomes 0', async () => {

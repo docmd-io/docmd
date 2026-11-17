@@ -5,7 +5,7 @@
  * injected so tests drive everything by hand.
  */
 import { ThreadsClientError } from './api';
-import { widgetState, type PublishMode, type PublishTimer, type WidgetState } from './mode';
+import { widgetState, type PublishTimer, type WidgetState } from './mode';
 import type { DraftMode, Journal, PublishResult, WhoAmI } from '../../types';
 
 export interface PublishControllerApi {
@@ -25,7 +25,7 @@ export interface PublishControllerDeps {
 
 export interface PublishView {
   state: WidgetState;
-  mode: PublishMode;
+  mode: DraftMode;
   /** The countdown ring, while one is running: re-created per `updatedAt`, started `delayMs` into the countdown. */
   ring: { key: string; delayMs: number; totalMs: number } | null;
 }
@@ -35,12 +35,15 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   /** False when the last `whoami` failed: the count is unknown, not 0. */
   let known = false;
   let publishing = false;
+  let toggling = false;
+  /** Only the latest whoami answer counts: an older one resolving late would bring back a stale count. */
+  let refreshSeq = 0;
   let error: string | null = null;
   let remaining: number | null = null;
   let ringKey: string | null = null;
   let ringDelay = 0;
 
-  const mode = (): PublishMode => journal?.mode ?? 'collect';
+  const mode = (): DraftMode => journal?.mode ?? 'collect';
   const pending = (): number => (known ? (journal?.ops.length ?? 0) : 0);
   const reason = (err: unknown, fallback: string): string => (err instanceof ThreadsClientError ? err.text : t(fallback));
 
@@ -62,11 +65,15 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   async function refresh(): Promise<void> {
+    const seq = ++refreshSeq;
     try {
-      journal = (await api.whoami()).journal;
+      const me = await api.whoami();
+      if (seq !== refreshSeq) return;
+      journal = me.journal;
       known = true;
       error = null;
     } catch (err) {
+      if (seq !== refreshSeq) return;
       known = false;
       error = reason(err, 'loadFailed');
       timer?.stop();
@@ -105,6 +112,8 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   async function toggleMode(): Promise<void> {
+    if (toggling) return;
+    toggling = true;
     try {
       journal = await api.setMode(mode() === 'auto' ? 'collect' : 'auto');
       known = true;
@@ -113,6 +122,8 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
       error = reason(err, 'modeFailed');
       onChange();
       return;
+    } finally {
+      toggling = false;
     }
     syncTimer();
     onChange();

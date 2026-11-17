@@ -62,18 +62,18 @@ const generateCommentId = () => 'c-' + crypto.randomBytes(4).toString('hex');
  * One store per docs root, so its lock covers every caller whatever the config; `Date.now` is the
  * production clock. The mode of a new journal follows the config of the latest call.
  */
-const stores = new Map<string, { store: DraftStore; mode: DraftMode }>();
+const stores = new Map<string, DraftStore>();
+const newJournalModes = new Map<string, DraftMode>();
 function getStore(ctx: ActionContext): DraftStore {
   const root = docsRootOf(ctx);
-  let entry = stores.get(root);
-  if (!entry) {
-    const e = { store: undefined as unknown as DraftStore, mode: 'collect' as DraftMode };
-    e.store = createDraftStore(root, { now: Date.now, defaultMode: () => e.mode });
-    stores.set(root, (entry = e));
+  let store = stores.get(root);
+  if (!store) {
+    store = createDraftStore(root, { now: Date.now, defaultMode: () => newJournalModes.get(root) ?? 'collect' });
+    stores.set(root, store);
   }
   const { autoPublish } = getOptions(ctx);
-  entry.mode = autoPublish && autoPublish.startOn ? 'auto' : 'collect';
-  return entry.store;
+  newJournalModes.set(root, autoPublish && autoPublish.startOn ? 'auto' : 'collect');
+  return store;
 }
 
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);

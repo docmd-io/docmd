@@ -1,57 +1,54 @@
-import { test } from 'node:test';
+import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPublishTimer, widgetState } from '../src/client/lib/mode.ts';
+import { createPublishTimer, widgetState, type WidgetState } from '../src/client/lib/mode.ts';
 
-const base = { autoPublish: true, mode: 'collect', pendingCount: 0, publishing: false, armed: true, error: null } as const;
+type Input = Parameters<typeof widgetState>[0];
+const base: Input = { autoPublish: true, mode: 'collect', pendingCount: 0, publishing: false, armed: true, error: null } as const;
 
-test('widgetState: autoPublish false is collect-only with no play/pause, Publish enabled', () => {
-  const s = widgetState({ ...base, autoPublish: false, mode: 'auto', pendingCount: 2 });
-  assert.equal(s.variant, 'collect-only');
-  assert.equal(s.showPlayPause, false);
-  assert.equal(s.publishDisabled, false);
-  assert.equal(s.ringRunning, false);
+const table: Array<[string, Partial<Input>, Partial<WidgetState>]> = [
+  ['collect-only: no play/pause, Publish enabled', { autoPublish: false, mode: 'auto', pendingCount: 2 },
+    { variant: 'collect-only', showPlayPause: false, publishDisabled: false, ringRunning: false }],
+  ['auto with pending runs the ring', { mode: 'auto', pendingCount: 3 },
+    { variant: 'auto', showPlayPause: true, ringRunning: true, publishDisabled: false, label: '3 unpublished comments' }],
+  ['auto without pending: no ring, Publish disabled', { mode: 'auto', pendingCount: 0 },
+    { ringRunning: false, publishDisabled: true, label: '0 unpublished comments' }],
+  ['auto with pending but nothing scheduled (a failed auto publish): no ring', { mode: 'auto', pendingCount: 1, armed: false },
+    { ringRunning: false }],
+  ['collect: play/pause, never a ring, singular label', { mode: 'collect', pendingCount: 1 },
+    { variant: 'collect', showPlayPause: true, ringRunning: false, publishDisabled: false, label: '1 unpublished comment' }],
+  ['publishing: Publish disabled, no ring', { mode: 'auto', pendingCount: 2, publishing: true },
+    { variant: 'publishing', publishDisabled: true, ringRunning: false }],
+  ['unknown count: … and Publish disabled', { mode: 'auto', pendingCount: null },
+    { label: '…', publishDisabled: true, ringRunning: false }],
+  ['error line echoes the error', { error: 'boom' }, { errorLine: 'boom' }],
+  ['no error, no line', {}, { errorLine: null }],
+  ['auto offers pause', { mode: 'auto' }, { playPauseAction: 'pause' }],
+  ['collect offers play', { mode: 'collect' }, { playPauseAction: 'play' }],
+];
+
+test('widgetState table', () => {
+  for (const [name, input, expected] of table) {
+    const state = widgetState({ ...base, ...input });
+    const picked = Object.fromEntries(Object.keys(expected).map((k) => [k, state[k as keyof WidgetState]]));
+    assert.deepEqual(picked, expected, name);
+  }
 });
 
-test('widgetState: auto with pending runs the ring; without pending it does not and Publish is disabled', () => {
-  const on = widgetState({ ...base, mode: 'auto', pendingCount: 3 });
-  assert.deepEqual([on.variant, on.showPlayPause, on.ringRunning, on.publishDisabled], ['auto', true, true, false]);
-  assert.equal(on.label, '3 unpublished comments');
-  const off = widgetState({ ...base, mode: 'auto', pendingCount: 0 });
-  assert.deepEqual([off.ringRunning, off.publishDisabled, off.label], [false, true, '0 unpublished comments']);
+/** A fake clock and a manual scheduler, built once and reset per test: nothing here waits on real time. */
+let clock = 1_000_000;
+const pending = new Map<number, { cb: () => void; at: number }>();
+let next = 0;
+beforeEach(() => {
+  clock = 1_000_000;
+  pending.clear();
 });
+const advance = (ms: number) => {
+  clock += ms;
+  for (const [id, p] of [...pending]) if (p.at <= clock) { pending.delete(id); p.cb(); }
+};
 
-test('widgetState: auto with pending but no scheduled fire (a failed auto publish) shows no ring', () => {
-  assert.equal(widgetState({ ...base, mode: 'auto', pendingCount: 1, armed: false }).ringRunning, false);
-});
-
-test('widgetState: collect mode shows play/pause but never runs the ring', () => {
-  const s = widgetState({ ...base, mode: 'collect', pendingCount: 1 });
-  assert.deepEqual([s.variant, s.showPlayPause, s.ringRunning, s.publishDisabled], ['collect', true, false, false]);
-  assert.equal(s.label, '1 unpublished comment');
-});
-
-test('widgetState: publishing disables Publish and stops the ring', () => {
-  const s = widgetState({ ...base, mode: 'auto', pendingCount: 2, publishing: true });
-  assert.deepEqual([s.variant, s.publishDisabled, s.ringRunning], ['publishing', true, false]);
-});
-
-test('widgetState: an unknown count shows … and Publish is disabled', () => {
-  const s = widgetState({ ...base, mode: 'auto', pendingCount: null });
-  assert.deepEqual([s.label, s.publishDisabled, s.ringRunning], ['…', true, false]);
-});
-
-test('widgetState: errorLine echoes the error and playPauseAction is the opposite of the mode', () => {
-  assert.equal(widgetState({ ...base, error: 'boom' }).errorLine, 'boom');
-  assert.equal(widgetState({ ...base }).errorLine, null);
-  assert.equal(widgetState({ ...base, mode: 'auto' }).playPauseAction, 'pause');
-  assert.equal(widgetState({ ...base, mode: 'collect' }).playPauseAction, 'play');
-});
-
-/** A fake clock and a manual scheduler: nothing here waits on real time. */
+/** The system under test: a timer on the shared clock and scheduler. */
 function rig(seconds = 60) {
-  let clock = 1_000_000;
-  const pending = new Map<number, { cb: () => void; at: number }>();
-  let next = 0;
   const timer = createPublishTimer({
     seconds,
     now: () => clock,
@@ -64,10 +61,6 @@ function rig(seconds = 60) {
   });
   let fired = 0;
   timer.onFire(() => void fired++);
-  const advance = (ms: number) => {
-    clock += ms;
-    for (const [id, p] of [...pending]) if (p.at <= clock) { pending.delete(id); p.cb(); }
-  };
   return { timer, advance, fired: () => fired, pending: () => pending.size, setClock: (n: number) => (clock = n) };
 }
 

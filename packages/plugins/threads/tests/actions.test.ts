@@ -90,8 +90,6 @@ test('add-thread and add-comment draft without touching the markdown', async () 
   assert.equal(thread.comments[0].date, '2026-03-10');
   assert.equal(comment.parent_id, 'c1-1');
   assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['mode', 'ops', 'review', 'version']);
-  assert.deepEqual([thread.comments[0].draft, comment.draft], [true, true], 'drafted comments are flagged');
-  assert.equal(Object.hasOwn(thread, 'draft'), false);
 });
 
 test('add-thread keeps only the anchor fields the client sent, typed', async () => {

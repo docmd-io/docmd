@@ -287,7 +287,7 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   const beforeView = await getThreads(FILE);
   assert.deepEqual(draftIds(beforeView), [added.comments[0].id, reply.id].sort(), 'only the drafted comments are flagged');
   assert.ok(beforeView.every((t) => !Object.hasOwn(t, 'draft')), 'no thread carries draft');
-  await call('threads:set-mode', { ...who, mode: 'auto' });
+  await call('threads:set-mode', { ...who, mode: 'collect' });
 
   const result = await publishAction();
   assert.match(result.reviewId, /^r-[0-9a-f]{8}$/);
@@ -319,7 +319,7 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   const journal = await store().load('k-alice');
   assert.deepEqual(journal.ops, []);
   assert.notEqual(journal.review.id, result.reviewId);
-  assert.equal(journal.mode, 'auto', 'publish keeps the mode');
+  assert.equal(journal.mode, 'collect', 'publish keeps the mode, not the default (auto)');
   assert.ok(!Number.isNaN(Date.parse(journal.review.updatedAt)));
   const after = { [FILE]: await getThreads(FILE), [OTHER]: await getThreads(OTHER) };
   assert.deepEqual(draftIds(after[FILE]), [], 'published comments are no longer drafts');
@@ -428,7 +428,7 @@ test('after a failed journal reset the next publish does not apply again; it ret
     { kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-1', parentId: null, body: 'one' },
     { kind: 'edit-comment', file: FILE, threadId: 't-thread2', commentId: 'c-gone', body: 'dangling' },
   ]);
-  await call('threads:set-mode', { ...who, mode: 'auto' });
+  await call('threads:set-mode', { ...who, mode: 'collect' });
   const real = store();
   await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(real))), /journal write failed/);
   const id = (await real.load('k-alice')).review.id;
@@ -444,7 +444,7 @@ test('after a failed journal reset the next publish does not apply again; it ret
   const journal = await real.load('k-alice');
   assert.deepEqual(journal.ops, []);
   assert.notEqual(journal.review.id, id);
-  assert.equal(journal.mode, 'auto', 'finishing an earlier publish keeps the mode');
+  assert.equal(journal.mode, 'collect', 'finishing an earlier publish keeps the mode, not the default (auto)');
   assert.ok(!Number.isNaN(Date.parse(journal.review.updatedAt)));
 });
 
