@@ -429,7 +429,7 @@ test('after a failed journal reset the next publish does not apply again; it ret
     { kind: 'edit-comment', file: FILE, threadId: 't-thread2', commentId: 'c-gone', body: 'dangling' },
   ]);
   await call('threads:set-mode', { ...who, mode: 'collect' });
-  const real = store();
+  const real = createDraftStore(docsRoot, { defaultMode: 'auto' }); // differs from the 'collect' set above
   await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(real))), /journal write failed/);
   const id = (await real.load('k-alice')).review.id;
   const bytes = [read(FILE), readAt(manifestPath(id))];

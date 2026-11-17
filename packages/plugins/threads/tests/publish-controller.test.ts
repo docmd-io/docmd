@@ -150,17 +150,21 @@ test('play/pause: a rejection shows the error text or the mode-failed line and k
   assert.deepEqual([c.view().mode, c.view().state.errorLine], ['auto', EN.modeFailed]);
 });
 
-test('refresh: an older whoami resolving after a newer one does not bring back its count', async () => {
-  const { c } = build();
-  let open!: () => void;
-  s.journal = journal(3);
-  s.whoamiGates = [new Promise<void>((r) => (open = r))];
-  const slow = c.refresh();
-  s.journal = journal(0);
-  await c.refresh();
-  open();
-  await slow;
-  assert.equal(c.view().state.label, '0 unpublished comments');
+test('refresh: an older whoami resolving or rejecting after a newer one does not touch the newer state', async () => {
+  for (const rejects of [false, true]) {
+    const { c } = build();
+    let open!: () => void;
+    s.whoamiError = null;
+    s.journal = journal(3);
+    s.whoamiGates = [new Promise<void>((r) => (open = r))];
+    const slow = c.refresh();
+    s.journal = journal(0);
+    await c.refresh();
+    if (rejects) s.whoamiError = new ThreadsClientError('invalid', 'late failure');
+    open();
+    await slow;
+    assert.deepEqual([c.view().state.label, c.view().state.errorLine], ['0 unpublished comments', null], rejects ? 'rejection' : 'answer');
+  }
 });
 
 test('play/pause: a second click while setMode is in flight sends nothing', async () => {
