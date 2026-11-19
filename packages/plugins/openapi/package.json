@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-openapi",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "OpenAPI 3.x REST API reference documentation renderer for docmd.",
   "type": "module",
   "main": "dist/index.js",

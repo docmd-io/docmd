@@ -21,7 +21,7 @@ import { attrEsc, jsonInject, resolveTitle } from '@docmd/utils';
 
 export const plugin: PluginDescriptor = {
   name: 'seo',
-  version: '0.10.1',
+  version: '0.10.2',
   capabilities: ['head', 'post-build', 'doctor']
 };
 

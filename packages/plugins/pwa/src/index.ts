@@ -19,7 +19,7 @@ import { attrEsc } from '@docmd/utils';
 
 export const plugin: PluginDescriptor = {
   name: 'pwa',
-  version: '0.10.1',
+  version: '0.10.2',
   capabilities: ['post-build', 'head', 'body']
 };
 

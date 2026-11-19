@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-okf",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Open Knowledge Format (OKF) bundle generator and manifest emitter for docmd.",
   "type": "module",
   "main": "dist/index.js",

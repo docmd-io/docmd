@@ -1,6 +1,6 @@
 {
   "name": "@docmd/engine-js",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Pure JavaScript Markdown parsing and site generation engine for docmd.",
   "type": "module",
   "main": "dist/index.js",

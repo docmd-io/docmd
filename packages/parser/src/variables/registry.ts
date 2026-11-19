@@ -88,7 +88,7 @@ function getPackageVersion(): string {
       // Fallback if running outside package structure
     }
   }
-  return '0.10.1';
+  return '0.10.2';
 }
 
 /**

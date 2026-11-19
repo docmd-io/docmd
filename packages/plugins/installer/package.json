@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-installer",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Package installer and dependency resolver for docmd add and docmd remove commands.",
   "type": "module",
   "main": "dist/index.js",

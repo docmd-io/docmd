@@ -1,6 +1,6 @@
 {
   "name": "@docmd/plugin-iconify",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Optional Iconify icon integration for docmd documentation containers.",
   "type": "module",
   "main": "dist/index.js",

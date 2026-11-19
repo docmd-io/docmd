@@ -1,6 +1,6 @@
 {
   "name": "@docmd/utils",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Shared path, string, security, and filesystem utilities for docmd packages.",
   "type": "module",
   "main": "dist/index.js",

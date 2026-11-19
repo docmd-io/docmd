@@ -1,6 +1,6 @@
 {
   "name": "@mgks/docmd",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Legacy @mgks/docmd package redirecting to @docmd/core.",
   "bin": {
     "docmd": "bin/docmd.js"
