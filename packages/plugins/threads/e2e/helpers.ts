@@ -8,27 +8,52 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Path to the playground index.md used by the dev server. */
-const PLAYGROUND_INDEX = path.resolve(
-  __dirname,
-  "../../../_playground/docs/index.md",
-);
+/** The index.md the dev server serves; serve-playground.mjs seeds it from the fixture. */
+const site = process.env["THREADS_E2E_SITE"];
+if (!site) throw new Error("e2e: THREADS_E2E_SITE is unset (run the suite with `pnpm test:e2e`)");
+const PLAYGROUND_INDEX = path.join(site, "docs/index.md");
 
 /** Path to the fixture copy of the original playground markdown. */
 const FIXTURE_INDEX = path.resolve(__dirname, "fixtures/playground-index.md");
 
 /**
- * Restore the playground markdown to its fixture state, removing any
- * dynamically-added threads/highlights from test runs.
+ * The page's `<main>`, which holds every thread, comment and highlight. The rest of the page carries
+ * per-build stamps (asset `?v=` and build time), so a rebuild of the same markdown changes it.
  */
-export async function cleanThreads(_page: Page): Promise<void> {
+export function mainOf(html: string): string {
+  const main = html.match(/<main[\s\S]*?<\/main>/);
+  if (!main) throw new Error("e2e: served page has no <main>");
+  return main[0];
+}
+
+/**
+ * Restore the playground markdown to its fixture state, removing any dynamically-added
+ * threads/highlights from test runs, and wait until the dev server serves the clean page
+ * (global-setup.ts recorded its `<main>`), so no rebuild of the restore lands in the test.
+ *
+ * Until `docmd dev` stops dropping saves made within 1 s of a rebuild finishing, a restore
+ * can be missed: it is rewritten until served. At most 3 attempts x 4 s keeps the worst
+ * case under the 30 s hook timeout.
+ */
+export async function cleanThreads(page: Page): Promise<void> {
+  const clean = process.env["THREADS_E2E_CLEAN_MAIN"];
+  if (!clean) throw new Error("e2e: THREADS_E2E_CLEAN_MAIN is unset (global-setup did not run)");
   const fixtureContent = fs.readFileSync(FIXTURE_INDEX, "utf-8");
-  fs.writeFileSync(PLAYGROUND_INDEX, fixtureContent, "utf-8");
+  const served = async () => mainOf(await (await page.request.get("/")).text()) === clean;
+  for (let attempt = 1; ; attempt++) {
+    fs.writeFileSync(PLAYGROUND_INDEX, fixtureContent, "utf-8");
+    try {
+      await expect.poll(served, { message: "dev server rebuild of / after restoring it", timeout: 4_000 }).toBe(true);
+      return;
+    } catch (e) {
+      if (attempt === 3) throw e;
+    }
+  }
 }
 
 /**

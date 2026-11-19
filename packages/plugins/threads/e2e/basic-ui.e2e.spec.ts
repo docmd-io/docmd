@@ -171,7 +171,7 @@ test.describe("threads plugin - basic UI", () => {
 
     // After clicking, the thread card should receive the flash class
     const threadId = await firstHighlight.getAttribute("data-thread-id");
-    const threadCard = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
+    const threadCard = user.page.locator(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
     await expect(threadCard).toHaveClass(/threads-thread--flash/, { timeout: 2_000 });
   });
 
