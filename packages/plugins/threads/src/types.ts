@@ -13,6 +13,7 @@ export interface Thread {
   resolved_by: string | null;
   resolved_at: string | null;
   comments: Comment[];
+  anchor?: { quote: string };
 }
 
 export interface Comment {
@@ -22,6 +23,8 @@ export interface Comment {
   author: string;
   date: string;
   edited_at: string | null;
+  authorKey?: string;
+  reviewId?: string;
   body: string;
   reactions: Reaction[];
 }

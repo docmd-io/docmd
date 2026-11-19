@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsc && node build.js",
     "build:client": "node build.js",
-    "test": "echo 'TODO: migrate tests to vitest'"
+    "test": "tsx --test tests/*.test.ts"
   },
   "peerDependencies": {
     "@docmd/api": "workspace:*",
@@ -50,7 +50,8 @@
     "@docmd/api": "workspace:*",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15"
   },
   "keywords": [
     "docmd",

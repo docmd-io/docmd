@@ -120,6 +120,67 @@ function setupSafeCommentContainer(md: any): void {
 }
 
 /**
+ * `::: anchor` - the quoted text a thread was anchored to. Rendered as plain
+ * escaped text in a blockquote (no inner markdown). Only recognised inside a
+ * container body (where threads render their children); a top-level
+ * `::: anchor` is left to other rules. A quote line that is exactly `:::`
+ * would close the block early, so the writer of anchors must reject or escape
+ * it (TODO: enforce when drafts write anchors).
+ */
+interface AnchorBlockState {
+  src: string;
+  bMarks: number[];
+  tShift: number[];
+  eMarks: number[];
+  line: number;
+  env: { isInsideContainer?: boolean };
+  push(type: string, tag: string, nesting: number): { content: string };
+}
+
+interface AnchorMarkdown {
+  utils: { escapeHtml(s: string): string };
+  block: {
+    ruler: {
+      before(
+        before: string,
+        name: string,
+        fn: (state: AnchorBlockState, startLine: number, endLine: number, silent: boolean) => boolean,
+        options: { alt: string[] },
+      ): void;
+    };
+  };
+}
+
+function setupAnchorContainer(md: AnchorMarkdown): void {
+  md.block.ruler.before('fence', 'custom_anchor', (state, startLine, endLine, silent) => {
+    const start = state.bMarks[startLine] + state.tShift[startLine];
+    const lineContent = state.src.slice(start, state.eMarks[startLine]).trim();
+    if (!/^:::\s*anchor$/.test(lineContent)) return false;
+    // Container bodies are rendered recursively with this flag set; a top-level
+    // `::: anchor` is not part of a thread and is left alone.
+    if (!state.env.isInsideContainer) return false;
+
+    let nextLine = startLine + 1;
+    while (nextLine < endLine) {
+      const s = state.bMarks[nextLine] + state.tShift[nextLine];
+      if (state.src.slice(s, state.eMarks[nextLine]).trim() === ':::') break;
+      nextLine++;
+    }
+    if (nextLine >= endLine) return false;
+    if (silent) return true;
+
+    let raw = '';
+    for (let i = startLine + 1; i < nextLine; i++) {
+      raw += state.src.slice(state.bMarks[i], state.eMarks[i]) + '\n';
+    }
+    const token = state.push('html_block', '', 0);
+    token.content = `<blockquote class="threads-anchor">${md.utils.escapeHtml(smartDedent(raw))}</blockquote>\n`;
+    state.line = nextLine + 1;
+    return true;
+  }, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
+}
+
+/**
  * Parse a thread info string.
  * Format: `<id> [resolved "<by>" "<date>"]`
  */
@@ -152,14 +213,14 @@ export function parseThreadInfo(info: string): ThreadInfo {
 
 /**
  * Parse a comment info string.
- * Format: `[<id>] "<author>" "<date>" [reply-to <parentId>] [edited "<date>"]`
+ * Format: `[<id>] "<author>" "<date>" [reply-to <parentId>] [edited "<date>"] [by <authorKey>] [review <reviewId>]`
  */
 export function parseCommentInfo(info: string): CommentInfo {
   const trimmed = info.trim();
 
   // Format with ID, optional reply-to, optional edited
   const fullMatch = trimmed.match(
-    /^(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?$/
+    /^(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?(?:\s+by\s+\S+)?(?:\s+review\s+\S+)?$/
   );
   if (fullMatch) {
     return {
@@ -225,6 +286,9 @@ export function setup(md: any): void {
     },
     () => '</div>\n'
   );
+
+  // 2b. anchor - first child of a thread
+  setupAnchorContainer(md);
 
   // 3. comment - individual comment
   setupSafeCommentContainer(md);

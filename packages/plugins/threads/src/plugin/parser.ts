@@ -117,14 +117,14 @@ export function parseThreadInfo(info: string): { id: string; resolved: boolean; 
 
 /**
  * Parse the info string of a comment container.
- * Format: `comment <id> "<author>" "<date>" [reply-to <parentId>] [edited "<date>"]`
+ * Format: `comment <id> "<author>" "<date>" [reply-to <parentId>] [edited "<date>"] [by <authorKey>] [review <reviewId>]`
  * Legacy format (no id): `comment "<author>" "<date>" [edited "<date>"]`
  */
-export function parseCommentInfo(info: string): { id: string | null; parent_id: string | null; author: string; date: string; edited_at: string | null } | null {
+export function parseCommentInfo(info: string): { id: string | null; parent_id: string | null; author: string; date: string; edited_at: string | null; authorKey: string | null; reviewId: string | null } | null {
   // Format with ID, optional reply-to, optional edited
-  // comment <id> "<author>" "<date>" [reply-to <parentId>] [edited "<date>"]
+  // comment <id> "<author>" "<date>" [reply-to <parentId>] [edited "<date>"] [by <authorKey>] [review <reviewId>]
   const fullMatch = info.match(
-    /^comment\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?$/
+    /^comment\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?(?:\s+by\s+(\S+))?(?:\s+review\s+(\S+))?$/
   );
   if (fullMatch) {
     return {
@@ -133,6 +133,8 @@ export function parseCommentInfo(info: string): { id: string | null; parent_id: 
       date: fullMatch[3],
       parent_id: fullMatch[4] || null,
       edited_at: fullMatch[5] || null,
+      authorKey: fullMatch[6] || null,
+      reviewId: fullMatch[7] || null,
     };
   }
 
@@ -147,6 +149,8 @@ export function parseCommentInfo(info: string): { id: string | null; parent_id: 
       author: editedMatch[1],
       date: editedMatch[2],
       edited_at: editedMatch[3],
+      authorKey: null,
+      reviewId: null,
     };
   }
 
@@ -158,6 +162,8 @@ export function parseCommentInfo(info: string): { id: string | null; parent_id: 
       author: simpleMatch[1],
       date: simpleMatch[2],
       edited_at: null,
+      authorKey: null,
+      reviewId: null,
     };
   }
 
@@ -269,6 +275,12 @@ export function parseThreadsFromContent(markdownContent: string): Thread[] {
 
     const commentContainers = parseChildContainers(tc.contentLines);
     const comments: Comment[] = [];
+    let anchor: { quote: string } | undefined;
+    // An anchor is accepted at any position (the serialiser emits it first).
+    const anchorContainer = commentContainers.find((c) => c.infoString.trim() === 'anchor');
+    if (anchorContainer) {
+      anchor = { quote: extractBody(anchorContainer.contentLines) };
+    }
 
     for (const cc of commentContainers) {
       const commentInfo = parseCommentInfo(cc.infoString);
@@ -276,7 +288,7 @@ export function parseThreadsFromContent(markdownContent: string): Thread[] {
 
       const { body, reactions } = parseCommentContent(cc.contentLines);
 
-      comments.push({
+      const comment: Comment = {
         id: commentInfo.id || generateCommentId(),
         thread_id: threadInfo.id,
         parent_id: commentInfo.parent_id || null,
@@ -285,16 +297,21 @@ export function parseThreadsFromContent(markdownContent: string): Thread[] {
         edited_at: commentInfo.edited_at,
         body,
         reactions,
-      });
+      };
+      if (commentInfo.authorKey) comment.authorKey = commentInfo.authorKey;
+      if (commentInfo.reviewId) comment.reviewId = commentInfo.reviewId;
+      comments.push(comment);
     }
 
-    threads.push({
+    const thread: Thread = {
       id: threadInfo.id,
       resolved: threadInfo.resolved,
       resolved_by: threadInfo.resolved_by,
       resolved_at: threadInfo.resolved_at,
       comments,
-    });
+    };
+    if (anchor) thread.anchor = anchor;
+    threads.push(thread);
   }
 
   return threads;
@@ -315,6 +332,15 @@ export function serializeThreadsBlock(threads: Thread[]): string {
     }
     lines.push(threadLine);
 
+    if (thread.anchor) {
+      lines.push('    ::: anchor');
+      for (const ql of thread.anchor.quote.split('\n')) {
+        lines.push(ql === '' ? '' : `      ${ql}`);
+      }
+      lines.push('    :::');
+      if (thread.comments.length > 0) lines.push('');
+    }
+
     for (let ci = 0; ci < thread.comments.length; ci++) {
       const comment = thread.comments[ci];
       let commentLine = `    ::: comment ${comment.id} "${comment.author}" "${comment.date}"`;
@@ -323,6 +349,12 @@ export function serializeThreadsBlock(threads: Thread[]): string {
       }
       if (comment.edited_at) {
         commentLine += ` edited "${comment.edited_at}"`;
+      }
+      if (comment.authorKey) {
+        commentLine += ` by ${comment.authorKey}`;
+      }
+      if (comment.reviewId) {
+        commentLine += ` review ${comment.reviewId}`;
       }
       lines.push(commentLine);
 
