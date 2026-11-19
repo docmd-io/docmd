@@ -125,9 +125,10 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
       // shape in MkDocs).
       const title = unquote(m[2].trim().replace(/:\s*$/, ''));
       const file = unquote((m[3] || '').trim());
-      // index.md is served at its folder: 'guide/index.md' -> 'guide/', 'index.md' -> '/'.
+      // index.md is served at its folder: 'guide/index.md' -> '/guide/', 'index.md' -> '/'.
+      // Paths are site-absolute; a relative one breaks on every nested page.
       const item: any = file
-        ? { title, path: file.replace(/(^|\/)index\.(md|markdown)$/i, '$1').replace(/\.(md|markdown)$/i, '/') || '/' }
+        ? { title, path: '/' + file.replace(/(^|\/)index\.(md|markdown)$/i, '$1').replace(/\.(md|markdown)$/i, '/') }
         : { title };
       while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
       const top = stack[stack.length - 1];
