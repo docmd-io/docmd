@@ -21,15 +21,19 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
     assert.equal(t.length, 2);
     assert.deepEqual(t[1], {
       id: 't-new', resolved: false, resolved_by: null, resolved_at: null,
-      comments: [{ id: 'c-new', thread_id: 't-new', parent_id: null, author: 'Me', date: '2026-04-01', edited_at: null, body: 'hello', reactions: [] }],
+      comments: [{ id: 'c-new', thread_id: 't-new', parent_id: null, author: 'Me', date: '2026-04-01', edited_at: null, body: 'hello', reactions: [], draft: true }],
     });
   }],
   ['add-comment', [{ ...base, kind: 'add-comment', threadId: 't-pub', commentId: 'c-3', parentId: 'c-1', body: 'reply' }], (t) => {
     assert.equal(t[0].comments.length, 3);
     assert.deepEqual([t[0].comments[2].author, t[0].comments[2].date, t[0].comments[2].parent_id], ['Me', '2026-04-01', 'c-1']);
+    assert.equal(t[0].comments[2].draft, true);
+    assert.equal(Object.hasOwn(t[0].comments[0], 'draft'), false, 'published comments carry no draft key');
+    assert.equal(Object.hasOwn(t[0], 'draft'), false, 'a thread carries no draft key');
   }],
   ['edit-comment', [{ ...base, kind: 'edit-comment', threadId: 't-pub', commentId: 'c-1', body: 'edited' }], (t) => {
     assert.deepEqual([t[0].comments[0].body, t[0].comments[0].edited_at], ['edited', '2026-04-01']);
+    assert.equal(Object.hasOwn(t[0].comments[0], 'draft'), false, 'an edit does not make a published comment a draft');
   }],
   ['delete-comment', [{ ...base, kind: 'delete-comment', threadId: 't-pub', commentId: 'c-1' }], (t) => {
     assert.deepEqual(t[0].comments.map((c) => c.id), ['c-2']);

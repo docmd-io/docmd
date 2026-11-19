@@ -262,6 +262,16 @@ export function injectComponentStyles(): void {
       color: var(--tc-muted-fg);
       line-height: 1.2;
     }
+    .tc-comment__draft {
+      align-self: flex-start;
+      margin-top: 2px;
+      padding: 0 6px;
+      border-radius: 999px;
+      border: 1px solid var(--tc-border);
+      color: var(--tc-muted-fg);
+      font-size: 11px;
+      line-height: 1.5;
+    }
     .tc-comment__menu {
       display: flex;
       gap: 1px;

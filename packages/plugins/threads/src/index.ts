@@ -92,7 +92,8 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
     authors = {};
   }
 
-  const clientConfig = { sidebar: resolveOptions(options).sidebar };
+  const { sidebar, autoPublish } = resolveOptions(options);
+  const clientConfig = { sidebar, autoPublish };
   const i18nStrings = loadPluginStrings(config._activeLocale?.id || 'en');
 
   return {

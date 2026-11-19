@@ -101,5 +101,6 @@ function draftComment(
     edited_at: null,
     body,
     reactions: [],
+    draft: true,
   };
 }

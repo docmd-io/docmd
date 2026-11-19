@@ -390,7 +390,7 @@ export async function publish(
       }
       // The id belongs to someone else's review (an id collision): this journal moves to a fresh one.
       reviewId = newId('r-');
-      await store.transact(caller.key, (j) => void (j.review = { id: reviewId }));
+      await store.transact(caller.key, (j) => void (j.review.id = reviewId));
     }
 
     const applied: ManifestOp[] = [];
@@ -456,7 +456,7 @@ export async function publish(
     const published = new Set(ops.map((o) => o.opId));
     await store.transact(caller.key, (j) => {
       j.ops = j.ops.filter((o) => !published.has(o.opId));
-      j.review = { id: newId('r-') };
+      j.review.id = newId('r-');
     });
     return { reviewId, skipped };
   });
@@ -481,6 +481,6 @@ export async function finishEarlierPublish(
   await store.transact(key, (j) => {
     if (j.review.id !== manifest.id) return;
     j.ops = j.ops.filter((o) => !done.has(o.opId));
-    j.review = { id: newId('r-') };
+    j.review.id = newId('r-');
   });
 }

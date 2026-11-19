@@ -7,8 +7,15 @@ const storage = new Map<string, string>();
 let prompts = 0;
 const g = globalThis as Record<string, unknown>;
 const saved: Record<string, unknown> = {};
+let reject: unknown = null;
 const STUBS: Record<string, unknown> = {
-  docmd: { call: async (action: string, payload: Record<string, unknown>) => { calls.push({ action, payload }); return {}; } },
+  docmd: {
+    call: async (action: string, payload: Record<string, unknown>) => {
+      calls.push({ action, payload });
+      if (reject) throw reject;
+      return {};
+    },
+  },
   document: { body: { dataset: { sourceFile: 'docs/index.md' } } },
   localStorage: {
     getItem: (k: string) => storage.get(k) ?? null,
@@ -38,6 +45,7 @@ beforeEach(() => {
   calls.length = 0;
   storage.clear();
   prompts = 0;
+  reject = null;
 });
 
 const stored = { author: 'Alice', authorKey: 'alice', avatarUrl: 'http://a/x.png' };
@@ -84,4 +92,36 @@ test('a mutation without a stored identity prompts once and sends the prompted i
   await api.deleteComment('t-1', 'c-1');
   assert.equal(prompts, 1, 'the prompted name is stored');
   assert.equal(calls[1].payload.authorKey, 'prompted');
+});
+
+test('whoami sends exactly the stored identity, or {} without prompting', async () => {
+  identify();
+  await api.whoami();
+  assert.deepEqual(calls[0], { action: 'threads:whoami', payload: stored });
+  storage.clear();
+  await api.whoami();
+  assert.deepEqual(calls[1], { action: 'threads:whoami', payload: {} });
+  assert.equal(prompts, 0);
+});
+
+test('setMode and publishReview send the identity, setMode with the mode', async () => {
+  identify();
+  await api.setMode('auto');
+  await api.publishReview();
+  assert.deepEqual(calls[0], { action: 'threads:set-mode', payload: { ...stored, mode: 'auto' } });
+  assert.deepEqual(calls[1], { action: 'threads:publish-review', payload: stored });
+});
+
+test('a threads/<code>: <text> rejection becomes a ThreadsClientError; any other rejection passes through', async () => {
+  reject = new Error('threads/invalid: first line\nsecond line');
+  await assert.rejects(api.publishReview(), (e: unknown) => {
+    assert.ok(e instanceof api.ThreadsClientError);
+    assert.deepEqual([e.code, e.text], ['invalid', 'first line\nsecond line']);
+    return true;
+  });
+  reject = new Error('threads/no-identity: no trusted identity');
+  await assert.rejects(api.setMode('collect'), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'no-identity');
+  const other = new Error('socket closed');
+  reject = other;
+  await assert.rejects(api.whoami(), (e: unknown) => e === other);
 });

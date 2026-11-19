@@ -40,5 +40,17 @@
   "commentsCount": "条评论",
   "by": "来自",
   "and": "和",
-  "more": "更多"
+  "more": "更多",
+  "publish": "发布",
+  "autoPublishing": "自动发布",
+  "pause": "暂停自动发布",
+  "play": "恢复自动发布",
+  "unpublishedCount": "{n} 条未发布的评论",
+  "unpublishedCountOne": "{n} 条未发布的评论",
+  "publishFailed": "发布失败",
+  "skippedOps": "{n} 项更改无法应用",
+  "skippedOpsOne": "{n} 项更改无法应用",
+  "modeFailed": "无法更改发布模式",
+  "loadFailed": "无法加载你的评论",
+  "draft": "草稿"
 }
