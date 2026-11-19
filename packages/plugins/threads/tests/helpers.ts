@@ -48,6 +48,10 @@ export interface TestCtx {
   readFile(relativePath: string): Promise<string>;
   writeFile(relativePath: string, content: string): Promise<void>;
   readFileLines(relativePath: string): Promise<string[]>;
+  /** Which command hosts the call; the dispatcher's default is dev. */
+  mode?: 'dev' | 'serve';
+  /** Only `identity` is read by the plugin. */
+  caller?: { identity: string | null };
 }
 
 /** Action context matching what the action dispatcher provides. */

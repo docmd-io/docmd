@@ -84,3 +84,28 @@ export interface ToggleReactionPayload {
   emoji: string;
   author: string;
 }
+
+/** One private, unpublished change. The store assigns `opId` and `at`. */
+export type DraftOp =
+  | { kind: 'add-thread'; opId: string; at: string; file: string; threadId: string; commentId: string; body: string }
+  | { kind: 'add-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; parentId: string | null; body: string }
+  | { kind: 'edit-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; body: string }
+  | { kind: 'delete-comment'; opId: string; at: string; file: string; threadId: string; commentId: string }
+  | { kind: 'delete-thread'; opId: string; at: string; file: string; threadId: string }
+  | { kind: 'resolve-thread'; opId: string; at: string; file: string; threadId: string }
+  | { kind: 'toggle-reaction'; opId: string; at: string; file: string; threadId: string; commentId: string; emoji: string };
+
+/** A DraftOp as the caller supplies it: the store assigns `opId` and `at`. */
+export type NewDraftOp = DraftOp extends infer O ? (O extends DraftOp ? Omit<O, 'opId' | 'at'> : never) : never;
+
+/** One user's private, unpublished changes (`<docsRoot>/.threads/drafts/<slug>.json`). */
+export interface Journal {
+  version: 1;
+  ops: DraftOp[];
+}
+
+/** Who is making a call: the journal key and the display name. */
+export interface Caller {
+  key: string;
+  name: string;
+}

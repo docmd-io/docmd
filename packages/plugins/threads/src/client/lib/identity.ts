@@ -158,3 +158,14 @@ export function getIdentityPayload(): { author: string; authorKey: string; avata
   const avatarUrl = getAvatarUrl() || '';
   return { author, authorKey, avatarUrl };
 }
+
+/**
+ * The identity stored in this browser, or null when none is. Unlike
+ * getIdentityPayload it never prompts: page loads must not ask for a name.
+ */
+export function getStoredIdentity(): { author: string; authorKey: string; avatarUrl: string } | null {
+  const author = getAuthor();
+  if (!author) return null;
+  const authorKey = getAuthorKey() || computeAuthorKey(author, getGithub() || '');
+  return { author, authorKey, avatarUrl: getAvatarUrl() || '' };
+}
