@@ -6,16 +6,13 @@ import { ThreadsError } from './errors.js';
 import { safePath } from '@docmd/utils';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { lockFor } from './lock.js';
+import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
 import { findCaller, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
-import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp } from '../types.js';
+import type { Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor } from '../types.js';
 
 interface AuthorsMap {
   [key: string]: { name: string; avatarUrl: string };
-}
-
-/** The docs root, validated against the project root: authors.json and the drafts share it. */
-function docsRootOf(ctx: ActionContext): string {
-  return safePath(ctx.projectRoot, ctx.config?.src || '.');
 }
 
 /**
@@ -67,6 +64,22 @@ function getStore(ctx: ActionContext): DraftStore {
   let store = stores.get(root);
   if (!store) stores.set(root, (store = createDraftStore(root, { now: Date.now })));
   return store;
+}
+
+const strOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+/** The anchor a client sent, reduced to the Anchor fields; null when it has no quote. */
+function anchorFrom(sent: unknown): Anchor | null {
+  const a = (sent ?? {}) as Record<string, unknown>;
+  if (typeof a.quote !== 'string' || !a.quote) return null;
+  return {
+    quote: a.quote,
+    prefix: strOrNull(a.prefix),
+    suffix: strOrNull(a.suffix),
+    selector: strOrNull(a.selector),
+    offset: typeof a.offset === 'number' && Number.isFinite(a.offset) ? a.offset : null,
+    blockText: strOrNull(a.blockText),
+  };
 }
 
 /** Wire payload; `requireFields` has checked the fields an action needs. */
@@ -143,9 +156,11 @@ function opsOnCommentTree(tx: Tx, commentId: string): DraftOp[] {
  */
 async function transact(ctx: ActionContext, payload: Payload, fn: (tx: Tx) => void): Promise<Thread[]> {
   const caller = resolveCaller(ctx, payload);
+  const store = getStore(ctx);
+  await finishEarlierPublish(ctx, store, caller.key);
   const file = payload.file;
   const published = parser.parseThreadsFromContent(await ctx.readFile(file));
-  const journal = await getStore(ctx).transact(caller.key, (j, at) =>
+  const journal = await store.transact(caller.key, (j, at) =>
     fn({ j, at, file, view: overlay(published, j.ops, file, caller) }),
   );
   return overlay(published, journal.ops, file, caller);
@@ -173,7 +188,10 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     const published = parser.parseThreadsFromContent(await ctx.readFile(payload.file));
     const caller = findCaller(ctx, payload);
     if (!caller) return published;
-    const journal = await getStore(ctx).load(caller.key);
+    // After a publish whose journal reset failed, the journal still holds ops the file already has.
+    const store = getStore(ctx);
+    await finishEarlierPublish(ctx, store, caller.key);
+    const journal = await store.load(caller.key);
     return overlay(published, journal.ops, payload.file, caller);
   },
 
@@ -181,8 +199,9 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     requireFields('threads:add-thread', payload, ['file', 'author', 'body']);
     const caller = resolveCaller(ctx, payload);
     const threadId = generateThreadId();
+    const anchor = anchorFrom(payload.anchor);
     const view = await transact(ctx, payload, (tx) =>
-      push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), body: payload.body }),
+      push(tx, { kind: 'add-thread', file: tx.file, threadId, commentId: generateCommentId(), anchor, body: payload.body }),
     );
     await recordProfile(ctx, caller, payload);
     return findThread(view, threadId);
@@ -273,4 +292,8 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     });
     return findComment(findThread(view, threadId), commentId).reactions;
   },
+
+  /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
+  'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
+    publish(resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
 };

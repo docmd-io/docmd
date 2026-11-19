@@ -43,7 +43,7 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
     return run;
   };
 
-  const fresh = (): Journal => ({ version: 1, ops: [] });
+  const fresh = (): Journal => ({ version: 1, review: { id: 'r-' + crypto.randomBytes(4).toString('hex') }, ops: [] });
 
   async function read(key: string): Promise<Journal> {
     const file = safePath(dir, nameOf(key));
@@ -56,7 +56,15 @@ export function createDraftStore(docsRoot: string, { now = Date.now }: DraftStor
     }
     try {
       const j = JSON.parse(text);
-      if (j && j.version === 1 && Array.isArray(j.ops)) return { version: 1, ops: j.ops };
+      if (j && j.version === 1 && Array.isArray(j.ops)) {
+        // A journal saved before reviews existed has no id: derive a stable one from its ops, so a
+        // publish that fails before the next write finds its own manifest again. The next write saves it.
+        const id =
+          typeof j.review?.id === 'string' && j.review.id
+            ? j.review.id
+            : 'r-' + crypto.createHash('sha256').update(JSON.stringify(j.ops)).digest('hex').slice(0, 8);
+        return { version: 1, review: { id }, ops: j.ops };
+      }
     } catch {
       // fall through: corrupt
     }

@@ -3,13 +3,13 @@
  * the dispatcher returns plain error messages, and clients read the prefix.
  */
 
-export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config' | 'no-identity';
+export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config' | 'no-identity' | 'empty-review';
 
 export class ThreadsError extends Error {
   readonly code: ThreadsErrorCode;
 
-  constructor(code: ThreadsErrorCode, text: string) {
-    super(`threads/${code}: ${text}`);
+  constructor(code: ThreadsErrorCode, text: string, options?: { cause?: unknown }) {
+    super(`threads/${code}: ${text}`, options);
     this.name = 'ThreadsError';
     this.code = code;
   }

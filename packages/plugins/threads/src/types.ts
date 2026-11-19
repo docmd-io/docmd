@@ -87,7 +87,7 @@ export interface ToggleReactionPayload {
 
 /** One private, unpublished change. The store assigns `opId` and `at`. */
 export type DraftOp =
-  | { kind: 'add-thread'; opId: string; at: string; file: string; threadId: string; commentId: string; body: string }
+  | { kind: 'add-thread'; opId: string; at: string; file: string; threadId: string; commentId: string; anchor: Anchor | null; body: string }
   | { kind: 'add-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; parentId: string | null; body: string }
   | { kind: 'edit-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; body: string }
   | { kind: 'delete-comment'; opId: string; at: string; file: string; threadId: string; commentId: string }
@@ -101,7 +101,37 @@ export type NewDraftOp = DraftOp extends infer O ? (O extends DraftOp ? Omit<O, 
 /** One user's private, unpublished changes (`<docsRoot>/.threads/drafts/<slug>.json`). */
 export interface Journal {
   version: 1;
+  /** The review these ops belong to; a journal saved without it gets one on load. */
+  review: { id: string };
   ops: DraftOp[];
+}
+
+/** A published op as a manifest records it: what a later reversal or listing needs. */
+export type ManifestOp = DraftOp & {
+  /** The state the op replaced (edit, delete, resolve and reaction ops). */
+  before?: Record<string, unknown>;
+  /** The quoted text an add-thread op anchored to. */
+  quote?: string;
+  /** Title of the page the op targeted, when it has one. */
+  pageTitle?: string;
+};
+
+/** `<docsRoot>/.threads/reviews/<id>.json`: one published review. */
+export interface ReviewManifest {
+  version: 1;
+  id: string;
+  authorKey: string;
+  authorName: string;
+  title: string;
+  state: 'published';
+  publishedAt: string;
+  ops: ManifestOp[];
+  skipped: Array<{ opId: string; reason: string }>;
+}
+
+export interface PublishResult {
+  reviewId: string;
+  skipped: Array<{ opId: string; reason: string }>;
 }
 
 /** Who is making a call: the journal key and the display name. */

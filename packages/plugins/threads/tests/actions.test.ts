@@ -9,9 +9,9 @@
  *  - delete-comment on a drafted comment, replies, first comment    → "deleting a drafted comment removes its drafted replies" and "deleting a drafted first comment removes the thread"
  *  - "add-thread with an anchor wraps the quote in highlight
  *    markup", "add-thread anchor does not match text inside the
- *    threads block", "delete-thread removes the highlight markup"   → moved to publish (drafts never write markdown)
+ *    threads block", "delete-thread removes the highlight markup"   → moved to publish: tests/reviews.test.ts, "applyOps places marks…" and "applyOps removes…"
  *  - input validation, threads/<code> prefixes                      → kept
- *  - plugin surface                                                 → kept, plus the ten action names
+ *  - plugin surface                                                 → kept, plus the eleven action names
  */
 import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -78,7 +78,7 @@ test('add-thread and add-comment draft without touching the markdown', async () 
   assert.equal(ops.length, 2);
   assert.deepEqual(ops[0], {
     kind: 'add-thread', opId: ops[0].opId, at: '2026-03-10T12:00:00.000Z', file: project.file,
-    threadId: thread.id, commentId: thread.comments[0].id, body: 'draft thread',
+    threadId: thread.id, commentId: thread.comments[0].id, anchor: null, body: 'draft thread',
   });
   assert.deepEqual(ops[1], {
     kind: 'add-comment', opId: ops[1].opId, at: '2026-03-10T12:00:00.000Z', file: project.file,
@@ -87,7 +87,16 @@ test('add-thread and add-comment draft without touching the markdown', async () 
   assert.equal(thread.comments[0].author, 'Alice');
   assert.equal(thread.comments[0].date, '2026-03-10');
   assert.equal(comment.parent_id, 'c1-1');
-  assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['ops', 'version']);
+  assert.deepEqual(Object.keys(readJson(journalPath('alice'))).sort(), ['ops', 'review', 'version']);
+});
+
+test('add-thread keeps only the anchor fields the client sent, typed', async () => {
+  const sent = { quote: 'inline', prefix: 'a ', suffix: 5, selector: null, offset: 7, extra: 'dropped', blockText: 'whole block' };
+  await call('threads:add-thread', as(ALICE, { body: 'x', anchor: sent }));
+  await call('threads:add-thread', as(ALICE, { body: 'y', anchor: { quote: '' } }));
+  const [withAnchor, without] = journalOps('alice') as Array<DraftOp & { anchor: unknown }>;
+  assert.deepEqual(withAnchor.anchor, { quote: 'inline', prefix: 'a ', suffix: null, selector: null, offset: 7, blockText: 'whole block' });
+  assert.equal(without.anchor, null);
 });
 
 // Depends on e2e/fixtures/playground-index.md: update together if that fixture's threads change.
@@ -340,7 +349,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.equal(typeof plugin.actions, 'object');
   assert.deepEqual(Object.keys(plugin.actions).sort(), [
     'threads:add-comment', 'threads:add-thread', 'threads:delete-comment', 'threads:delete-thread',
-    'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:resolve-thread',
+    'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:publish-review',
+    'threads:resolve-thread',
     'threads:toggle-reaction', 'threads:upsert-author',
   ]);
   const assets = plugin.getAssets();
