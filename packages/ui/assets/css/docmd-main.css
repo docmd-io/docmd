@@ -1460,6 +1460,17 @@ pre code {
     border: none;
 }
 
+/* Table Container with Outer Pinning for Corner Button */
+.docmd-table-container {
+    position: relative;
+    width: 100%;
+    margin: var(--space-6) 0;
+}
+
+.docmd-table-container .table-wrapper {
+    margin: 0;
+}
+
 .table-wrapper {
     display: block;
     width: 100%;
@@ -1468,6 +1479,302 @@ pre code {
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Floating Table Expand Button — Pinned at the top-right corner border */
+.table-expand-button {
+    position: absolute;
+    top: -12px;
+    right: -10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--bg-color);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.12));
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 0;
+    user-select: none;
+}
+
+@media (max-width: 768px) {
+    .table-expand-button {
+        right: 4px;
+    }
+}
+
+.table-expand-button:hover {
+    color: var(--text-heading);
+    background: var(--sidebar-bg);
+    border-color: var(--link-color);
+    transform: scale(1.1);
+    box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.15));
+}
+
+.table-expand-button:active {
+    transform: scale(0.95);
+}
+
+.table-expand-button svg {
+    width: 13px;
+    height: 13px;
+    stroke-width: 2.2;
+    flex-shrink: 0;
+}
+
+.docmd-table-container:hover .table-expand-button,
+.docmd-table-container:focus-within .table-expand-button {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (hover: none) {
+    .table-expand-button {
+        opacity: 0.85;
+        pointer-events: auto;
+    }
+}
+
+/* Universal Modal Dialog (Modern Web Guidance) */
+dialog.docmd-modal:modal {
+    overscroll-behavior: contain;
+}
+
+dialog.docmd-modal::backdrop {
+    background-color: var(--lightbox-bg, rgba(0, 0, 0, 0.75));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+
+dialog.docmd-modal {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(94vw, 1360px);
+    max-height: 88vh;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl, 14px);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    box-shadow: var(--shadow-xl, 0 25px 50px -12px rgba(0, 0, 0, 0.35));
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10000;
+}
+
+dialog.docmd-modal[open] {
+    display: flex;
+    animation: docmd-modal-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes docmd-modal-fade {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.docmd-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4, 1rem);
+    background-color: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+    gap: 1rem;
+    flex-shrink: 0;
+    min-height: 48px;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 15;
+    margin-bottom: -1px;
+}
+
+.docmd-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.docmd-modal-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--link-color);
+    flex-shrink: 0;
+}
+
+.docmd-modal-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.docmd-modal-title-text:empty {
+    display: none;
+}
+
+.docmd-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.docmd-modal-esc {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 4px);
+    padding: 2px 6px;
+    background: var(--bg-color);
+    line-height: 1;
+}
+
+.docmd-modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-md, 6px);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.docmd-modal-close:hover {
+    color: var(--text-heading);
+    background-color: var(--sidebar-link-active-bg);
+}
+
+.docmd-modal-close svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.docmd-modal-body {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* Modal Content Types */
+
+/* Table Modal View */
+dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+    min-width: 100%;
+}
+
+dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--sidebar-bg);
+    color: var(--text-heading);
+    font-weight: 600;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 2px solid var(--border-color);
+    box-shadow: 0 -1px 0 var(--sidebar-bg);
+    white-space: nowrap;
+    text-align: left;
+}
+
+dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body tr:hover td {
+    background-color: var(--sidebar-link-active-bg);
+}
+
+/* Image Modal View */
+dialog.docmd-modal[data-modal-type="image"] {
+    width: auto;
+    max-width: 90vw;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-header {
+    background: rgba(20, 20, 20, 0.75);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
+    backdrop-filter: blur(8px);
+    color: #fff;
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-title {
+    color: #fff;
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-esc {
+    color: rgba(255, 255, 255, 0.7);
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-close {
+    color: #fff;
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3);
+    background: rgba(10, 10, 10, 0.85);
+    border-radius: 0 0 var(--radius-lg, 12px) var(--radius-lg, 12px);
+}
+
+dialog.docmd-modal[data-modal-type="image"] .docmd-modal-body img {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    margin: 0 auto;
+    border-radius: var(--radius-md, 8px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 table {

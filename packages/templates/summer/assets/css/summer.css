@@ -2158,6 +2158,233 @@ html[data-theme="dark"] .summer-content>pre:not([class*="code-"]) {
 }
 
 /* Tables */
+.summer-content .docmd-table-container {
+  position: relative;
+  width: 100%;
+  margin: 1.4em 0;
+}
+
+.summer-content .docmd-table-container .table-wrapper {
+  margin: 0;
+}
+
+.summer-content .table-wrapper {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.4em 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Floating Table Expand Button — Pinned at the top-right corner border */
+.summer-content .table-expand-button {
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: var(--summer-bg);
+  color: var(--summer-fg-muted);
+  border: 1px solid var(--summer-border-soft);
+  box-shadow: var(--summer-shadow-xs, 0 1px 3px rgba(0, 0, 0, 0.08));
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 0;
+  user-select: none;
+}
+
+@media (max-width: 900px) {
+  .summer-content .table-expand-button {
+    right: 4px;
+  }
+}
+
+.summer-content .table-expand-button:hover {
+  color: var(--summer-fg);
+  background: var(--summer-surface-2);
+  border-color: var(--summer-accent);
+  transform: scale(1.1);
+}
+
+.summer-content .table-expand-button:active {
+  transform: scale(0.95);
+}
+
+.summer-content .table-expand-button svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
+  flex-shrink: 0;
+}
+
+.summer-content .docmd-table-container:hover .table-expand-button,
+.summer-content .docmd-table-container:focus-within .table-expand-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .summer-content .table-expand-button {
+    opacity: 0.85;
+    pointer-events: auto;
+  }
+}
+
+/* Universal Modal in Summer Template */
+.summer-template dialog.docmd-modal:modal {
+  overscroll-behavior: contain;
+}
+
+.summer-template dialog.docmd-modal::backdrop {
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.summer-template dialog.docmd-modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(94vw, 1360px);
+  max-height: 88vh;
+  padding: 0;
+  border: 1px solid var(--summer-border-soft);
+  border-radius: var(--summer-radius);
+  background-color: var(--summer-bg);
+  color: var(--summer-fg);
+  box-shadow: var(--summer-shadow-xl);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10000;
+}
+
+.summer-template dialog.docmd-modal[open] {
+  display: flex;
+  animation: docmd-modal-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.summer-template .docmd-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background-color: var(--summer-surface-2);
+  border-bottom: 1px solid var(--summer-border-soft);
+  gap: 1rem;
+  flex-shrink: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 15;
+  margin-bottom: -1px;
+}
+
+.summer-template .docmd-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--summer-fg);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summer-template .docmd-modal-icon {
+  color: var(--summer-accent);
+}
+
+.summer-template .docmd-modal-esc {
+  font-size: 0.7rem;
+  color: var(--summer-fg-muted);
+  border: 1px solid var(--summer-border-soft);
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: var(--summer-bg);
+  line-height: 1;
+}
+
+.summer-template .docmd-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--summer-radius);
+  background: transparent;
+  border: none;
+  color: var(--summer-fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.summer-template .docmd-modal-close:hover {
+  color: var(--summer-fg);
+  background-color: var(--summer-surface-1);
+}
+
+.summer-template .docmd-modal-close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.summer-template .docmd-modal-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.summer-template dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+  min-width: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+.summer-template dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--summer-surface-2);
+  color: var(--summer-fg);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 2px solid var(--summer-border-soft);
+  box-shadow: 0 -1px 0 var(--summer-surface-2);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.summer-template dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--summer-border-soft);
+  color: var(--summer-fg);
+}
+
+.summer-template dialog.docmd-modal[data-modal-type="table"] .docmd-modal-body tr:hover td {
+  background-color: var(--summer-surface-2);
+}
+
 .summer-content table {
   width: 100%;
   border-collapse: separate;

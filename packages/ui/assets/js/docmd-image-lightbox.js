@@ -73,6 +73,20 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    // Delegate to Universal Modal if available
+    if (window.docmd && window.docmd.modal) {
+      const modalImg = document.createElement('img');
+      modalImg.src = src;
+      modalImg.alt = caption;
+      window.docmd.modal.open({
+        content: modalImg,
+        icon: 'image',
+        title: caption,
+        type: 'image'
+      });
+      return;
+    }
+
     // Set the lightbox content
     lightboxImg.setAttribute('src', src);
     lightboxCaption.textContent = caption;
