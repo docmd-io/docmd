@@ -8,41 +8,52 @@ function generateCommentId(): string {
   return 'c-' + crypto.randomBytes(4).toString('hex');
 }
 
+export interface ThreadsBlock {
+  start: number;
+  end: number;
+  threads: Thread[];
+}
+
+const isThreadsOpen = (line: string) => line.trim() === '::: threads';
+const isContainerOpen = (line: string) => line.trim().startsWith('::: ');
+const isContainerClose = (line: string) => line.trim() === ':::';
+
 /**
- * Find the start and end line indices of the top-level `::: threads` block.
- * Returns null if no block found.
+ * Find every top-level `::: threads` block. A page may place several blocks
+ * next to the sections they discuss; each is rendered, so each must be indexed.
  */
-export function findThreadsBlockBounds(lines: string[]): { start: number; end: number } | null {
-  let start = -1;
+export function findThreadsBlocks(lines: string[]): ThreadsBlock[] {
+  const blocks: ThreadsBlock[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === '::: threads') {
-      start = i;
-      break;
-    }
-  }
+    if (!isThreadsOpen(lines[i])) continue;
 
-  if (start === -1) return null;
-
-  // Track depth to find matching close
-  let depth = 1;
-  for (let i = start + 1; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (trimmed.startsWith('::: ') || (trimmed === ':::' + '')) {
-      // Distinguish opening vs closing
-      if (trimmed === ':::') {
+    let depth = 1;
+    let end = lines.length - 1;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (isContainerClose(lines[j])) {
         depth--;
         if (depth === 0) {
-          return { start, end: i };
+          end = j;
+          break;
         }
-      } else {
+      } else if (isContainerOpen(lines[j])) {
         depth++;
       }
     }
+
+    const threads = parseThreadContainers(lines.slice(i + 1, end));
+    blocks.push({ start: i, end, threads });
+    i = end;
   }
 
-  // Unclosed block - treat rest of file as the block
-  return { start, end: lines.length - 1 };
+  return blocks;
+}
+
+/** The first top-level `::: threads` block, or null. */
+export function findThreadsBlockBounds(lines: string[]): { start: number; end: number } | null {
+  const [first] = findThreadsBlocks(lines);
+  return first ? { start: first.start, end: first.end } : null;
 }
 
 /**
@@ -260,12 +271,7 @@ export function parseCommentContent(contentLines: string[]): { body: string; rea
 /**
  * Parse threads from markdown content.
  */
-export function parseThreadsFromContent(markdownContent: string): Thread[] {
-  const lines = markdownContent.split('\n');
-  const bounds = findThreadsBlockBounds(lines);
-  if (!bounds) return [];
-
-  const innerLines = lines.slice(bounds.start + 1, bounds.end);
+function parseThreadContainers(innerLines: string[]): Thread[] {
   const threadContainers = parseChildContainers(innerLines);
   const threads: Thread[] = [];
 
@@ -315,6 +321,10 @@ export function parseThreadsFromContent(markdownContent: string): Thread[] {
   }
 
   return threads;
+}
+
+export function parseThreadsFromContent(markdownContent: string): Thread[] {
+  return findThreadsBlocks(markdownContent.split('\n')).flatMap((block) => block.threads);
 }
 
 /**
@@ -394,28 +404,35 @@ export function serializeThreadsBlock(threads: Thread[]): string {
  */
 export function replaceThreadsBlock(markdownContent: string, threads: Thread[]): string {
   const lines = markdownContent.split('\n');
-  const bounds = findThreadsBlockBounds(lines);
-  const serialized = serializeThreadsBlock(threads);
+  const blocks = findThreadsBlocks(lines);
+  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  const keep = new Set<string>();
+  const out: string[] = [];
+  let cursor = 0;
+  let removed = false;
 
-  if (bounds) {
-    // Replace existing block
-    const before = lines.slice(0, bounds.start);
-    const after = lines.slice(bounds.end + 1);
-
-    if (serialized === '') {
-      // Remove block entirely, trim extra blank lines at boundary
-      const result = [...before, ...after].join('\n');
-      // Clean up double blank lines at the splice point
-      return result.replace(/\n{3,}/g, '\n\n');
-    }
-
-    return [...before, ...serialized.trimEnd().split('\n'), ...after].join('\n');
+  for (const block of blocks) {
+    out.push(...lines.slice(cursor, block.start));
+    const own = block.threads.flatMap((thread) => {
+      const current = byId.get(thread.id);
+      if (!current) return [];
+      keep.add(thread.id);
+      return [current];
+    });
+    const serialized = serializeThreadsBlock(own);
+    if (serialized === '') removed = true;
+    out.push(...(serialized === '' ? [] : serialized.trimEnd().split('\n')));
+    cursor = block.end + 1;
   }
 
-  // No existing block - append
-  if (serialized === '') return markdownContent;
+  out.push(...lines.slice(cursor));
+  const added = serializeThreadsBlock(threads.filter((thread) => !keep.has(thread.id)));
+  let result = out.join('\n');
+  if (added) result = result.trimEnd() + '\n\n' + added;
 
-  // Ensure there's a blank line before the threads block
-  const trimmedContent = markdownContent.trimEnd();
-  return trimmedContent + '\n\n' + serialized;
+  if (removed && added === '') {
+    // Removing one block can leave two blank lines at its old boundaries.
+    result = result.replace(/\n{3,}/g, '\n\n');
+  }
+  return result;
 }
