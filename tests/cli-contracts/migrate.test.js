@@ -201,8 +201,8 @@ export const test = runTestFile({
       const navigation = JSON.parse(written.match(/navigation: (\[[\s\S]*?\n {2}\])/)[1].replace(/(\w+):/g, '"$1":'));
       assert(JSON.stringify(navigation) === JSON.stringify([
         { title: 'Home', path: '/' },
-        { title: 'Guide', children: [{ title: 'Overview', path: 'guide/' }] },
-        { title: 'Change Log', path: 'changelog/' },
+        { title: 'Guide', children: [{ title: 'Overview', path: '/guide/' }] },
+        { title: 'Change Log', path: '/changelog/' },
       ]), 'MkDocs nav: plugins and extensions are not nav items, index.md maps to its folder, quotes are dropped');
     }
 
