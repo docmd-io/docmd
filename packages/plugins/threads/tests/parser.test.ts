@@ -119,6 +119,79 @@ test('content without a threads block parses to an empty array', () => {
   assert.equal(result.length, 0);
 });
 
+const twoBlocks = `# Document
+
+Intro.
+
+::: threads
+  ::: thread t-first
+    ::: comment c-first "Alice" "2026-01-01"
+      First block
+    :::
+  :::
+:::
+
+Between blocks.
+
+::: threads
+  ::: thread t-second
+    ::: comment c-second "Bob" "2026-01-02"
+      Second block
+    :::
+  :::
+:::
+
+Outro.
+`;
+
+test('all top-level threads blocks are parsed in document order', () => {
+  const threads = parseThreadsFromContent(twoBlocks);
+  assert.deepEqual(threads.map((t) => t.id), ['t-first', 't-second']);
+  assert.deepEqual(threads.map((t) => t.comments[0].body), ['First block', 'Second block']);
+});
+
+test('round-trip keeps every threads block at its original position', () => {
+  const threads = parseThreadsFromContent(twoBlocks);
+  assert.equal(replaceThreadsBlock(twoBlocks, threads), twoBlocks);
+});
+
+test('new threads are appended once without moving the existing blocks', () => {
+  const threads = parseThreadsFromContent(twoBlocks);
+  threads.push({
+    id: 't-new',
+    resolved: false,
+    resolved_by: null,
+    resolved_at: null,
+    comments: [{
+      id: 'c-new',
+      thread_id: 't-new',
+      parent_id: null,
+      author: 'Eve',
+      date: '2026-01-03',
+      edited_at: null,
+      body: 'New block',
+      reactions: [],
+    }],
+  });
+  const out = replaceThreadsBlock(twoBlocks, threads);
+  assert.equal(out.split('::: threads').length - 1, 3);
+  assert.ok(out.indexOf('t-first') < out.indexOf('Between blocks.'));
+  assert.ok(out.indexOf('Between blocks.') < out.indexOf('t-second'));
+  assert.ok(out.indexOf('t-second') < out.indexOf('Outro.'));
+  assert.ok(out.indexOf('Outro.') < out.indexOf('t-new'));
+  assert.deepEqual(parseThreadsFromContent(out).map((t) => t.id), ['t-first', 't-second', 't-new']);
+});
+
+test('deleting the only thread in one block removes that block, not the other', () => {
+  const out = replaceThreadsBlock(twoBlocks, parseThreadsFromContent(twoBlocks).filter((t) => t.id !== 't-first'));
+  assert.ok(!out.includes('t-first'));
+  assert.ok(out.startsWith('# Document\n\nIntro.\n\n'));
+  assert.ok(out.includes('Between blocks.\n\n::: threads'));
+  assert.ok(out.endsWith('Outro.\n'));
+  assert.deepEqual(parseThreadsFromContent(out).map((t) => t.id), ['t-second']);
+  assert.equal(out.split('::: threads').length - 1, 1);
+});
+
 test('round-trip serialize then parse keeps the thread structure', () => {
   const threadData = [
     {

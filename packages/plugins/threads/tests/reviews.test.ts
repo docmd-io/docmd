@@ -338,6 +338,46 @@ test('publish uses the injected clock and ids', async () => {
   assert.equal((await store().load('k-alice')).review.id, 'r-aaaaaaaa');
 });
 
+test('publish edits a thread in the second top-level block in place and leaves the first block byte-identical', async () => {
+  const page = `# Split page
+
+::: threads
+  ::: thread t-first
+    ::: comment c-first "Alice" "2026-01-01"
+      First
+    :::
+  :::
+:::
+
+Discussion for the next section.
+
+::: threads
+  ::: thread t-second
+    ::: comment c-second "Bob" "2026-01-02"
+      Second
+    :::
+  :::
+:::
+
+After both.
+`;
+  fs.writeFileSync(safePath(project.root, FILE), page);
+  const secondStart = page.indexOf('::: threads', page.indexOf('Discussion for the next section.'));
+  await fill('k-alice', [
+    { kind: 'add-comment', file: FILE, threadId: 't-second', commentId: 'c-reply', parentId: 'c-second', body: 'Reply in second' },
+  ]);
+  const result = await publishAction();
+  assert.deepEqual(result.skipped, []);
+  const out = read(FILE);
+  const firstBlock = page.slice(0, page.indexOf('Discussion for the next section.'));
+  const secondBlock = page.slice(secondStart);
+  assert.ok(out.startsWith(firstBlock), 'the first block is untouched');
+  assert.ok(out.includes(secondBlock.slice(0, secondBlock.indexOf('c-second') + 'c-second'.length)), 'the second block is not moved');
+  assert.match(out, /::: comment c-reply "Alice" "[0-9-]+" reply-to c-second/);
+  assert.deepEqual(pageThreads(FILE).map((t) => t.id), ['t-first', 't-second']);
+  assert.equal(pageThreads(FILE).find((t) => t.id === 't-second')!.comments[1].id, 'c-reply');
+});
+
 test('an empty or missing journal rejects with empty-review and writes nothing', async () => {
   const bytes = read(FILE);
   await assert.rejects(publishAction({ author: 'Nobody', authorKey: 'k-none' }), (e: unknown) => e instanceof ThreadsError && e.message.startsWith('threads/empty-review'));
