@@ -376,7 +376,40 @@
       return;
     }
 
-    // Copy Code Button
+    // Table Expand Button
+    const tableExpandBtn = e.target.closest('.table-expand-button');
+    if (tableExpandBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      openTableModal(tableExpandBtn);
+      return;
+    }
+
+    // Image Lightbox (Universal Modal)
+    const lightboxImg = e.target.closest('img.lightbox, .image-gallery img');
+    if (lightboxImg) {
+      e.preventDefault();
+      const src = lightboxImg.getAttribute('src');
+      let caption = lightboxImg.getAttribute('alt') || '';
+      const figure = lightboxImg.closest('figure');
+      if (figure) {
+        const figcaption = figure.querySelector('figcaption');
+        if (figcaption) {
+          caption = figcaption.textContent.trim();
+        }
+      }
+      const modalImg = document.createElement('img');
+      modalImg.src = src;
+      modalImg.alt = caption;
+      window.docmd.modal.open({
+        content: modalImg,
+        icon: 'image',
+        title: caption,
+        type: 'image'
+      });
+      return;
+    }
+
     // Copy Code Button
     const copyBtn = e.target.closest('.copy-code-button');
     if (copyBtn) {
@@ -643,6 +676,165 @@
       copyButton.appendChild(createCopySvg());
       copyButton.title = "Copy code";
       host.appendChild(copyButton);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Universal Modal System (window.docmd.modal)
+  // Reusable native <dialog> architecture for tables, images, and plugins.
+  // -------------------------------------------------------------------------
+  window.docmd = window.docmd || {};
+
+  let globalModalDialog = null;
+
+  const MODAL_ICONS = {
+    table: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"></path><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>',
+    image: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>',
+    code: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>'
+  };
+
+  function ensureUniversalModal() {
+    if (globalModalDialog && document.body.contains(globalModalDialog)) {
+      return globalModalDialog;
+    }
+    const dialog = document.createElement('dialog');
+    dialog.className = 'docmd-modal';
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.innerHTML = [
+      '<div class="docmd-modal-header">',
+      '  <div class="docmd-modal-title">',
+      '    <span class="docmd-modal-icon" aria-hidden="true"></span>',
+      '    <span class="docmd-modal-title-text"></span>',
+      '  </div>',
+      '  <div class="docmd-modal-actions">',
+      '    <kbd class="docmd-modal-esc" aria-hidden="true">ESC</kbd>',
+      '    <button type="button" class="docmd-modal-close" aria-label="Close">',
+      '      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+      '    </button>',
+      '  </div>',
+      '</div>',
+      '<div class="docmd-modal-body" tabindex="0"></div>'
+    ].join('\n');
+
+    // Light-dismiss on click outside the dialog box (Modern Web Guidance)
+    const isOutside = (ev, d) => {
+      const r = d.getBoundingClientRect();
+      return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom;
+    };
+    let pressedOutside = false;
+    dialog.addEventListener('pointerdown', (ev) => {
+      pressedOutside = isOutside(ev, dialog);
+    });
+    dialog.addEventListener('pointerup', (ev) => {
+      if (pressedOutside && isOutside(ev, dialog)) {
+        dialog.close();
+      }
+    });
+
+    dialog.querySelector('.docmd-modal-close').addEventListener('click', () => {
+      dialog.close();
+    });
+
+    document.body.appendChild(dialog);
+    globalModalDialog = dialog;
+    return dialog;
+  }
+
+  window.docmd.modal = {
+    open({ content, icon, title = '', type = 'generic' } = {}) {
+      const dialog = ensureUniversalModal();
+      dialog.setAttribute('data-modal-type', type);
+
+      const iconEl = dialog.querySelector('.docmd-modal-icon');
+      const titleTextEl = dialog.querySelector('.docmd-modal-title-text');
+      const bodyEl = dialog.querySelector('.docmd-modal-body');
+
+      const iconSvg = typeof icon === 'string' && MODAL_ICONS[icon] ? MODAL_ICONS[icon] : (icon || '');
+      iconEl.innerHTML = iconSvg;
+      iconEl.style.display = iconSvg ? 'inline-flex' : 'none';
+
+      titleTextEl.textContent = title ? title.trim() : '';
+
+      bodyEl.innerHTML = '';
+      if (typeof content === 'string') {
+        bodyEl.innerHTML = content;
+      } else if (content && content.nodeType) {
+        bodyEl.appendChild(content);
+      }
+
+      dialog.showModal();
+      bodyEl.scrollTop = 0;
+      bodyEl.scrollLeft = 0;
+    },
+    close() {
+      if (globalModalDialog && globalModalDialog.open) {
+        globalModalDialog.close();
+      }
+    },
+    isOpen() {
+      return !!(globalModalDialog && globalModalDialog.open);
+    }
+  };
+
+  function openTableModal(triggerBtn) {
+    const container = triggerBtn.closest('.docmd-table-container') || triggerBtn.closest('.table-wrapper');
+    if (!container) return;
+    const table = container.querySelector('table');
+    if (!table) return;
+
+    let title = '';
+    const caption = table.querySelector('caption');
+    if (caption && caption.textContent.trim()) {
+      title = caption.textContent.trim();
+    } else {
+      let prev = container.previousElementSibling;
+      while (prev) {
+        if (/^H[1-6]$/i.test(prev.tagName)) {
+          const clone = prev.cloneNode(true);
+          clone.querySelectorAll('.heading-anchor, svg, button, .threads-btn').forEach(el => el.remove());
+          title = clone.textContent.trim();
+          break;
+        }
+        prev = prev.previousElementSibling;
+      }
+    }
+
+    const clonedTable = table.cloneNode(true);
+    clonedTable.querySelectorAll('.table-expand-button').forEach(el => el.remove());
+
+    window.docmd.modal.open({
+      content: clonedTable,
+      icon: 'table',
+      title: title,
+      type: 'table'
+    });
+  }
+
+  function initializeTableExpand() {
+    document.querySelectorAll('.table-wrapper').forEach(wrapper => {
+      const parent = wrapper.parentElement;
+      if (parent && parent.classList.contains('docmd-table-container')) return;
+      const table = wrapper.querySelector('table');
+      if (!table) return;
+
+      const container = document.createElement('div');
+      container.className = 'docmd-table-container';
+      wrapper.parentNode.insertBefore(container, wrapper);
+      container.appendChild(wrapper);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'table-expand-button';
+      btn.setAttribute('aria-label', 'Expand');
+      btn.title = 'Expand';
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+      container.appendChild(btn);
+    });
+  }
+
+  function initializeImageLightbox() {
+    document.querySelectorAll('img.lightbox, .image-gallery img').forEach(img => {
+      img.style.cursor = 'zoom-in';
     });
   }
 
@@ -1169,6 +1361,8 @@
         });
 
         injectCopyButtons();
+        initializeTableExpand();
+        initializeImageLightbox();
         initializeScrollSpy();
         updateTocClass();
         initializeHeroSliders();
@@ -1301,6 +1495,8 @@
     });
 
     injectCopyButtons();
+    initializeTableExpand();
+    initializeImageLightbox();
     initializeScrollSpy();
     updateTocClass();
     initializeHeroSliders();
