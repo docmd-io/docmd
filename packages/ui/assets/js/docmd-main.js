@@ -758,7 +758,7 @@
       bodyEl.innerHTML = '';
       if (typeof content === 'string') {
         bodyEl.innerHTML = content;
-      } else if (content instanceof Node) {
+      } else if (content && content.nodeType) {
         bodyEl.appendChild(content);
       }
 

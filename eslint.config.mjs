@@ -22,6 +22,7 @@ export default [
         exports: 'writable',
         document: 'readonly',
         window: 'readonly',
+        Node: 'readonly',
         localStorage: 'readonly',
         IntersectionObserver: 'readonly',
         fetch: 'readonly',
