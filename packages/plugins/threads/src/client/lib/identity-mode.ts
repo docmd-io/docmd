@@ -13,12 +13,22 @@ export function identityFromWhoami(w: Pick<WhoAmI, 'identity'> | null | undefine
   return { mode: 'header', payload: { author: id.name, authorKey: id.key, avatarUrl: id.avatarUrl }, isAdmin: id.isAdmin };
 }
 
-/** Ask the server who we are; no live server (a rejection) means the local path. */
-export async function resolveIdentity(fetchWhoami: () => Promise<Pick<WhoAmI, 'identity'>>): Promise<IdentityMode> {
+/** How long to wait for the server before taking the local path (a static site never answers). */
+export const WHOAMI_TIMEOUT_MS = 1500;
+
+/** Ask the server who we are; no live server (a rejection or no answer in time) means the local path. */
+export async function resolveIdentity(
+  fetchWhoami: () => Promise<Pick<WhoAmI, 'identity'>>,
+  timeoutMs: number = WHOAMI_TIMEOUT_MS,
+): Promise<IdentityMode> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const local = new Promise<IdentityMode>((resolve) => { timer = setTimeout(() => resolve({ mode: 'local' }), timeoutMs); });
   try {
-    return identityFromWhoami(await fetchWhoami());
+    return await Promise.race([fetchWhoami().then(identityFromWhoami), local]);
   } catch {
     return { mode: 'local' };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

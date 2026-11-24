@@ -33,6 +33,7 @@ export class ThreadsApp extends LitElement {
   /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
   private identityReady: Promise<void> = Promise.resolve();
   private identityKnown = false;
+  private pendingMouseUp: MouseEvent | null = null;
   private pendingAnchor: Anchor | null = null;
   private pendingBlockEl: HTMLElement | null = null;
   private deleteTarget: { type: 'thread' | 'comment'; id: string; threadId?: string } | null = null;
@@ -200,7 +201,16 @@ export class ThreadsApp extends LitElement {
     // Starting a thread may ask for the caller's name: not before we know whether the server names them.
     // The selection outlives the click, so handle it once the answer is in instead of dropping it.
     if (!this.identityKnown) {
-      void this.identityReady.then(() => { if (this.isConnected) this.handleMouseUp(e); });
+      // Only the latest selection matters: keep one pending event, not one replay per click.
+      const first = this.pendingMouseUp === null;
+      this.pendingMouseUp = e;
+      if (first) {
+        void this.identityReady.then(() => {
+          const latest = this.pendingMouseUp;
+          this.pendingMouseUp = null;
+          if (latest && this.isConnected) this.handleMouseUp(latest);
+        });
+      }
       return;
     }
     const popover = this.querySelector('threads-popover');
@@ -497,7 +507,10 @@ export class ThreadsApp extends LitElement {
 
         // Delete button: only when the server would accept it (a lone comment deletes the thread)
         const thread = this.threads.find(th => th.id === threadId);
-        const deletable = totalComments === 1
+        // No thread to check against (load failed): fail closed, like the multi-comment path.
+        const deletable = !thread
+          ? canShowFor('delete-comment', { authorKey: null })
+          : totalComments === 1
           ? canShowFor('delete-thread', { authorKeys: (thread?.comments ?? []).filter(c => !c.draft).map(c => c.authorKey) })
           : canShowFor('delete-comment', deleteCommentTarget(thread?.comments ?? [], commentId));
         if (deletable) {

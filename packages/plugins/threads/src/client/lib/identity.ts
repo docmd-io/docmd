@@ -2,8 +2,6 @@ import type { WhoAmI } from '../../types';
 import { canShow, type ShowAction, type ShowTarget } from './can-show';
 import { resolveIdentity, showContext, type IdentityMode } from './identity-mode';
 
-export { identityFromWhoami, type IdentityMode } from './identity-mode';
-
 const STORAGE_KEY_NAME = 'threads_author';
 const STORAGE_KEY_EMAIL = 'threads_email';
 const STORAGE_KEY_GITHUB = 'threads_github';
@@ -124,8 +122,9 @@ export function getIdentityMode(): IdentityMode {
   return identity;
 }
 
-export function isHeaderMode(): boolean {
-  return identity.mode === 'header';
+/** After the server accepted a profile edit: keep the module identity in step with it. */
+export function setHeaderProfile(name: string, avatarUrl: string): void {
+  if (identity.mode === 'header') identity = { ...identity, payload: { ...identity.payload, author: name, avatarUrl } };
 }
 
 /** Whether to render a button the server may refuse; local mode always shows. */

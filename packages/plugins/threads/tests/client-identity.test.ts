@@ -12,6 +12,7 @@ test('identityFromWhoami: header, payload, none', () => {
   assert.deepEqual(identityFromWhoami({ identity: who('dev', { source: 'payload' }) }), { mode: 'local' });
   assert.deepEqual(identityFromWhoami({ identity: null }), { mode: 'local' });
   assert.deepEqual(identityFromWhoami(undefined), { mode: 'local' });
+  assert.deepEqual(identityFromWhoami(null), { mode: 'local' });
 });
 
 test('canShow matches the server decision table', () => {
@@ -25,6 +26,7 @@ test('canShow matches the server decision table', () => {
 
 test('resolveIdentity: a rejected whoami (no live server) is local mode', async () => {
   assert.deepEqual(await resolveIdentity(() => Promise.reject(new Error('offline'))), { mode: 'local' });
+  assert.deepEqual(await resolveIdentity(() => new Promise(() => {}), 0), { mode: 'local' }, 'no answer in time');
   const header = who('alice', { name: 'Alice' });
   assert.equal((await resolveIdentity(() => Promise.resolve({ identity: header }))).mode, 'header');
 });
@@ -49,6 +51,7 @@ test('deleteCommentTarget: an opener with replies is admin only, like the server
   assert.deepEqual(deleteCommentTarget([c('1', 'a'), c('2', 'b')], '1'), { authorKey: null, drafted: false });
   assert.deepEqual(deleteCommentTarget([c('1', 'a'), c('2', 'b')], '2'), { authorKey: 'b', drafted: false });
   assert.deepEqual(deleteCommentTarget([c('1', 'a')], '1'), { authorKey: 'a', drafted: false });
+  assert.deepEqual(deleteCommentTarget([c('1', 'a')], 'nope'), { authorKey: null });
   assert.deepEqual(deleteCommentTarget([c('1', 'a'), c('2', 'a', true)], '1'), { authorKey: 'a', drafted: false });
   assert.deepEqual(deleteCommentTarget([c('1', 'a'), c('2', 'b', true)], '2'), { authorKey: 'b', drafted: true });
 });

@@ -8,7 +8,7 @@ import {
   getAvatarUrl, setAvatarUrl,
   computeAvatarUrl,
   computeAuthorKey, setAuthorKey,
-  getIdentityMode,
+  getIdentityMode, setHeaderProfile,
 } from '../lib/identity';
 import { upsertAuthor, ThreadsClientError } from '../lib/api';
 
@@ -58,6 +58,7 @@ export class ThreadsIdentity extends LitElement {
 
   private togglePanel(): void {
     this.panelOpen = !this.panelOpen;
+    this.error = null;
   }
 
   private async handleSave(): Promise<void> {
@@ -81,6 +82,7 @@ export class ThreadsIdentity extends LitElement {
         return;
       }
       this.error = null;
+      setHeaderProfile(this.name, this.avatarUrl);
       this.panelOpen = false;
       return;
     }
@@ -130,6 +132,7 @@ export class ThreadsIdentity extends LitElement {
 
   private handleCancel(): void {
     this.panelOpen = false;
+    this.error = null;
   }
 
   override render() {
