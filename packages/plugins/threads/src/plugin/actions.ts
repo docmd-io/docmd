@@ -7,22 +7,20 @@ import { overlay } from './overlay.js';
 import { lockFor } from './lock.js';
 import { getOptions } from './config.js';
 import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
-import { readAuthors, writeAuthors } from './authors.js';
+import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
 import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor, DraftMode, WhoAmI } from '../types.js';
 
-/**
- * Upsert an author entry. Updates name/avatarUrl if provided.
- */
+/** Upsert an author entry. Updates name/avatarUrl if provided. */
 async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
-  const authors = await readAuthors(ctx);
-  const existing = authors[authorKey] || { name: '', avatarUrl: '' };
-  authors[authorKey] = {
-    name: name || existing.name || authorKey,
-    avatarUrl: avatarUrl || existing.avatarUrl || '',
-  };
-  await writeAuthors(ctx, authors);
+  await updateAuthors(ctx, (authors) => {
+    const existing = authors[authorKey] || { name: '', avatarUrl: '' };
+    authors[authorKey] = {
+      name: name || existing.name || authorKey,
+      avatarUrl: avatarUrl || existing.avatarUrl || '',
+    };
+  });
 }
 
 const generateThreadId = () => 't-' + crypto.randomBytes(4).toString('hex');
@@ -114,8 +112,13 @@ interface Tx {
   file: string;
   /** Published threads with the caller's drafts applied, as of the start of this cycle. */
   view: Thread[];
+  /** The published threads as parsed from the page, without any drafts. */
+  published: Thread[];
 }
 
+/** The ids and author keys of a thread's comments as published: drafted deletes do not hide them. */
+const publishedComments = (tx: Tx, threadId: string): Comment[] =>
+  tx.published.find((t) => t.id === threadId)?.comments ?? [];
 const fileOps = (tx: Tx) => tx.j.ops.filter((o) => o.file === tx.file);
 const draftedThreadOp = (tx: Tx, threadId: string) =>
   fileOps(tx).find((o) => o.kind === 'add-thread' && o.threadId === threadId);
@@ -151,7 +154,7 @@ async function transact(ctx: ActionContext, caller: Caller, payload: Payload, fn
   const file = payload.file;
   const published = parser.parseThreadsFromContent(await ctx.readFile(file));
   const journal = await store.transact(caller.key, (j, at) =>
-    fn({ j, at, file, view: overlay(published, j.ops, file, caller) }),
+    fn({ j, at, file, published, view: overlay(published, j.ops, file, caller) }),
   );
   return overlay(published, journal.ops, file, caller);
 }
@@ -171,9 +174,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     assertCan(caller, 'upsert-author', { authorKey: claimedAuthorKey(payload) }, getOptions(ctx).permissions);
     if (caller.source === 'header') {
       // The key is the trusted identity: only the caller's own entry changes.
-      const authors = await readAuthors(ctx);
-      authors[caller.key] = headerProfile(payload, caller);
-      await writeAuthors(ctx, authors);
+      await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller)));
       return { ok: true };
     }
     const profile = profileFromPayload(payload);
@@ -209,10 +210,12 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   },
 
   'threads:set-mode': async (payload, ctx): Promise<Journal> => {
+    // Under serve the identity comes first, as in `begin`; in dev the mode is checked first, as before.
+    const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
     if (payload?.mode !== 'auto' && payload?.mode !== 'collect') {
       throw new ThreadsError('invalid', "threads:set-mode: mode must be 'auto' or 'collect'");
     }
-    return getStore(ctx).setMode((await resolveCaller(ctx, payload)).key, payload.mode);
+    return getStore(ctx).setMode((caller ?? (await resolveCaller(ctx, payload))).key, payload.mode);
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
@@ -259,7 +262,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     await transact(ctx, caller, payload, (tx) => {
       const thread = findThread(tx.view, threadId);
       const target = findComment(thread, commentId);
-      const published = thread.comments.filter((c) => !c.draft);
+      const published = publishedComments(tx, threadId);
       // The opening comment of a thread that has other published comments: admin only, and the whole
       // thread goes (nothing records an opener once it is spliced out). Serve callers only.
       const wholeThread = caller.source === 'header' && !target.draft && published.length > 1 && thread.comments[0].id === commentId;
@@ -286,7 +289,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     const { threadId } = payload;
     await transact(ctx, caller, payload, (tx) => {
       const thread = findThread(tx.view, threadId);
-      const published = thread.comments.filter((c) => !c.draft);
+      const published = publishedComments(tx, threadId);
       assertCan(caller, 'delete-thread', { authorKeys: published.map((c) => c.authorKey) }, getOptions(ctx).permissions);
       const drafted = draftedThreadOp(tx, threadId);
       drop(tx, opsOnThread(tx, threadId));

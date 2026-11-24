@@ -79,7 +79,7 @@ async function seed(opener: string, body: string, replies: Array<[string, string
 }
 
 let tEdit: Thread, tDel: Thread, tOpen: Thread, tSelf: Thread, tStaleOpener: Thread, tStaleThread: Thread;
-let tThread: Thread, tBob: Thread, tRes: Thread;
+let tThread: Thread, tBob: Thread, tRes: Thread, tOwn: Thread;
 before(async () => {
   project = tempProject();
   tEdit = await seed('alice', 'edit me');
@@ -91,6 +91,7 @@ before(async () => {
   tThread = await seed('alice', 'opening', [['bob', 'bob was here']]);
   tBob = await seed('bob', 'bob only');
   tRes = await seed('alice', 'resolve me');
+  tOwn = await seed('alice', 'opening', [['alice', 'my reply']]);
 });
 after(() => project.cleanup());
 
@@ -170,6 +171,17 @@ test('a stale delete-thread is skipped at publish when the thread has gained a c
   assert.deepEqual(await bodies(tStaleThread.id), ['all mine', 'dave arrived']);
 });
 
+test('delete-thread after deleting one\'s own reply still publishes: the stale check sees the published comments', async () => {
+  await call('delete-comment', 'alice', { threadId: tOwn.id, commentId: tOwn.comments[1].id });
+  await call('delete-thread', 'alice', { threadId: tOwn.id });
+  const ops = await draftedOn('alice', tOwn.id);
+  assert.deepEqual(ops.map((o) => o.kind), ['delete-thread']);
+  assert.deepEqual((ops[0] as { commentIds?: string[] }).commentIds, tOwn.comments.map((c) => c.id));
+  const result = await call('publish-review', 'alice');
+  assert.deepEqual((result as { skipped: unknown[] }).skipped, []);
+  assert.equal(await view('carol', tOwn.id), undefined);
+});
+
 test('delete-thread: forbidden unless every published comment is the caller\'s; own drafts do not count; an admin may', async () => {
   await forbidden(call('delete-thread', 'alice', { threadId: tThread.id }));
   await forbidden(call('delete-thread', 'bob', { threadId: tThread.id }));
@@ -188,6 +200,5 @@ test('resolve-thread with resolve: author binds the thread\'s first comment; a d
   await call('resolve-thread', 'erin', { threadId: drafted.id });
   const mine = await call('get-threads', 'erin');
   assert.equal(mine.find((t: Thread) => t.id === drafted.id).draft, true);
-  assert.equal(mine.find((t: Thread) => t.id === tRes.id).draft, undefined, 'a published thread carries no draft key');
-  assert.equal(Object.hasOwn(mine.find((t: Thread) => t.id === tRes.id), 'draft'), false);
+  assert.equal(Object.hasOwn(mine.find((t: Thread) => t.id === tRes.id), 'draft'), false, 'a published thread carries no draft key');
 });

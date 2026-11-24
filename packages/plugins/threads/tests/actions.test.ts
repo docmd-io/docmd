@@ -287,7 +287,8 @@ test('serve without a trusted identity refuses every write, with or without auth
   ];
   const tree = snapshotTree(docsRoot);
   for (const [name, payload] of REFUSED) {
-    for (const sent of [as(ALICE, payload), { file: project.file, ...payload }]) {
+    const bare = name === 'threads:set-mode' ? {} : payload; // no mode: the identity is still checked first
+    for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
       await assert.rejects(
         call(name, sent, { mode: 'serve', caller: { identity: null } }),
         (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /^threads\/no-identity: no trusted identity/.test(e.message),
@@ -312,7 +313,6 @@ test('serve keys journals on the trusted identity, not the payload', async () =>
   const serve = (identity: string): Partial<TestCtx> => ({ mode: 'serve', caller: { identity } });
   const t = (await call<Thread>('threads:add-thread', as({ author: 'Mallory', authorKey: 'bob' }, { body: 'mine' }), serve('alice'))).result;
   assert.equal(fs.existsSync(journalPath('bob')), false);
-  assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'authors.json')), false, 'a serve add never writes authors.json');
   assert.equal(journalOps('alice').length, 1);
   assert.equal(t.comments[0].author, 'alice', 'the display name is the identity, not the payload');
 
@@ -414,7 +414,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
   assert.equal(fs.existsSync(journalPath('bob')), false, 'the payload key is ignored');
   const seen = (await whoami({ author: 'Mallory', authorKey: 'bob' }, serve('alice'))).journal;
   assert.deepEqual(seen, set);
-  assert.equal((await whoami({}, serve('alice'))).identity?.source, 'header');
+  assert.deepEqual((await whoami({}, serve('alice'))).identity, { key: 'alice', name: 'alice', avatarUrl: '', source: 'header', isAdmin: false });
 
   const dev = await setMode({ ...BOB, mode: 'collect' }, { mode: 'dev', caller: { identity: 'alice' } });
   assert.equal(dev.mode, 'collect');

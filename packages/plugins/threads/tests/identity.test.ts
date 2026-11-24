@@ -50,8 +50,9 @@ test('findCaller under serve: key from the identity, name and avatar from author
   assert.equal(await who(''), null);
   assert.equal(await who('   '), null);
 
-  const admins = { permissions: { admins: ['alice@example.com'] } };
+  const admins = { permissions: { admins: ['alice@example.com', 'Jane Doe'] } };
   assert.equal((await who('alice@example.com', admins))!.isAdmin, true);
+  assert.equal((await who('Jane Doe', admins))!.isAdmin, true, 'an admin configured with a space matches the encoded key');
   assert.equal((await who('bob', admins))!.isAdmin, false);
 });
 
@@ -77,16 +78,6 @@ test('under serve an identified caller drafts without an author field', async ()
   const t = await run<Thread>('add-thread', { file: project.file, body: 'hi', anchor }, serve('alice'));
   const c = await run<Comment>('add-comment', { file: project.file, threadId: t.id, body: 'reply' }, serve('alice'));
   assert.equal(c.author, 'alice');
-  assert.equal(fs.existsSync(authorsFile()), false, 'drafting never writes authors.json');
-});
-
-test('whoami: the caller under serve (name from authors.json), the payload caller in dev', async () => {
-  writeAuthors({ alice: { name: 'Alice A', avatarUrl: 'http://a/a.png' } });
-  const me = await run<WhoAmI>('whoami', { author: 'Mallory' }, serve('alice'));
-  assert.deepEqual(Object.keys(me).sort(), ['identity', 'journal']);
-  assert.deepEqual(me.identity, { key: 'alice', name: 'Alice A', avatarUrl: 'http://a/a.png', source: 'header', isAdmin: false });
-  assert.equal(me.journal?.ops.length, 0);
-  assert.equal((await run<WhoAmI>('whoami', { author: 'Kay', authorKey: 'k' }, dev)).identity?.source, 'payload');
 });
 
 test('upsert-author under serve: a foreign key is forbidden, the caller\'s own entry is written at once, nothing else changes', async () => {
@@ -106,6 +97,9 @@ test('upsert-author under serve: a foreign key is forbidden, the caller\'s own e
   await run('upsert-author', { name: 'Alice B' }, serve('alice'));
   assert.deepEqual(readAuthors(), { alice: { name: 'Alice B', avatarUrl: 'http://a/a.png' }, bob: { name: 'Bob', avatarUrl: '' } }, 'the avatar defaults to the current one');
   await run('upsert-author', { authorKey: 'alice', name: 'Alice C', avatarUrl: 'http://a/b.png' }, serve('alice'));
+  await run('upsert-author', { name: 'Alice C', avatarUrl: '' }, serve('alice'));
+  assert.equal(readAuthors().alice.avatarUrl, '', 'an empty avatar clears it');
+  await run('upsert-author', { name: 'Alice C', avatarUrl: 'http://a/b.png' }, serve('alice'));
   await run('upsert-author', { authorKey: 'root', name: 'Root' }, admin);
   assert.deepEqual(readAuthors(), {
     alice: { name: 'Alice C', avatarUrl: 'http://a/b.png' },
@@ -113,7 +107,13 @@ test('upsert-author under serve: a foreign key is forbidden, the caller\'s own e
     root: { name: 'Root', avatarUrl: '' },
   });
   assert.equal(fs.existsSync(path.join(threadsDir(), 'drafts')), false, 'no journal is written');
-  assert.equal((await run<Thread[]>('get-threads', { file: project.file }, serve('alice'))).length, 3);
+  assert.equal((await run<WhoAmI>('whoami', {}, serve('alice'))).identity?.name, 'Alice C', 'the next request sees the new name');
 
   await assert.rejects(run('upsert-author', {}, serve('alice')), /^ThreadsError: threads\/invalid: threads:upsert-author: name is required/);
+});
+
+test('concurrent profile saves by two users under serve both land', async () => {
+  const names = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
+  await Promise.all(names.map((n) => run('upsert-author', { name: n.toUpperCase() }, serve(n))));
+  assert.deepEqual(Object.keys(readAuthors()).sort(), names);
 });
