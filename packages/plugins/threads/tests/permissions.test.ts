@@ -57,9 +57,9 @@ let project: TempProject;
 const threadsCfg = { permissions: { admins: ['root'], resolve: 'author' } };
 const ctxFor = (key: string) =>
   makeCtx(project.root, { mode: 'serve', config: { src: 'docs', plugins: { threads: threadsCfg } }, caller: { identity: key } });
-type Json = Record<string, any>;
-const call = (name: string, key: string, payload: Json = {}): Promise<any> =>
-  (actions as Record<string, (p: Json, c: unknown) => Promise<unknown>>)[`threads:${name}`]({ file: project.file, ...payload }, ctxFor(key)) as Promise<any>;
+type Json = Record<string, unknown>;
+const call = (name: string, key: string, payload: Json = {}): Promise<never> =>
+  (actions as Record<string, (p: Json, c: unknown) => Promise<unknown>>)[`threads:${name}`]({ file: project.file, ...payload }, ctxFor(key)) as Promise<never>;
 const forbidden = (p: Promise<unknown>) => assert.rejects(p, /^ThreadsError: threads\/forbidden: /);
 const anchor = { quote: 'x', prefix: null, suffix: null, selector: null, offset: null, blockText: null };
 const view = async (key: string, id: string): Promise<Thread> => (await call('get-threads', key)).find((t: Thread) => t.id === id);
@@ -140,7 +140,7 @@ test('an opener whose only reply is the author\'s own draft is deleted by its au
 
 test('dev callers keep the single-comment opener delete, at draft and at publish', async () => {
   const devCall = (name: string, payload: Json, who: string) =>
-    (actions as Record<string, (p: Json, c: unknown) => Promise<any>>)[`threads:${name}`](
+    (actions as Record<string, (p: Json, c: unknown) => Promise<never>>)[`threads:${name}`](
       { file: project.file, author: who, authorKey: who, ...payload }, makeCtx(project.root, { config: { src: 'docs' } }));
   const t = await devCall('add-thread', { body: 'opening', anchor }, 'pa');
   await devCall('publish-review', {}, 'pa');

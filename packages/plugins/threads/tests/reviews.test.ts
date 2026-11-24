@@ -689,8 +689,8 @@ test('serve publishes only for a trusted identity; dev publishes from the payloa
   assert.match(read(FILE), /::: comment c-[0-9a-f]{8} "alice@example\.com" "[0-9-]+" by alice@example\.com review /);
   assert.doesNotMatch(read(FILE), /Mallory|by mallory/);
   assert.ok(fs.existsSync(manifestPath(served.reviewId)));
-  fs.mkdirSync(path.dirname(authorsFile), { recursive: true });
-  fs.writeFileSync(authorsFile, JSON.stringify({ 'alice@example.com': { name: 'Alice A', avatarUrl: '' } }));
+  fs.mkdirSync(safePath(docsRoot, '.threads'), { recursive: true });
+  fs.writeFileSync(safePath(docsRoot, '.threads/authors.json'), JSON.stringify({ 'alice@example.com': { name: 'Alice A', avatarUrl: '' } }));
   await fill('alice@example.com', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-s', parentId: null, body: 'serve' }]);
   await publishAction(mallory, asAlice);
   assert.match(read(FILE), /::: comment c-s "Alice A" "[0-9-]+" by alice@example\.com review /);

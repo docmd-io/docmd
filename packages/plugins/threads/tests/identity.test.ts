@@ -21,7 +21,7 @@ beforeEach(() => {
 const threadsDir = () => path.join(project.root, 'docs', '.threads');
 const authorsFile = () => path.join(threadsDir(), 'authors.json');
 const writeAuthors = (authors: unknown) => {
-  fs.mkdirSync(threadsDir(), { recursive: true });
+  fs.mkdirSync(safePath(project.root, 'docs/.threads'), { recursive: true });
   fs.writeFileSync(safePath(threadsDir(), 'authors.json'), typeof authors === 'string' ? authors : JSON.stringify(authors));
 };
 const readAuthors = () => JSON.parse(fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8'));
@@ -66,7 +66,7 @@ test('findCaller in dev: the payload names the caller, unenforced; authors.json 
 test('findCaller under serve: a missing authors.json is fine, an unreadable one rejects', async () => {
   const ctx = makeCtx(project.root, serve('alice'));
   assert.equal((await findCaller(ctx, {}))!.key, 'alice');
-  fs.mkdirSync(authorsFile(), { recursive: true }); // a directory where the file should be
+  fs.mkdirSync(safePath(project.root, 'docs/.threads/authors.json'), { recursive: true }); // a directory where the file should be
   await assert.rejects(findCaller(ctx, {}), /EISDIR/);
   fs.rmSync(safePath(threadsDir(), 'authors.json'), { recursive: true });
   writeAuthors('{ broken');
