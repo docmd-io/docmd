@@ -8,6 +8,7 @@ import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
 import { createSvgElement, getThreadSvg } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
+import { hideRawSidebars } from '../lib/raw-sidebars';
 
 import './threads-popover';
 import './threads-inline-editor';
@@ -405,11 +406,8 @@ export class ThreadsApp extends LitElement {
     // 4. Inject reply buttons into any static server-rendered thread cards
     this.injectReplyButtons();
 
-    // 5. Hide any raw .threads-sidebar bottom element rendered by markdown-it
-    const bottomSidebar = document.querySelector('.threads-sidebar');
-    if (bottomSidebar instanceof HTMLElement) {
-      bottomSidebar.style.display = 'none';
-    }
+    // 5. Hide the raw .threads-sidebar markdown-it renders for every threads block
+    hideRawSidebars(document);
 
     // 6. If sidebar mode or panel is open, populate the right sidebar panel
     if (this.sidebarEnabled || document.body.classList.contains('tc-panel-open')) {
