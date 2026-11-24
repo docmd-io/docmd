@@ -89,6 +89,12 @@ export interface ActionContext {
   config: any;
   /** Read a file relative to the project root. */
   readFile(relativePath: string): Promise<string>;
+  /**
+   * Absolute docs source directory of the project that holds `relativePath`, found the way `readFile`
+   * finds the file. Under a workspace, that subproject's own `src`; otherwise, and for a path no
+   * subproject holds, `<projectRoot>/<config.src>`. Optional only for hand-built contexts.
+   */
+  docsRootOf?(relativePath?: string): string;
   /** Write a file relative to the project root. Sets the modification flag. */
   writeFile(relativePath: string, content: string): Promise<void>;
   /** Read a file as an array of lines. */
