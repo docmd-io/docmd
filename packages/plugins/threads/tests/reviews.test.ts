@@ -162,6 +162,19 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   }
 });
 
+test('applyOps leaves a fenced `::: threads` example alone and writes to the real block', () => {
+  const example = '```markdown\n::: threads\n  ::: thread t-example\n    ::: comment c-x "Doc" "2026-01-01"\n      Example\n    :::\n  :::\n:::\n```\n';
+  const page = PAGE.replace('Some ==marked', `${example}\nSome ==marked`);
+  const { content, skipped } = applyOps(page, [
+    mk({ kind: 'add-comment', file: FILE, threadId: 't-2', commentId: 'c-reply', parentId: 'c-3', body: 'Reply' }),
+    mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor('plain target text'), body: 'New' }),
+  ], OPTS);
+  assert.deepEqual(skipped, []);
+  assert.ok(content.includes(example), 'the example is byte-identical');
+  assert.equal(content.split('::: threads').length - 1, 2, 'no block is added');
+  assert.deepEqual(parser.parseThreadsFromContent(content).map((t) => t.id), ['t-1', 't-2', 't-new']);
+});
+
 test('applyOps removes what delete-thread owns: single- and two-line marks, and an emptied block', () => {
   const page = `Target line one\nline two here and ==one liner=={t-b} too.\n\n${THREADS.replace('t-1', 't-a').replace('t-2', 't-b')}`
     .replace('Target line one\nline two', 'Target ==line one\nline two=={t-a}');

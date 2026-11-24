@@ -17,15 +17,29 @@ export interface ThreadsBlock {
 const isThreadsOpen = (line: string) => line.trim() === '::: threads';
 const isContainerOpen = (line: string) => line.trim().startsWith('::: ');
 const isContainerClose = (line: string) => line.trim() === ':::';
+/** The run of backticks or tildes that opens or closes a fenced code block, if the line is one. */
+const codeFence = (line: string) => /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
 
 /**
  * Find every top-level `::: threads` block. A page may place several blocks
  * next to the sections they discuss; each is rendered, so each must be indexed.
+ * Fenced code is skipped: a `::: threads` example in a code block is not a block.
  */
 export function findThreadsBlocks(lines: string[]): ThreadsBlock[] {
   const blocks: ThreadsBlock[] = [];
+  let fence: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
+    const run = codeFence(lines[i]);
+    if (fence) {
+      // A fence closes on the same character, at least as long as the opening run.
+      if (run && run[0] === fence[0] && run.length >= fence.length) fence = null;
+      continue;
+    }
+    if (run) {
+      fence = run;
+      continue;
+    }
     if (!isThreadsOpen(lines[i])) continue;
 
     let depth = 1;

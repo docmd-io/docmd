@@ -216,6 +216,44 @@ test('deleting the only thread in one block removes that block, not the other', 
   assert.equal(out.split('::: threads').length - 1, 1);
 });
 
+const example = (fence: string) => `${fence}markdown
+::: threads
+  ::: thread t-example
+    ::: comment c-example "Doc" "2026-01-01"
+      Example
+    :::
+  :::
+:::
+${fence}
+`;
+
+const realBlock = serializeThreadsBlock([newThread('t-real', 'Real')]);
+
+for (const fence of ['```', '~~~', '````']) {
+  test(`a threads block inside a ${fence} fence is not parsed or rewritten, before or after the real block`, () => {
+    const page = `# Doc\n\n${example(fence)}\nText.\n\n${realBlock}\nMore.\n\n${example(fence)}`;
+    assert.deepEqual(parseThreadsFromContent(page).map((t) => t.id), ['t-real']);
+    const out = replaceThreadsBlock(page, [...parseThreadsFromContent(page), newThread('t-new')]);
+    assert.equal(out, page.replace(realBlock, serializeThreadsBlock([newThread('t-real', 'Real'), newThread('t-new')])));
+    const cleared = replaceThreadsBlock(page, []);
+    assert.equal(cleared.split(example(fence)).length - 1, 2, 'both examples are kept');
+    assert.deepEqual(parseThreadsFromContent(cleared), []);
+  });
+}
+
+test('a fence only closes on its own character and at least its length', () => {
+  const nested = '````markdown\n```\n::: threads\n```\n~~~~\n::: threads\n````\n';
+  const page = `${nested}\n${realBlock}`;
+  assert.deepEqual(parseThreadsFromContent(page).map((t) => t.id), ['t-real']);
+});
+
+test('a page whose only threads block is a fenced example gets a new block for its first thread', () => {
+  const page = `# Doc\n\n${example('```')}`;
+  assert.deepEqual(parseThreadsFromContent(page), []);
+  const out = replaceThreadsBlock(page, [newThread('t-new')]);
+  assert.equal(out, `${page.trimEnd()}\n\n${serializeThreadsBlock([newThread('t-new')])}`);
+});
+
 test('round-trip serialize then parse keeps the thread structure', () => {
   const threadData = [
     {
