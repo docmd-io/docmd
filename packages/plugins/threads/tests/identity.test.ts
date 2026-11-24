@@ -19,7 +19,6 @@ beforeEach(() => {
 });
 
 const threadsDir = () => path.join(project.root, 'docs', '.threads');
-const authorsFile = () => path.join(threadsDir(), 'authors.json');
 const writeAuthors = (authors: unknown) => {
   fs.mkdirSync(safePath(project.root, 'docs/.threads'), { recursive: true });
   fs.writeFileSync(safePath(threadsDir(), 'authors.json'), typeof authors === 'string' ? authors : JSON.stringify(authors));

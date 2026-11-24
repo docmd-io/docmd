@@ -83,8 +83,8 @@ function requireFields(action: string, payload: Record<string, unknown>, fields:
 
 /**
  * Resolve the caller of a write, then validate the payload. In dev the payload is the identity
- * source, so its fields are validated first (as before). Under serve identity comes first, so an
- * unauthenticated call never reaches validation, and `author` is not required.
+ * source, so its fields are validated first (as before). Under serve identity comes first, so a
+ * call without an identity never reaches validation, and `author` is not required.
  */
 async function begin(ctx: ActionContext, payload: Payload, action: string, fields: string[]): Promise<Caller> {
   if (ctx.mode !== 'serve') requireFields(action, payload, fields);
@@ -288,7 +288,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     const caller = await begin(ctx, payload, 'threads:delete-thread', ['file', 'threadId']);
     const { threadId } = payload;
     await transact(ctx, caller, payload, (tx) => {
-      const thread = findThread(tx.view, threadId);
+      findThread(tx.view, threadId);
       const published = publishedComments(tx, threadId);
       assertCan(caller, 'delete-thread', { authorKeys: published.map((c) => c.authorKey) }, getOptions(ctx).permissions);
       const drafted = draftedThreadOp(tx, threadId);
