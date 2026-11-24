@@ -132,9 +132,11 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   assert.equal(markOf(block.content), undefined);
   assert.equal(parser.parseThreadsFromContent(block.content).length, 3);
 
-  // text after the threads block is not part of the page body a mark may go in
+  // text after the threads block is page text too: it gets the mark, and no block is added
   const after = wrap(`${PAGE}\nClosing words here.\n`, 'Closing words');
-  assert.equal(markOf(after.content), undefined);
+  assert.equal(markOf(after.content), '==Closing words=={t-new}');
+  assert.equal(after.content.split('::: threads').length - 1, 1);
+  assert.ok(after.content.endsWith('==Closing words=={t-new} here.\n'));
 
   // a quote the highlight syntax cannot carry gets its anchor but no mark, and deleting the thread leaves the text alone
   for (const q of ['a == b', '=x', 'x=']) {
@@ -173,6 +175,28 @@ test('applyOps leaves a fenced `::: threads` example alone and writes to the rea
   assert.ok(content.includes(example), 'the example is byte-identical');
   assert.equal(content.split('::: threads').length - 1, 2, 'no block is added');
   assert.deepEqual(parser.parseThreadsFromContent(content).map((t) => t.id), ['t-1', 't-2', 't-new']);
+});
+
+test('applyOps marks a quote below the first block, but never inside any block or a fenced example', () => {
+  const second = THREADS.replace('t-1', 't-3').replace('t-2', 't-4').replace(/c-(\d)/g, 'c-9$1');
+  const page = `${PAGE}\nBetween the blocks sits the target.\n\n${second}\nFooter.\n`;
+  const wrap = (p: string, quote: string) =>
+    applyOps(p, [mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor(quote), body: 'x' })], OPTS).content;
+  const markOf = (p: string) => /==[^=]*=={t-new}/.exec(p)?.[0];
+
+  const between = wrap(page, 'the target');
+  assert.match(between, /Between the blocks sits ==the target=={t-new}\./);
+  assert.equal(between.split('::: threads').length - 1, 2);
+  assert.deepEqual(parser.parseThreadsFromContent(between).map((t) => t.id), ['t-1', 't-2', 't-3', 't-4', 't-new']);
+
+  // "Other." is only in comment bodies of both blocks
+  assert.equal(markOf(wrap(page, 'Other.')), undefined);
+
+  // a fenced `::: threads` example is code: not marked, and text after it is still page text
+  const example = '```markdown\n::: threads\nfenced target\n:::\n```\n';
+  const fenced = wrap(`Intro.\n\n${example}\nLater target.\n\n${THREADS}`, 'target');
+  assert.ok(fenced.includes(example));
+  assert.match(fenced, /Later ==target=={t-new}\./);
 });
 
 test('applyOps removes what delete-thread owns: single- and two-line marks, and an emptied block', () => {
