@@ -18,7 +18,7 @@ import {
   SelectText,
   TheHighlightCount,
 } from "./screenplay.ts";
-import { cleanThreads, setAuthor, waitForReload } from "./helpers.ts";
+import { clientKey, cleanThreads, publishReview, setAuthor, waitForReload } from "./helpers.ts";
 
 const contentSelector = "[data-docmd-content] p, .docmd-content p, article p, main p";
 
@@ -82,6 +82,8 @@ test.describe("creating threads via text selection", () => {
       StartThreadOn.on(contentSelector, textToSelect, "Highlight test"),
     );
 
+    // The thread is a draft until published; the server renders the highlight once it is
+    await publishReview(user.page, "TestUser", await clientKey(user.page));
     await waitForReload(user.page);
 
     // At least one new highlight should have appeared
@@ -128,11 +130,12 @@ test.describe("creating general (unanchored) threads", () => {
     // After submission, the page should reload and show the new thread
     await waitForReload(user.page);
 
-    // Verify thread was persisted via WebSocket API
-    const threads = await user.page.evaluate(async () => {
+    // Verify the drafted thread is in the caller's view (the client drafts under its stored key)
+    const authorKey = await clientKey(user.page);
+    const threads = await user.page.evaluate(async (authorKey) => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
-    });
+      return docmd.call("threads:get-threads", { file, author: "TestUser", authorKey });
+    }, authorKey);
 
     const generalThread = threads.find(
       (t: any) => t.comments[0]?.body === "A general observation",

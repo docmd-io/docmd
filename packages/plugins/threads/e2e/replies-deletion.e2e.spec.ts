@@ -8,6 +8,8 @@
  * - Delete confirmation via sl-dialog#delete-dialog (same as before)
  * - Seeding via docmd.call() instead of HTTP API
  * - Comment editing now handled by threads-comment Lit component with tc-* classes
+ * - Replies, edits and deletions are drafts in the caller's journal until published:
+ *   these specs check the caller's view (threads:get-threads with their identity)
  */
 
 import { test, expect } from "@playwright/test";
@@ -15,7 +17,7 @@ import {
   Actor,
   ReplyToThread,
 } from "./screenplay.ts";
-import { cleanThreads, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
+import { clientKey, cleanThreads, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
 
 let user: Actor;
 
@@ -72,11 +74,12 @@ test.describe("reply to thread", () => {
     // Wait for reload after the reply is submitted
     await waitForReload(user.page);
 
-    // Verify reply was persisted via API
-    const threads = await user.page.evaluate(async () => {
+    // Verify the reply is in the caller's view (the client drafts under its stored key)
+    const authorKey = await clientKey(user.page);
+    const threads = await user.page.evaluate(async (authorKey) => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
-    });
+      return docmd.call("threads:get-threads", { file, author: "TestUser", authorKey });
+    }, authorKey);
 
     const thread = threads.find((t: any) => t.id === threadId);
     expect(thread).toBeTruthy();
@@ -121,18 +124,18 @@ test.describe("thread deletion", () => {
     await user.page.evaluate(
       async ({ threadId }) => {
         const file = document.body.dataset["sourceFile"];
-        await docmd.call("threads:delete-thread", { file, threadId });
+        await docmd.call("threads:delete-thread", { file, threadId, author: "TestUser" });
       },
       { threadId },
     );
 
-    // Wait for hot-reload triggered by file write
+    // Reload: the draft lives on the server, in the caller's journal
     await waitForReload(user.page);
 
     // Verify deletion
     const threads = await user.page.evaluate(async () => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
+      return docmd.call("threads:get-threads", { file, author: "TestUser" });
     });
 
     const deleted = threads.find((t: any) => t.id === threadId);
@@ -157,18 +160,18 @@ test.describe("comment deletion", () => {
     await user.page.evaluate(
       async ({ threadId, commentId }) => {
         const file = document.body.dataset["sourceFile"];
-        await docmd.call("threads:delete-comment", { file, threadId, commentId });
+        await docmd.call("threads:delete-comment", { file, threadId, commentId, author: "TestUser" });
       },
       { threadId, commentId: replyId },
     );
 
-    // Wait for hot-reload triggered by file write
+    // Reload: the draft lives on the server, in the caller's journal
     await waitForReload(user.page);
 
     // Verify only root comment remains
     const threads = await user.page.evaluate(async () => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
+      return docmd.call("threads:get-threads", { file, author: "TestUser" });
     });
 
     const thread = threads.find((t: any) => t.id === threadId);
@@ -200,18 +203,19 @@ test.describe("comment editing", () => {
           threadId,
           commentId,
           body: newBody,
+          author: "TestUser",
         });
       },
       { threadId, commentId, newBody },
     );
 
-    // Wait for hot-reload triggered by file write
+    // Reload: the draft lives on the server, in the caller's journal
     await waitForReload(user.page);
 
     // Verify edit persisted
     const threads = await user.page.evaluate(async () => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
+      return docmd.call("threads:get-threads", { file, author: "TestUser" });
     });
 
     const thread = threads.find((t: any) => t.id === threadId);
@@ -236,6 +240,7 @@ test.describe("comment editing", () => {
             threadId,
             commentId,
             body: "",
+            author: "TestUser",
           });
         },
         { threadId, commentId },
@@ -247,7 +252,7 @@ test.describe("comment editing", () => {
     // Verify original body unchanged
     const threads = await user.page.evaluate(async () => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
+      return docmd.call("threads:get-threads", { file, author: "TestUser" });
     });
 
     const thread = threads.find((t: any) => t.id === threadId);
