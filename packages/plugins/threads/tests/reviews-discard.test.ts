@@ -52,6 +52,12 @@ two lines.
       Other.
     :::
   :::
+
+  ::: thread t-4 resolved "Carol" "2026-03-04"
+    ::: comment c-4 "Carol" "2026-03-04"
+      Done.
+    :::
+  :::
 :::
 `;
 
@@ -67,6 +73,7 @@ const rows: Array<{ name: string; author?: string; ops: NewDraftOp[]; changes: R
   { name: 'edit-comment', ops: [{ kind: 'edit-comment', file: FILE, threadId: 't-1', commentId: 'c-2', body: 'Changed' }], changes: /Changed/ },
   { name: 'delete-comment (original position)', ops: [{ kind: 'delete-comment', file: FILE, threadId: 't-1', commentId: 'c-1' }], changes: /^(?![\s\S]*First)/ },
   { name: 'delete-thread (thread and highlight)', ops: [{ kind: 'delete-thread', file: FILE, threadId: 't-1' }], changes: /^(?![\s\S]*thread t-1)/ },
+  { name: 'resolve-thread (reopen a resolved thread)', ops: [{ kind: 'resolve-thread', file: FILE, threadId: 't-4' }], changes: /^(?![\s\S]*thread t-4 resolved)/ },
   { name: 'resolve-thread', ops: [{ kind: 'resolve-thread', file: FILE, threadId: 't-2' }], changes: /resolved "Alice"/ },
   { name: 'toggle-reaction (add)', ops: [{ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-2', emoji: '🎉' }], changes: /🎉/ },
   { name: 'toggle-reaction (remove)', author: 'Bob', ops: [{ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' }], changes: /^(?![\s\S]*👍)/ },
@@ -124,6 +131,15 @@ test('reverseOps skips ops whose target is gone, reverses the rest, is idempoten
   const second = reverseOps(first.content, ops.applied, { authorName: 'Alice' });
   assert.equal(second.content, first.content);
   assert.equal(reverseOps(NORMAL, [], { authorName: 'Alice' }).content, NORMAL, 'an unchanged input comes back as is');
+});
+
+test('reverseOps undoes several ops on one comment newest first', () => {
+  const twice = apply([
+    mk({ kind: 'edit-comment', file: FILE, threadId: 't-1', commentId: 'c-2', body: 'First edit' }),
+    mk({ kind: 'edit-comment', file: FILE, threadId: 't-1', commentId: 'c-2', body: 'Second edit' }),
+  ]);
+  assert.match(twice.content, /Second edit/);
+  assert.equal(reverseOps(twice.content, twice.applied, { authorName: 'Alice' }).content, NORMAL);
 });
 
 test('reverseOps skips an edit with no recorded before-state', () => {
