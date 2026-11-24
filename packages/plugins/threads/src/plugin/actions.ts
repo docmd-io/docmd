@@ -337,6 +337,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   /** Take a review back: reverse a published one from its manifest, or empty the caller's open one. */
   'threads:discard-review': async (payload, ctx): Promise<{ discarded: true }> => {
     const caller = await begin(ctx, payload, 'threads:discard-review', ['reviewId']);
+    if (typeof payload.reviewId !== 'string') throw new ThreadsError('invalid', 'threads:discard-review: reviewId must be a string');
     const manifest = await readManifest(ctx, payload.reviewId);
     assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
     return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) });

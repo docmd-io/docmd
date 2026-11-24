@@ -320,7 +320,7 @@ interface Before {
   present?: boolean;
 }
 
-export interface ReverseResult {
+interface ReverseResult {
   content: string;
   skipped: Array<{ opId: string; reason: string }>;
 }
@@ -558,9 +558,13 @@ export async function publish(
     // The journal's review was published, then discarded, but its reset never finished: finish it
     // now so only ops drafted since are published (under the new id), never the discarded ones.
     let journal = await store.load(caller.key);
-    if ((await readManifest(ctx, journal.review.id))?.state === 'discarded') {
+    let earlier = await readManifest(ctx, journal.review.id);
+    if (earlier?.state === 'discarded' && earlier.authorKey === caller.key) {
+      // The journal's review was published, then discarded, but its reset never finished: finish it
+      // now so only ops drafted since are published (under the new id), never the discarded ones.
       await finishEarlierPublish(ctx, store, caller.key, newId);
       journal = await store.load(caller.key);
+      earlier = await readManifest(ctx, journal.review.id);
     }
     if (!journal.ops.length) throw new ThreadsError('empty-review', 'there is nothing to publish');
     const ops = journal.ops;
@@ -570,13 +574,13 @@ export async function publish(
 
     // An earlier publish of this review wrote its files and manifest but failed to reset the
     // journal: do not apply again (toggles would flip back), only finish the reset.
-    const earlier = await readManifest(ctx, reviewId);
-    if (earlier?.state === 'published') {
-      if (earlier.authorKey === caller.key) {
+    if (earlier) {
+      if (earlier.authorKey === caller.key && earlier.state === 'published') {
         await finishEarlierPublish(ctx, store, caller.key, newId);
         return { reviewId, skipped: earlier.skipped };
       }
-      // The id belongs to someone else's review (an id collision): this journal moves to a fresh one.
+      // The id belongs to someone else's review, or to one this caller discarded (an id collision):
+      // this journal moves to a fresh one.
       reviewId = newId('r-');
       await store.transact(caller.key, (j) => void (j.review.id = reviewId));
     }

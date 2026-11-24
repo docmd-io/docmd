@@ -130,7 +130,14 @@ test('reverseOps skips ops whose target is gone, reverses the rest, is idempoten
   assert.equal(first.content, NORMAL);
   const second = reverseOps(first.content, ops.applied, { authorName: 'Alice' });
   assert.equal(second.content, first.content);
-  assert.equal(reverseOps(NORMAL, [], { authorName: 'Alice' }).content, NORMAL, 'an unchanged input comes back as is');
+});
+
+test('reverseOps returns an input it changes nothing in as the same string, even when it is not in serializer form', () => {
+  assert.notEqual(PAGE, NORMAL, 'the raw page differs from its re-serialized form');
+  const absent = apply([mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: null, body: 'New' })]);
+  const back = reverseOps(PAGE, absent.applied, { authorName: 'Alice' });
+  assert.equal(back.content, PAGE);
+  assert.deepEqual(back.skipped.map((x) => x.reason), ['thread t-new not found']);
 });
 
 test('reverseOps undoes several ops on one comment newest first', () => {
@@ -216,8 +223,9 @@ test('discarding a published review reverses it on both pages and marks the mani
   const id = await publishAliceThenBob();
   assert.match(read(FILE), /==parser rules=={t-new}/);
   assert.deepEqual(commentIds(OTHER, 't-oth'), ['c-o1', 'c-r']);
-  const before = manifestOf(id);
+  const published = manifestOf(id);
 
+  // Called directly (not through the action) to inject the clock for `discardedAt`.
   const result = await discard(ALICE_CALLER, ctx() as never, id, deps({ now: () => Date.parse('2031-02-03T04:05:06.000Z') }));
   assert.deepEqual(result, { discarded: true });
 
@@ -231,7 +239,7 @@ test('discarding a published review reverses it on both pages and marks the mani
     ['discarded', '2031-02-03T04:05:06.000Z', 'k-alice'],
   );
   assert.deepEqual(m.discardSkipped, []);
-  assert.deepEqual({ ...m, state: 'published', discardedAt: undefined, discardedBy: undefined, discardSkipped: undefined }, { ...before, discardedAt: undefined, discardedBy: undefined, discardSkipped: undefined }, 'the rest of the manifest is untouched');
+  assert.deepEqual({ ...m, state: 'published', discardedAt: undefined, discardedBy: undefined, discardSkipped: undefined }, { ...published, discardedAt: undefined, discardedBy: undefined, discardSkipped: undefined }, 'the rest of the manifest is untouched');
 
   const bytes = [read(FILE), read(OTHER), readAt(manifestPath(id))];
   await assert.rejects(call('threads:discard-review', { reviewId: id, ...ALICE }), /^ThreadsError: threads\/invalid: /);
@@ -319,23 +327,19 @@ async function window(): Promise<{ id: string; manifest: string }> {
   return { id, manifest: readAt(manifestPath(id)) };
 }
 
-test('publish after a discard in the failed-reset window is empty-review, leaves the manifest alone and rotates the journal', async () => {
+test('after a discard in the failed-reset window whoami and get-threads show nothing of it, and publish is empty-review, leaves the manifest alone and rotates the journal', async () => {
   const { id, manifest } = await window();
+  const me = await call<WhoAmI>('threads:whoami', ALICE);
+  assert.deepEqual(me.journal!.ops, []);
+  const view = await call<Array<{ id: string; draft?: boolean }>>('threads:get-threads', { file: FILE, ...ALICE });
+  assert.deepEqual(view.filter((t) => t.draft), []);
+  assert.deepEqual(view.map((t) => t.id), original);
   await assert.rejects(call('threads:publish-review', ALICE), /^ThreadsError: threads\/empty-review: /);
   assert.equal(readAt(manifestPath(id)), manifest, 'the discarded manifest is byte-identical');
   const journal = await store().load('k-alice');
   assert.deepEqual(journal.ops, []);
   assert.notEqual(journal.review.id, id);
   assert.deepEqual(idsOf(FILE), original, 'the discarded ops were not applied again');
-});
-
-test('whoami and get-threads show nothing of a review discarded in the failed-reset window', async () => {
-  await window();
-  const me = await call<WhoAmI>('threads:whoami', ALICE);
-  assert.deepEqual(me.journal!.ops, []);
-  const view = await call<Array<{ id: string; draft?: boolean }>>('threads:get-threads', { file: FILE, ...ALICE });
-  assert.deepEqual(view.filter((t) => t.draft), []);
-  assert.deepEqual(view.map((t) => t.id), original);
 });
 
 test('an op drafted in the window is published under a new review id, without the discarded ops', async () => {

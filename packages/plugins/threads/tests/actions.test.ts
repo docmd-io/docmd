@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, MarkdownIt, failingReset, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, MarkdownIt, failingReset, snapshotTree, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, slug } from '../src/plugin/drafts.ts';
 import { createLock } from '../src/plugin/lock.ts';
@@ -267,17 +267,6 @@ const MUTATIONS: Array<[string, Record<string, unknown>]> = [
   ['threads:toggle-reaction', { threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }],
 ];
 
-/** Every file under the docs root with its bytes, to prove a refused call changed nothing. */
-function snapshotTree(dir: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const entry of fs.readdirSync(safePath(dir, '.'), { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile()) continue;
-    const file = path.join(entry.parentPath, entry.name);
-    out[path.relative(dir, file)] = fs.readFileSync(safePath(path.dirname(file), entry.name), 'utf8');
-  }
-  return out;
-}
-
 test('serve without a trusted identity refuses every write, with or without author; dev succeeds; reads work in both', async () => {
   const REFUSED: Array<[string, Record<string, unknown>]> = [
     ...MUTATIONS,
@@ -322,6 +311,10 @@ test('serve without a trusted identity refuses every write, with or without auth
   }
   await assert.rejects(
     call('threads:discard-review', as(ALICE, {}), { mode: 'dev', caller: { identity: null } }),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
+  );
+  await assert.rejects(
+    call('threads:discard-review', as(ALICE, { reviewId: 1 }), { mode: 'dev', caller: { identity: null } }),
     (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
   );
   for (const mode of ['serve', 'dev'] as const) {

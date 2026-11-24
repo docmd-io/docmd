@@ -101,3 +101,14 @@ export function failingWrites(root: string, from: number, only = false): Partial
     },
   };
 }
+
+/** Every file under the docs root with its bytes, to prove a refused call changed nothing. */
+export function snapshotTree(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of fs.readdirSync(safePath(dir, '.'), { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    out[path.relative(dir, file)] = fs.readFileSync(safePath(path.dirname(file), entry.name), 'utf8');
+  }
+  return out;
+}

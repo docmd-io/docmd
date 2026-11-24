@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, type TempProject } from './helpers.ts';
+import { tempProject, makeCtx, snapshotTree, type TempProject } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { canDo } from '../src/plugin/permissions.ts';
 import type { Comment, DraftOp, Thread } from '../src/types.ts';
@@ -188,11 +188,11 @@ test('resolve-thread with resolve: author binds the thread\'s first comment; a d
 
 test('discard-review: only the review\'s author or an admin; a manifest without an author key is admin-only; a refusal changes nothing', async () => {
   const state = (id: string) => JSON.parse(fs.readFileSync(safePath(path.join(project.root, 'docs', '.threads', 'reviews'), `${id}.json`), 'utf8')).state;
-  const pages = () => fs.readFileSync(safePath(project.root, project.file), 'utf8');
-  const bytes = pages();
+  const docsRoot = path.join(project.root, 'docs');
+  const tree = snapshotTree(docsRoot);
   await forbidden(call('discard-review', 'bob', { reviewId: aliceReview }));
   await forbidden(call('discard-review', 'alice', { reviewId: legacyReview }));
-  assert.deepEqual([state(aliceReview), state(legacyReview), pages()], ['published', 'published', bytes]);
+  assert.deepEqual(snapshotTree(docsRoot), tree, 'a refusal changes nothing under the docs root');
   assert.deepEqual(await call('discard-review', 'alice', { reviewId: aliceReview }), { discarded: true });
   await call('discard-review', 'root', { reviewId: bobReview });
   await call('discard-review', 'root', { reviewId: legacyReview });

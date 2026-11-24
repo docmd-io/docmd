@@ -510,11 +510,11 @@ test('in the failed-reset window edits and deletes of the published comments rea
   assert.equal(threads.find((t) => t.id === 't-thread1')!.comments.some((c) => c.id === 'c-del'), false);
 });
 
-test("a published manifest of another author under this journal's review id is not taken for this review's", async () => {
+for (const state of ['published', 'discarded']) test(`a ${state} manifest of another author under this journal's review id is not taken for this review's`, async () => {
   await fill('k-alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-a', parentId: null, body: 'a' }]);
   const id = (await store().load('k-alice')).review.id;
   fs.mkdirSync(safePath(reviewsDir(), '.'), { recursive: true });
-  const other = { version: 1, id, authorKey: 'k-bob', authorName: 'Bob', title: 't', state: 'published', publishedAt: AT, ops: [], skipped: [] };
+  const other = { version: 1, id, authorKey: 'k-bob', authorName: 'Bob', title: 't', state, publishedAt: AT, ops: [], skipped: [] };
   fs.writeFileSync(safePath(reviewsDir(), `${id}.json`), JSON.stringify(other));
 
   await getThreads(); // finishing an earlier publish must leave the journal alone
