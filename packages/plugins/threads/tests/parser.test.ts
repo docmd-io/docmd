@@ -155,31 +155,55 @@ test('round-trip keeps every threads block at its original position', () => {
   assert.equal(replaceThreadsBlock(twoBlocks, threads), twoBlocks);
 });
 
-test('new threads are appended once without moving the existing blocks', () => {
-  const threads = parseThreadsFromContent(twoBlocks);
-  threads.push({
-    id: 't-new',
-    resolved: false,
-    resolved_by: null,
-    resolved_at: null,
-    comments: [{
-      id: 'c-new',
-      thread_id: 't-new',
-      parent_id: null,
-      author: 'Eve',
-      date: '2026-01-03',
-      edited_at: null,
-      body: 'New block',
-      reactions: [],
-    }],
-  });
+const newThread = (id: string, body = 'New') => ({
+  id,
+  resolved: false,
+  resolved_by: null,
+  resolved_at: null,
+  comments: [{
+    id: `c-${id}`,
+    thread_id: id,
+    parent_id: null,
+    author: 'Eve',
+    date: '2026-01-03',
+    edited_at: null,
+    body,
+    reactions: [],
+  }],
+});
+
+test('new threads go into the last existing block; no block is opened', () => {
+  const threads = [...parseThreadsFromContent(twoBlocks), newThread('t-new', 'New block')];
   const out = replaceThreadsBlock(twoBlocks, threads);
-  assert.equal(out.split('::: threads').length - 1, 3);
+  assert.equal(out.split('::: threads').length - 1, 2);
   assert.ok(out.indexOf('t-first') < out.indexOf('Between blocks.'));
   assert.ok(out.indexOf('Between blocks.') < out.indexOf('t-second'));
-  assert.ok(out.indexOf('t-second') < out.indexOf('Outro.'));
-  assert.ok(out.indexOf('Outro.') < out.indexOf('t-new'));
+  assert.ok(out.indexOf('t-second') < out.indexOf('t-new'));
+  assert.ok(out.indexOf('t-new') < out.indexOf('Outro.'));
+  assert.ok(out.endsWith('Outro.\n'));
+  assert.ok(out.startsWith(twoBlocks.slice(0, twoBlocks.indexOf('Between blocks.'))), 'the first block is untouched');
   assert.deepEqual(parseThreadsFromContent(out).map((t) => t.id), ['t-first', 't-second', 't-new']);
+});
+
+test('on a page with one block between text, a new thread joins that block and the footer stays last', () => {
+  const page = 'Intro.\n\n' + serializeThreadsBlock([newThread('t-old', 'Old')]) + '\nFooter.\n';
+  const out = replaceThreadsBlock(page, [...parseThreadsFromContent(page), newThread('t-new')]);
+  assert.equal(out, 'Intro.\n\n' + serializeThreadsBlock([newThread('t-old', 'Old'), newThread('t-new')]) + '\nFooter.\n');
+});
+
+test('a new thread added while the last block loses its threads takes that block\'s place', () => {
+  const out = replaceThreadsBlock(twoBlocks, [parseThreadsFromContent(twoBlocks)[0], newThread('t-new')]);
+  assert.equal(out.split('::: threads').length - 1, 2);
+  assert.ok(!out.includes('t-second'));
+  assert.ok(out.indexOf('Between blocks.') < out.indexOf('t-new'));
+  assert.ok(out.indexOf('t-new') < out.indexOf('Outro.'));
+});
+
+test('removing one block while adding a thread to another leaves no double blank line', () => {
+  const out = replaceThreadsBlock(twoBlocks, [parseThreadsFromContent(twoBlocks)[1], newThread('t-new')]);
+  assert.doesNotMatch(out, /\n\n\n/);
+  assert.ok(out.startsWith('# Document\n\nIntro.\n\nBetween blocks.\n\n::: threads\n'));
+  assert.deepEqual(parseThreadsFromContent(out).map((t) => t.id), ['t-second', 't-new']);
 });
 
 test('deleting the only thread in one block removes that block, not the other', () => {

@@ -400,39 +400,41 @@ export function serializeThreadsBlock(threads: Thread[]): string {
 }
 
 /**
- * Replace (or append) the threads block in a full markdown file.
+ * Write `threads` back into the markdown. Each existing block keeps the threads it
+ * already holds, in place; threads no block holds yet go into the last block, and a
+ * block is appended only when the page has none. A block left empty is removed.
  */
 export function replaceThreadsBlock(markdownContent: string, threads: Thread[]): string {
   const lines = markdownContent.split('\n');
   const blocks = findThreadsBlocks(lines);
+  const placed = new Set(blocks.flatMap((block) => block.threads.map((thread) => thread.id)));
+  const added = threads.filter((thread) => !placed.has(thread.id));
+
+  if (blocks.length === 0) {
+    const serialized = serializeThreadsBlock(added);
+    return serialized ? markdownContent.trimEnd() + '\n\n' + serialized : markdownContent;
+  }
+
   const byId = new Map(threads.map((thread) => [thread.id, thread]));
-  const keep = new Set<string>();
   const out: string[] = [];
   let cursor = 0;
   let removed = false;
 
-  for (const block of blocks) {
+  blocks.forEach((block, n) => {
     out.push(...lines.slice(cursor, block.start));
     const own = block.threads.flatMap((thread) => {
       const current = byId.get(thread.id);
-      if (!current) return [];
-      keep.add(thread.id);
-      return [current];
+      return current ? [current] : [];
     });
+    if (n === blocks.length - 1) own.push(...added);
     const serialized = serializeThreadsBlock(own);
     if (serialized === '') removed = true;
-    out.push(...(serialized === '' ? [] : serialized.trimEnd().split('\n')));
+    else out.push(...serialized.trimEnd().split('\n'));
     cursor = block.end + 1;
-  }
+  });
 
   out.push(...lines.slice(cursor));
-  const added = serializeThreadsBlock(threads.filter((thread) => !keep.has(thread.id)));
-  let result = out.join('\n');
-  if (added) result = result.trimEnd() + '\n\n' + added;
-
-  if (removed && added === '') {
-    // Removing one block can leave two blank lines at its old boundaries.
-    result = result.replace(/\n{3,}/g, '\n\n');
-  }
-  return result;
+  const result = out.join('\n');
+  // Removing a block can leave two blank lines at its old boundaries.
+  return removed ? result.replace(/\n{3,}/g, '\n\n') : result;
 }
