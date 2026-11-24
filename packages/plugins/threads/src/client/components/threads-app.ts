@@ -2,7 +2,8 @@ import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { Thread, Comment, Anchor, AuthorsMap } from '../../types';
 import * as api from '../lib/api';
-import { initIdentity, getIdentityPayload } from '../lib/identity';
+import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
+import { deleteCommentTarget } from '../lib/can-show';
 import { computeAnchor, getSelectionPosition, isWithinContent } from '../lib/selection';
 import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
@@ -29,6 +30,9 @@ export class ThreadsApp extends LitElement {
   @state() private popoverX = 0;
   @state() private popoverY = 0;
 
+  /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
+  private identityReady: Promise<void> = Promise.resolve();
+  private identityKnown = false;
   private pendingAnchor: Anchor | null = null;
   private pendingBlockEl: HTMLElement | null = null;
   private deleteTarget: { type: 'thread' | 'comment'; id: string; threadId?: string } | null = null;
@@ -61,8 +65,6 @@ export class ThreadsApp extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     initThemeBridge();
-    initIdentity();
-    this.injectIdentityButton();
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
@@ -70,17 +72,25 @@ export class ThreadsApp extends LitElement {
     // Always initialize sidebar column so the panel is available for FAB toggle
     this.initSidebarColumn();
 
-    this.loadThreads();
-    this.injectNewThreadButton();
-    this.injectFab();
-    this.mountPublishWidget();
+    // Who the caller is decides which buttons render and whether a name is ever asked: learn it first.
+    this.identityReady = initIdentity(api.whoami).then(() => { this.identityKnown = true; });
+    void this.identityReady.then(() => {
+      if (!this.isConnected) return;
+      this.injectIdentityButton();
+      this.loadThreads();
+      this.injectNewThreadButton();
+      this.injectFab();
+      this.mountPublishWidget();
+    });
 
     // Register afterReload handler for post-mutation continuity
     if (typeof docmd !== 'undefined' && docmd.afterReload) {
       docmd.afterReload('threads', () => {
-        this.loadThreads();
-        this.injectNewThreadButton();
-        this.updateFabBadge();
+        void this.identityReady.then(() => {
+          this.loadThreads();
+          this.injectNewThreadButton();
+          this.updateFabBadge();
+        });
       });
     }
   }
@@ -187,6 +197,12 @@ export class ThreadsApp extends LitElement {
   // ─── Selection popover ────────────────────────────────────────────
 
   private handleMouseUp = (e: MouseEvent): void => {
+    // Starting a thread may ask for the caller's name: not before we know whether the server names them.
+    // The selection outlives the click, so handle it once the answer is in instead of dropping it.
+    if (!this.identityKnown) {
+      void this.identityReady.then(() => { if (this.isConnected) this.handleMouseUp(e); });
+      return;
+    }
     const popover = this.querySelector('threads-popover');
     if (popover?.contains(e.target as Node)) return;
 
@@ -300,11 +316,14 @@ export class ThreadsApp extends LitElement {
 
   private handlePageMounted = (_e: CustomEvent): void => {
     this.popoverActive = false;
-    this.loadThreads();
-    this.injectNewThreadButton();
+    void this.identityReady.then(() => {
+      this.loadThreads();
+      this.injectNewThreadButton();
+    });
   };
 
   private async loadThreads(): Promise<void> {
+    await this.identityReady;
     try {
       const [threads, authors] = await Promise.all([
         api.fetchThreads(),
@@ -476,7 +495,12 @@ export class ThreadsApp extends LitElement {
         });
         actions.appendChild(replyBtn);
 
-        // Delete button
+        // Delete button: only when the server would accept it (a lone comment deletes the thread)
+        const thread = this.threads.find(th => th.id === threadId);
+        const deletable = totalComments === 1
+          ? canShowFor('delete-thread', { authorKeys: (thread?.comments ?? []).filter(c => !c.draft).map(c => c.authorKey) })
+          : canShowFor('delete-comment', deleteCommentTarget(thread?.comments ?? [], commentId));
+        if (deletable) {
         const delBtn = document.createElement('button');
         delBtn.className = 'threads-delete-btn';
         delBtn.appendChild(createSvgElement('trash', 13));
@@ -492,6 +516,7 @@ export class ThreadsApp extends LitElement {
           if (dialog) dialog.open = true;
         });
         actions.appendChild(delBtn);
+        }
 
         meta.appendChild(actions);
       }
@@ -927,7 +952,7 @@ export class ThreadsApp extends LitElement {
         console.error('[threads] Failed to toggle resolve:', err);
       }
     });
-    footer.appendChild(resolveBtn);
+    if (canShowFor('resolve-thread', { threadAuthor: thread.comments[0]?.authorKey, drafted: !!thread.draft })) footer.appendChild(resolveBtn);
 
     // Collapse toggle button
     const toggleBtn = document.createElement('button');
@@ -1010,6 +1035,7 @@ export class ThreadsApp extends LitElement {
     actions.appendChild(replyBtn);
 
     // Delete button
+    if (canShowFor('delete-comment', deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id))) {
     const delBtn = document.createElement('button');
     delBtn.className = 'threads-delete-btn';
     delBtn.appendChild(createSvgElement('trash', 13));
@@ -1021,6 +1047,7 @@ export class ThreadsApp extends LitElement {
       if (dialog) dialog.open = true;
     });
     actions.appendChild(delBtn);
+    }
 
     meta.appendChild(actions);
     commentEl.appendChild(meta);

@@ -92,8 +92,9 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
     authors = {};
   }
 
-  const { sidebar, autoPublish } = resolveOptions(options);
-  const clientConfig = { sidebar, autoPublish };
+  const { sidebar, autoPublish, permissions } = resolveOptions(options);
+  // Only what the client reads: the resolve rule, never the admin list.
+  const clientConfig = { sidebar, autoPublish, permissions: { resolve: permissions.resolve } };
   const i18nStrings = loadPluginStrings(config._activeLocale?.id || 'en');
 
   return {

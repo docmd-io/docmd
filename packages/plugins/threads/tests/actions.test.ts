@@ -481,8 +481,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true}';
-  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true}};'));
+  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}';
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}};'));
   for (const opts of [{}, undefined]) {
     const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
     assert.ok(out.bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));
@@ -490,9 +490,9 @@ test('plugin surface: descriptor, hooks and action names', () => {
   // Only the options the client reads are injected; the rest of the plugin config stays on the server.
   const secret = plugin.generateScripts(
     { src: path.join(project.root, 'docs') },
-    { autoPublish: { seconds: 60, startOn: false }, identityHeader: 'X-A', permissions: { admins: ['a'] } },
+    { autoPublish: { seconds: 60, startOn: false }, identityHeader: 'X-A', permissions: { admins: ['a'], resolve: 'author' } },
   ).bodyScriptsHtml;
-  assert.ok(secret.includes('"autoPublish":{"seconds":60,"startOn":false}'));
+  assert.ok(secret.includes('"autoPublish":{"seconds":60,"startOn":false},"permissions":{"resolve":"author"}'));
   for (const leak of ['admins', 'identityHeader', 'X-A']) assert.ok(!secret.includes(leak), leak);
   assert.ok(plugin.generateScripts({ src: path.join(project.root, 'docs') }, { autoPublish: false })
     .bodyScriptsHtml.includes('"autoPublish":false'));

@@ -33,8 +33,9 @@ export async function fetchAuthors(): Promise<AuthorsMap> {
   }
 }
 
-export async function upsertAuthor(authorKey: string, name: string, avatarUrl: string): Promise<void> {
-  await docmd.call('threads:upsert-author', { authorKey, name, avatarUrl });
+export async function upsertAuthor(authorKey: string | null, name: string, avatarUrl: string): Promise<void> {
+  // A header identity names itself; the server rejects a client-sent key.
+  await docmd.call('threads:upsert-author', authorKey === null ? { name, avatarUrl } : { authorKey, name, avatarUrl });
 }
 
 export async function fetchThreads(): Promise<Thread[]> {
