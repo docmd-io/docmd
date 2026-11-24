@@ -102,6 +102,8 @@ test('header mode: the server identity is returned, nobody is prompted, __docmd_
   assert.deepEqual(identity.getIdentityPayload(), { author: 'Ann', authorKey: 'ann@x', avatarUrl: 'u' });
   assert.equal(prompts, 0);
   assert.equal(storage.size, 0);
+  identity.setHeaderProfile('Bo', 'v');
+  assert.deepEqual(identity.getIdentityPayload(), { author: 'Bo', authorKey: 'ann@x', avatarUrl: 'v' });
 });
 
 test('local mode: whoami with no identity, or rejecting, seeds from __docmd_dev and prompts when nothing is stored', async () => {
@@ -118,6 +120,12 @@ test('local mode: whoami with no identity, or rejecting, seeds from __docmd_dev 
     assert.equal(identity.ensureAuthor(), 'Prompted');
     assert.equal(prompts, 1);
   }
+});
+
+test('setHeaderProfile leaves local mode alone', async () => {
+  await identity.initIdentity(() => Promise.resolve({ identity: null }));
+  identity.setHeaderProfile('Bo', 'v');
+  assert.deepEqual(identity.getIdentityMode(), { mode: 'local' });
 });
 
 test('canShowFor: header mode follows permissions.resolve, local mode shows everything', async () => {

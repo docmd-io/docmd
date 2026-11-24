@@ -508,11 +508,10 @@ export class ThreadsApp extends LitElement {
         // Delete button: only when the server would accept it (a lone comment deletes the thread)
         const thread = this.threads.find(th => th.id === threadId);
         // No thread to check against (load failed): fail closed, like the multi-comment path.
-        const deletable = !thread
-          ? canShowFor('delete-comment', { authorKey: null })
-          : totalComments === 1
-          ? canShowFor('delete-thread', { authorKeys: (thread?.comments ?? []).filter(c => !c.draft).map(c => c.authorKey) })
-          : canShowFor('delete-comment', deleteCommentTarget(thread?.comments ?? [], commentId));
+        let deletable: boolean;
+        if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
+        else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
+        else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
         if (deletable) {
         const delBtn = document.createElement('button');
         delBtn.className = 'threads-delete-btn';

@@ -14,7 +14,7 @@ export function identityFromWhoami(w: Pick<WhoAmI, 'identity'> | null | undefine
 }
 
 /** How long to wait for the server before taking the local path (a static site never answers). */
-export const WHOAMI_TIMEOUT_MS = 1500;
+const WHOAMI_TIMEOUT_MS = 1500;
 
 /** Ask the server who we are; no live server (a rejection or no answer in time) means the local path. */
 export async function resolveIdentity(
