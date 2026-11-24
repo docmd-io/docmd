@@ -337,8 +337,16 @@ function parseThreadContainers(innerLines: string[]): Thread[] {
   return threads;
 }
 
+/** Threads of every block, in document order. A thread id seen twice keeps its first copy. */
 export function parseThreadsFromContent(markdownContent: string): Thread[] {
-  return findThreadsBlocks(markdownContent.split('\n')).flatMap((block) => block.threads);
+  const seen = new Set<string>();
+  return findThreadsBlocks(markdownContent.split('\n'))
+    .flatMap((block) => block.threads)
+    .filter((thread) => {
+      if (seen.has(thread.id)) return false;
+      seen.add(thread.id);
+      return true;
+    });
 }
 
 /**
@@ -416,7 +424,9 @@ export function serializeThreadsBlock(threads: Thread[]): string {
 /**
  * Write `threads` back into the markdown. Each existing block keeps the threads it
  * already holds, in place; threads no block holds yet go into the last block, and a
- * block is appended only when the page has none. A block left empty is removed.
+ * block is appended only when the page has none. A block left empty is removed. An id
+ * held twice is written at its first copy; later copies are kept unchanged, or
+ * removed with it.
  */
 export function replaceThreadsBlock(markdownContent: string, threads: Thread[]): string {
   const lines = markdownContent.split('\n');
@@ -429,7 +439,9 @@ export function replaceThreadsBlock(markdownContent: string, threads: Thread[]):
     return serialized ? markdownContent.trimEnd() + '\n\n' + serialized : markdownContent;
   }
 
-  const byId = new Map(threads.map((thread) => [thread.id, thread]));
+  const byId = new Map<string, Thread>();
+  for (const thread of threads) if (!byId.has(thread.id)) byId.set(thread.id, thread);
+  const written = new Set<string>();
   const out: string[] = [];
   let cursor = 0;
   let removed = false;
@@ -438,7 +450,11 @@ export function replaceThreadsBlock(markdownContent: string, threads: Thread[]):
     out.push(...lines.slice(cursor, block.start));
     const own = block.threads.flatMap((thread) => {
       const current = byId.get(thread.id);
-      return current ? [current] : [];
+      if (!current) return [];
+      // A later copy of an id is not what the parser returns: keep it as it was.
+      if (written.has(thread.id)) return [thread];
+      written.add(thread.id);
+      return [current];
     });
     if (n === blocks.length - 1) own.push(...added);
     const serialized = serializeThreadsBlock(own);

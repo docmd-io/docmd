@@ -199,6 +199,17 @@ test('applyOps marks a quote below the first block, but never inside any block o
   assert.match(fenced, /Later ==target=={t-new}\./);
 });
 
+test('applyOps on a thread id held by two blocks writes to the first copy, the one get-threads shows', () => {
+  const copy = THREADS.replace('t-2', 't-9').replace(/c-(\d)/g, 'c-8$1');
+  const page = `${PAGE}\nBetween.\n\n${copy}`;
+  const { content } = applyOps(page, [mk({ kind: 'add-comment', file: FILE, threadId: 't-1', commentId: 'c-reply', parentId: 'c-2', body: 'Reply' })], OPTS);
+  const t1 = parser.parseThreadsFromContent(content).filter((t) => t.id === 't-1');
+  assert.equal(t1.length, 1);
+  assert.deepEqual(t1[0].comments.map((c) => c.id), ['c-1', 'c-2', 'c-reply']);
+  const later = parser.findThreadsBlocks(content.split('\n'))[1].threads;
+  assert.deepEqual(later.map((t) => [t.id, t.comments.map((c) => c.id)]), [['t-1', ['c-81', 'c-82']], ['t-9', ['c-83']]], 'the later copy is unchanged');
+});
+
 test('applyOps removes what delete-thread owns: single- and two-line marks, and an emptied block', () => {
   const page = `Target line one\nline two here and ==one liner=={t-b} too.\n\n${THREADS.replace('t-1', 't-a').replace('t-2', 't-b')}`
     .replace('Target line one\nline two', 'Target ==line one\nline two=={t-a}');

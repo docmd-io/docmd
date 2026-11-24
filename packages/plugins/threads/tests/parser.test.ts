@@ -254,6 +254,23 @@ test('a page whose only threads block is a fenced example gets a new block for i
   assert.equal(out, `${page.trimEnd()}\n\n${serializeThreadsBlock([newThread('t-new')])}`);
 });
 
+test('a thread id in two blocks: the first copy wins for parse and write; the later copy is kept until the thread is deleted', () => {
+  const first = serializeThreadsBlock([newThread('t-dup', 'First copy')]);
+  const second = serializeThreadsBlock([newThread('t-dup', 'Second copy'), newThread('t-other')]);
+  const page = `A.\n\n${first}\nB.\n\n${second}`;
+  const threads = parseThreadsFromContent(page);
+  assert.deepEqual(threads.map((t) => [t.id, t.comments[0].body]), [['t-dup', 'First copy'], ['t-other', 'New']]);
+  assert.equal(replaceThreadsBlock(page, threads), page);
+
+  threads[0].comments[0].body = 'Edited';
+  const out = replaceThreadsBlock(page, threads);
+  assert.equal(out, `A.\n\n${first.replace('First copy', 'Edited')}\nB.\n\n${second}`);
+  assert.equal(parseThreadsFromContent(out)[0].comments[0].body, 'Edited');
+
+  const gone = replaceThreadsBlock(page, threads.filter((t) => t.id !== 't-dup'));
+  assert.deepEqual(parseThreadsFromContent(gone).map((t) => t.id), ['t-other'], 'deleting the thread removes every copy');
+});
+
 test('round-trip serialize then parse keeps the thread structure', () => {
   const threadData = [
     {
