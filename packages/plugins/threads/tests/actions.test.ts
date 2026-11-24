@@ -267,15 +267,38 @@ const MUTATIONS: Array<[string, Record<string, unknown>]> = [
   ['threads:toggle-reaction', { threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }],
 ];
 
-test('serve without a trusted identity refuses every mutation; dev succeeds; get-threads works in both', async () => {
-  for (const [name, payload] of MUTATIONS) {
-    await assert.rejects(
-      call(name, as(ALICE, payload), { mode: 'serve', caller: { identity: null } }),
-      (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /no trusted identity/.test(e.message),
-      name,
-    );
-    assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false, `${name} wrote nothing`);
+/** Every file under the docs root with its bytes, to prove a refused call changed nothing. */
+function snapshotTree(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of fs.readdirSync(safePath(dir, '.'), { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    out[path.relative(dir, file)] = fs.readFileSync(safePath(path.dirname(file), entry.name), 'utf8');
   }
+  return out;
+}
+
+test('serve without a trusted identity refuses every write, with or without author; dev succeeds; reads work in both', async () => {
+  const REFUSED: Array<[string, Record<string, unknown>]> = [
+    ...MUTATIONS,
+    ['threads:set-mode', { mode: 'collect' }],
+    ['threads:publish-review', {}],
+    ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],
+  ];
+  const tree = snapshotTree(docsRoot);
+  for (const [name, payload] of REFUSED) {
+    for (const sent of [as(ALICE, payload), { file: project.file, ...payload }]) {
+      await assert.rejects(
+        call(name, sent, { mode: 'serve', caller: { identity: null } }),
+        (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /^threads\/no-identity: no trusted identity/.test(e.message),
+        name,
+      );
+      assert.deepEqual(snapshotTree(docsRoot), tree, `${name} changed nothing`);
+    }
+  }
+  const none = { mode: 'serve', caller: { identity: null } } as const;
+  assert.deepEqual((await call<Record<string, unknown>>('threads:get-authors', {}, none)).result, {});
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null });
   for (const [name, payload] of MUTATIONS) {
     await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
   }
@@ -289,8 +312,9 @@ test('serve keys journals on the trusted identity, not the payload', async () =>
   const serve = (identity: string): Partial<TestCtx> => ({ mode: 'serve', caller: { identity } });
   const t = (await call<Thread>('threads:add-thread', as({ author: 'Mallory', authorKey: 'bob' }, { body: 'mine' }), serve('alice'))).result;
   assert.equal(fs.existsSync(journalPath('bob')), false);
+  assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'authors.json')), false, 'a serve add never writes authors.json');
   assert.equal(journalOps('alice').length, 1);
-  assert.equal(t.comments[0].author, 'Mallory', 'the payload still supplies the display name');
+  assert.equal(t.comments[0].author, 'alice', 'the display name is the identity, not the payload');
 
   const asBob = await getThreads({ author: 'Bob', authorKey: 'alice' }, serve('bob'));
   assert.ok(!asBob.some((x) => x.id === t.id), "bob does not see alice's drafts");
@@ -348,11 +372,12 @@ test('whoami returns the caller\'s journal, or null without an identity, and not
   await addThread();
   await addThread(BOB);
   const mine = await whoami(ALICE);
-  assert.deepEqual(Object.keys(mine), ['journal']);
+  assert.deepEqual(Object.keys(mine), ['identity', 'journal']);
+  assert.deepEqual(mine.identity, { key: 'alice', name: 'Alice', avatarUrl: '', source: 'payload', isAdmin: false });
   assert.equal(mine.journal?.ops.length, 2);
   assert.equal((await whoami(BOB)).journal?.ops.length, 1);
-  assert.deepEqual(await whoami({}), { journal: null });
-  assert.deepEqual(await whoami({ author: '  ' }), { journal: null });
+  assert.deepEqual(await whoami({}), { identity: null, journal: null });
+  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null });
 });
 
 test('whoami in the window after a publish whose journal reset failed leaves out the ops it published', async () => {
@@ -381,7 +406,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
     (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity',
   );
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false, 'nothing was written');
-  assert.deepEqual(await whoami(ALICE, serve(null)), { journal: null });
+  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null });
 
   const set = await setMode({ author: 'Mallory', authorKey: 'bob', mode: 'collect' }, serve('alice'));
   assert.equal(set.mode, 'collect');
@@ -389,6 +414,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
   assert.equal(fs.existsSync(journalPath('bob')), false, 'the payload key is ignored');
   const seen = (await whoami({ author: 'Mallory', authorKey: 'bob' }, serve('alice'))).journal;
   assert.deepEqual(seen, set);
+  assert.equal((await whoami({}, serve('alice'))).identity?.source, 'header');
 
   const dev = await setMode({ ...BOB, mode: 'collect' }, { mode: 'dev', caller: { identity: 'alice' } });
   assert.equal(dev.mode, 'collect');

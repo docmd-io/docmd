@@ -72,6 +72,8 @@ export interface ApplyOptions {
   authorKey: string;
   authorName: string;
   reviewId: string;
+  /** Skip a delete of a thread's opening comment while others' replies exist, and a `delete-thread` that missed comments (set for serve callers). */
+  enforce?: boolean;
 }
 
 export interface ApplyResult {
@@ -234,6 +236,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
           skip(op, thread ? `comment ${op.commentId} not found` : `thread ${op.threadId} not found`);
           break;
         }
+        if (opts.enforce && idx === 0 && thread.comments.some((c, i) => i > 0 && c.reviewId !== opts.reviewId)) {
+          skip(op, 'opening comment has replies; delete the thread');
+          break;
+        }
         const [removed] = thread.comments.splice(idx, 1);
         changed = true;
         done(op, { before: { comment: removed, index: idx } });
@@ -243,6 +249,11 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
         const idx = threads.findIndex((t) => t.id === op.threadId);
         if (idx < 0) {
           skip(op, `thread ${op.threadId} not found`);
+          break;
+        }
+        const seen = op.commentIds;
+        if (opts.enforce && seen && threads[idx].comments.some((c) => !seen.includes(c.id))) {
+          skip(op, 'thread has new comments');
           break;
         }
         const [removed] = threads.splice(idx, 1);
@@ -301,7 +312,7 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
 // ---------------------------------------------------------------------------
 
 /** `<docsRoot>`: the project root joined with the configured docs source folder. */
-export const docsRootOf = (ctx: ActionContext): string => safePath(ctx.projectRoot, ctx.config?.src || '.');
+export const docsRootOf = (ctx: Pick<ActionContext, 'projectRoot' | 'config'>): string => safePath(ctx.projectRoot, ctx.config?.src || '.');
 const reviewsDir = (ctx: ActionContext) => safePath(docsRootOf(ctx), path.join('.threads', 'reviews'));
 
 const isNotFound = (e: unknown): boolean => (e as NodeJS.ErrnoException)?.code === 'ENOENT';
@@ -407,7 +418,7 @@ export async function publish(
         continue;
       }
       titles[file] = pageTitleOf(content);
-      const result = applyOps(content, fileOps, { authorKey: caller.key, authorName: caller.name, reviewId });
+      const result = applyOps(content, fileOps, { authorKey: caller.key, authorName: caller.name, reviewId, enforce: caller.source === 'header' });
       applied.push(...result.applied);
       skipped.push(...result.skipped);
       results.push({ file, original: content, next: result.content });

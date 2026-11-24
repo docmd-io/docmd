@@ -106,6 +106,34 @@ test('applyOps skips ops whose target is gone, with a reason, and applies the re
   assert.equal(applyOps(PAGE, [missingThread], OPTS).content, PAGE, 'nothing applied leaves the page byte-identical');
 });
 
+test('applyOps with enforce skips an opener delete that has others\' replies and a stale delete-thread; without it nothing is skipped', () => {
+  const page = PAGE; // t-1: c-1 (Bob), c-2 (Bob); t-2: c-3 (Bob)
+  const openerDelete = mk({ kind: 'delete-comment', file: FILE, threadId: 't-1', commentId: 'c-1' });
+  const stale = mk({ kind: 'delete-thread', file: FILE, threadId: 't-1', commentIds: ['c-1'] });
+  const fresh = mk({ kind: 'delete-thread', file: FILE, threadId: 't-1', commentIds: ['c-1', 'c-2'] });
+  const unchecked = mk({ kind: 'delete-thread', file: FILE, threadId: 't-2' });
+  const enforced = { ...OPTS, enforce: true };
+
+  const a = applyOps(page, [openerDelete], enforced);
+  assert.deepEqual(a.skipped, [{ opId: openerDelete.opId, reason: 'opening comment has replies; delete the thread' }]);
+  assert.equal(a.content, page);
+  const b = applyOps(page, [stale], enforced);
+  assert.deepEqual(b.skipped, [{ opId: stale.opId, reason: 'thread has new comments' }]);
+  assert.equal(b.content, page);
+  assert.deepEqual(applyOps(page, [fresh], enforced).skipped, [], 'the caller saw every comment');
+  assert.deepEqual(applyOps(page, [unchecked], enforced).skipped, [], 'a delete-thread without commentIds applies unchecked');
+  for (const op of [openerDelete, stale]) {
+    assert.deepEqual(applyOps(page, [op], OPTS).skipped, [], 'a dev publish never skips for these reasons');
+  }
+
+  // Replies from the same review do not block the opener delete; replies of other reviews do.
+  const own = mk({ kind: 'add-comment', file: FILE, threadId: 't-2', commentId: 'c-own', parentId: null, body: 'mine' });
+  const ownOpener = mk({ kind: 'delete-comment', file: FILE, threadId: 't-2', commentId: 'c-3' });
+  const same = applyOps(page, [own, ownOpener], enforced);
+  assert.deepEqual(same.skipped, []);
+  assert.equal(parser.parseThreadsFromContent(same.content).find((t) => t.id === 't-2')!.comments.map((c) => c.id).join(), 'c-own');
+});
+
 test('applyOps places marks: not in the frontmatter, an existing mark or the threads block; next free occurrence; fences skipped', () => {
   const wrap = (page: string, quote: string) =>
     applyOps(page, [mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor(quote), body: 'x' })], OPTS);
@@ -286,7 +314,7 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   const draftIds = (threads: Thread[]) => threads.flatMap((t) => t.comments).filter((c) => c.draft).map((c) => c.id).sort();
   const beforeView = await getThreads(FILE);
   assert.deepEqual(draftIds(beforeView), [added.comments[0].id, reply.id].sort(), 'only the drafted comments are flagged');
-  assert.ok(beforeView.every((t) => !Object.hasOwn(t, 'draft')), 'no thread carries draft');
+  assert.deepEqual(beforeView.filter((t) => t.draft).map((t) => t.id), [added.id], 'only the drafted thread is flagged');
   await call('threads:set-mode', { ...who, mode: 'collect' });
 
   const result = await publishAction();
@@ -651,11 +679,22 @@ test('serve publishes only for a trusted identity; dev publishes from the payloa
   assert.equal(read(FILE), bytes);
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false, 'no manifest dir, no journal');
 
-  await fill('alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-s', parentId: null, body: 'serve' }]);
-  const served = await publishAction({ author: 'Alice', authorKey: 'bob' }, { mode: 'serve', caller: { identity: 'alice' } });
-  assert.match(read(FILE), /::: comment c-s "Alice" "[0-9-]+" by alice review /);
-  assert.ok(!read(FILE).includes('by bob'));
+  // The payload names someone else: the key and the name come from the identity and authors.json.
+  const authorsFile = path.join(docsRoot, '.threads', 'authors.json');
+  const asAlice: Partial<TestCtx> = { mode: 'serve', caller: { identity: 'alice@example.com' } };
+  const mallory = { author: 'Mallory', authorKey: 'mallory', avatarUrl: 'x' };
+  await (actions['threads:add-thread'] as (p: unknown, c: TestCtx) => Promise<unknown>)({ file: FILE, ...mallory, body: 'from serve' }, ctx(asAlice));
+  assert.equal(fs.existsSync(authorsFile), false, 'a serve add never writes authors.json');
+  const served = await publishAction(mallory, asAlice);
+  assert.match(read(FILE), /::: comment c-[0-9a-f]{8} "alice@example\.com" "[0-9-]+" by alice@example\.com review /);
+  assert.doesNotMatch(read(FILE), /Mallory|by mallory/);
   assert.ok(fs.existsSync(manifestPath(served.reviewId)));
+  fs.mkdirSync(path.dirname(authorsFile), { recursive: true });
+  fs.writeFileSync(authorsFile, JSON.stringify({ 'alice@example.com': { name: 'Alice A', avatarUrl: '' } }));
+  await fill('alice@example.com', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-s', parentId: null, body: 'serve' }]);
+  await publishAction(mallory, asAlice);
+  assert.match(read(FILE), /::: comment c-s "Alice A" "[0-9-]+" by alice@example\.com review /);
+  assert.equal(JSON.parse(fs.readFileSync(safePath(path.dirname(authorsFile), 'authors.json'), 'utf8')).mallory, undefined);
 
   await fill('k-dev', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-d', parentId: null, body: 'dev' }]);
   await publishAction({ author: 'Dev', authorKey: 'k-dev' }, { mode: 'dev' });
@@ -678,6 +717,11 @@ test('an author key or name the parser cannot read back is refused without write
     assert.equal(read(FILE), bytes);
     assert.equal(fs.existsSync(reviewsDir()), false);
   }
+  // Under serve an identity with whitespace is encoded, and the parser reads the key back.
+  await fill('Jane%20Doe', [{ ...op, commentId: 'c-jane' }]);
+  await publishAction({}, { mode: 'serve', caller: { identity: ' Jane Doe ' } });
+  assert.match(read(FILE), /::: comment c-jane "Jane%20Doe" "[0-9-]+" by Jane%20Doe review /);
+  assert.equal(pageThreads(FILE).flatMap((t) => t.comments).find((c) => c.id === 'c-jane')!.authorKey, 'Jane%20Doe');
   for (const key of ['alice', 'a.b-c_d', 'me@example.com', 'ünï']) {
     const ok: NewDraftOp = { ...op, commentId: `c-${slug(key).slice(0, 6)}` };
     await fill(key, [ok]);

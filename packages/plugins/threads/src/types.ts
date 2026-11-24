@@ -14,6 +14,8 @@ export interface Thread {
   resolved_at: string | null;
   comments: Comment[];
   anchor?: { quote: string };
+  /** Set by the overlay: this thread exists only in the caller's draft journal. */
+  draft?: true;
 }
 
 export interface Comment {
@@ -93,7 +95,8 @@ export type DraftOp =
   | { kind: 'add-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; parentId: string | null; body: string }
   | { kind: 'edit-comment'; opId: string; at: string; file: string; threadId: string; commentId: string; body: string }
   | { kind: 'delete-comment'; opId: string; at: string; file: string; threadId: string; commentId: string }
-  | { kind: 'delete-thread'; opId: string; at: string; file: string; threadId: string }
+  /** `commentIds`: the published comments the caller saw; publish skips the op if the thread has gained others. */
+  | { kind: 'delete-thread'; opId: string; at: string; file: string; threadId: string; commentIds?: string[] }
   | { kind: 'resolve-thread'; opId: string; at: string; file: string; threadId: string }
   | { kind: 'toggle-reaction'; opId: string; at: string; file: string; threadId: string; commentId: string; emoji: string };
 
@@ -116,8 +119,9 @@ export interface Journal {
 
 export type DraftMode = 'auto' | 'collect';
 
-/** What `threads:whoami` returns: the caller's journal, or null when the call carries no identity. */
+/** What `threads:whoami` returns: the caller and their journal, both null when the call carries no identity. */
 export interface WhoAmI {
+  identity: Caller | null;
   journal: Journal | null;
 }
 
@@ -149,8 +153,13 @@ export interface PublishResult {
   skipped: Array<{ opId: string; reason: string }>;
 }
 
-/** Who is making a call: the journal key and the display name. */
+/** Who is making a call: the journal key, the display name and where the identity came from. */
 export interface Caller {
   key: string;
   name: string;
+  avatarUrl: string;
+  /** `header`: the core's trusted identity (`docmd serve`); `payload`: the client named itself (dev). */
+  source: 'payload' | 'header';
+  /** True iff the key is in `permissions.admins`; always false for payload callers. */
+  isAdmin: boolean;
 }
