@@ -89,3 +89,15 @@ export function failingReset(real: DraftStore): DraftStore {
     },
   };
 }
+
+/** A ctx whose writeFile fails from the n-th call on (or only on it); the other writes land under `root`. */
+export function failingWrites(root: string, from: number, only = false): Partial<TestCtx> {
+  let n = 0;
+  return {
+    async writeFile(rel: string, content: string) {
+      n++;
+      if (only ? n === from : n >= from) throw new Error('disk full');
+      fs.writeFileSync(safePath(root, rel), content);
+    },
+  };
+}

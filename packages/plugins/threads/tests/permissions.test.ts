@@ -1,5 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, type TempProject } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { canDo } from '../src/plugin/permissions.ts';
@@ -46,6 +49,7 @@ async function seed(opener: string, body: string, replies: Array<[string, string
 }
 
 let tEdit: Thread, tDel: Thread, tOpen: Thread, tSelf: Thread, tStaleOpener: Thread, tStaleThread: Thread;
+let aliceReview: string, bobReview: string, legacyReview: string;
 let tThread: Thread, tBob: Thread, tRes: Thread, tOwn: Thread;
 before(async () => {
   project = tempProject();
@@ -59,6 +63,18 @@ before(async () => {
   tBob = await seed('bob', 'bob only');
   tRes = await seed('alice', 'resolve me');
   tOwn = await seed('alice', 'opening', [['alice', 'my reply']]);
+  // Published reviews to discard: one of alice's, one of bob's, one whose manifest has no author key.
+  const review = async (key: string, body: string) => {
+    await call('add-thread', key, { body, anchor });
+    return (await call('publish-review', key)).reviewId as string;
+  };
+  aliceReview = await review('alice', 'alice review');
+  bobReview = await review('bob', 'bob review');
+  legacyReview = await review('carol', 'legacy review');
+  const legacyFile = path.join(project.root, 'docs', '.threads', 'reviews', `${legacyReview}.json`);
+  const legacy = JSON.parse(fs.readFileSync(safePath(path.dirname(legacyFile), path.basename(legacyFile)), 'utf8'));
+  delete legacy.authorKey;
+  fs.writeFileSync(safePath(path.dirname(legacyFile), path.basename(legacyFile)), JSON.stringify(legacy));
 });
 after(() => project.cleanup());
 
@@ -168,4 +184,17 @@ test('resolve-thread with resolve: author binds the thread\'s first comment; a d
   const mine = await call('get-threads', 'erin');
   assert.equal(mine.find((t: Thread) => t.id === drafted.id).draft, true);
   assert.equal(Object.hasOwn(mine.find((t: Thread) => t.id === tRes.id), 'draft'), false, 'a published thread carries no draft key');
+});
+
+test('discard-review: only the review\'s author or an admin; a manifest without an author key is admin-only; a refusal changes nothing', async () => {
+  const state = (id: string) => JSON.parse(fs.readFileSync(safePath(path.join(project.root, 'docs', '.threads', 'reviews'), `${id}.json`), 'utf8')).state;
+  const pages = () => fs.readFileSync(safePath(project.root, project.file), 'utf8');
+  const bytes = pages();
+  await forbidden(call('discard-review', 'bob', { reviewId: aliceReview }));
+  await forbidden(call('discard-review', 'alice', { reviewId: legacyReview }));
+  assert.deepEqual([state(aliceReview), state(legacyReview), pages()], ['published', 'published', bytes]);
+  assert.deepEqual(await call('discard-review', 'alice', { reviewId: aliceReview }), { discarded: true });
+  await call('discard-review', 'root', { reviewId: bobReview });
+  await call('discard-review', 'root', { reviewId: legacyReview });
+  assert.deepEqual([aliceReview, bobReview, legacyReview].map(state), ['discarded', 'discarded', 'discarded']);
 });

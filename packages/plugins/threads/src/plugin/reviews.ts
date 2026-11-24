@@ -307,6 +307,139 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
   return { content: parser.replaceThreadsBlock(text, threads), applied, skipped };
 }
 
+/** What `applyOps` records in `before`, by op kind. */
+interface Before {
+  thread?: Thread;
+  comment?: Comment;
+  index: number;
+  body: string;
+  edited_at: string | null;
+  resolved: boolean;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  present?: boolean;
+}
+
+export interface ReverseResult {
+  content: string;
+  skipped: Array<{ opId: string; reason: string }>;
+}
+
+/**
+ * Reverse one file's published ops (newest first) from the `before` states the manifest
+ * recorded. Ops whose target is gone are skipped with a reason. Idempotent: a second run
+ * changes nothing, because every step sets a state (removes an id, restores a value,
+ * inserts only when absent) rather than flipping one. `authorName` is the review author's
+ * display name: reactions are stored by name and a manifest op does not carry it.
+ */
+export function reverseOps(content: string, manifestOps: ManifestOp[], opts: { authorName: string }): ReverseResult {
+  const threads: Thread[] = parser.parseThreadsFromContent(content);
+  const skipped: ReverseResult['skipped'] = [];
+  let text = content;
+  let changed = false;
+
+  for (const op of [...manifestOps].reverse()) {
+    const skip = (reason: string): false => {
+      skipped.push({ opId: op.opId, reason });
+      return false;
+    };
+    const thread = threads.find((t) => t.id === op.threadId);
+    const before = op.before as unknown as Before | undefined;
+    switch (op.kind) {
+      case 'add-thread': {
+        if (!thread) {
+          skip(`thread ${op.threadId} not found`);
+          break;
+        }
+        threads.splice(threads.indexOf(thread), 1);
+        text = unwrapThread(text, op.threadId);
+        changed = true;
+        break;
+      }
+      case 'delete-thread': {
+        if (!before?.thread) {
+          skip('no recorded before-state');
+          break;
+        }
+        if (thread) break;
+        const restored: Thread = before.thread;
+        threads.splice(Math.min(before.index, threads.length), 0, restored);
+        if (restored.anchor?.quote && !unsafeQuote(restored.anchor.quote)) text = wrapQuote(text, restored.anchor.quote, restored.id);
+        changed = true;
+        break;
+      }
+      default: {
+        if (!thread) {
+          skip(`thread ${op.threadId} not found`);
+          break;
+        }
+        if (reverseInThread(thread, op, before, opts.authorName, skip)) changed = true;
+      }
+    }
+  }
+
+  if (!changed) return { content, skipped };
+  return { content: parser.replaceThreadsBlock(text, threads), skipped };
+}
+
+/** Reverse one op that works inside an existing thread; true when the thread changed. */
+function reverseInThread(
+  thread: Thread,
+  op: ManifestOp,
+  before: Before | undefined,
+  authorName: string,
+  skip: (reason: string) => false,
+): boolean {
+  if (op.kind === 'resolve-thread') {
+    if (!before) return skip('no recorded before-state');
+    const was = [thread.resolved, thread.resolved_by, thread.resolved_at];
+    thread.resolved = before.resolved;
+    thread.resolved_by = before.resolved_by;
+    thread.resolved_at = before.resolved_at;
+    return was[0] !== before.resolved || was[1] !== before.resolved_by || was[2] !== before.resolved_at;
+  }
+  if (op.kind === 'add-thread' || op.kind === 'delete-thread') return false;
+  const idx = thread.comments.findIndex((c) => c.id === op.commentId);
+  const c = thread.comments[idx];
+  if (op.kind === 'delete-comment') {
+    if (!before?.comment) return skip('no recorded before-state');
+    if (c) return false;
+    thread.comments.splice(Math.min(before.index, thread.comments.length), 0, before.comment);
+    return true;
+  }
+  if (!c) return skip(`comment ${op.commentId} not found`);
+  switch (op.kind) {
+    case 'add-comment': {
+      thread.comments.splice(idx, 1);
+      for (const r of thread.comments) if (r.parent_id === c.id) r.parent_id = c.parent_id;
+      return true;
+    }
+    case 'edit-comment': {
+      if (!before) return skip('no recorded before-state');
+      const was = c.body !== before.body || c.edited_at !== before.edited_at;
+      c.body = before.body;
+      c.edited_at = before.edited_at;
+      return was;
+    }
+    case 'toggle-reaction': {
+      if (typeof before?.present !== 'boolean') return skip('no recorded before-state');
+      c.reactions ??= [];
+      const r = c.reactions.find((x) => x.emoji === op.emoji);
+      const present = !!r && r.authors.includes(authorName);
+      if (present === before.present) return false;
+      if (before.present) {
+        if (r) r.authors.push(authorName);
+        else c.reactions.push({ emoji: op.emoji, authors: [authorName] });
+      } else if (r) {
+        r.authors = r.authors.filter((a) => a !== authorName);
+        if (!r.authors.length) c.reactions = c.reactions.filter((x) => x !== r);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Manifests
 // ---------------------------------------------------------------------------
@@ -353,6 +486,44 @@ export async function readManifest(ctx: ActionContext, id: string): Promise<Revi
 // Publish
 // ---------------------------------------------------------------------------
 
+/**
+ * Write every changed file, then run `finalWrite` (the manifest). A failure puts the files
+ * already written back; files that cannot be restored are named in a `threads/invalid` error.
+ */
+async function writeAllOrNothing(
+  ctx: ActionContext,
+  results: Array<{ file: string; original: string; next: string }>,
+  finalWrite: () => Promise<void>,
+  label: 'publish' | 'discard',
+): Promise<void> {
+  const written: typeof results = [];
+  try {
+    for (const r of results) {
+      if (r.next === r.original) continue;
+      written.push(r);
+      await ctx.writeFile(r.file, r.next);
+    }
+    await finalWrite();
+  } catch (e) {
+    const stuck: string[] = [];
+    for (const r of written.reverse()) {
+      try {
+        await ctx.writeFile(r.file, r.original);
+      } catch {
+        stuck.push(r.file);
+      }
+    }
+    if (stuck.length) {
+      throw new ThreadsError(
+        'invalid',
+        `${label} failed on the server (${e instanceof Error ? e.message : String(e)}) and these files could not be restored, check them: ${stuck.join(', ')}`,
+        { cause: e },
+      );
+    }
+    throw e;
+  }
+}
+
 export interface PublishDeps {
   store: DraftStore;
   /** One lock per docs root: publishes of different callers never interleave. */
@@ -384,7 +555,13 @@ export async function publish(
 ): Promise<PublishResult> {
   assertWritable(caller);
   return lock.withLock(async () => {
-    const journal = await store.load(caller.key);
+    // The journal's review was published, then discarded, but its reset never finished: finish it
+    // now so only ops drafted since are published (under the new id), never the discarded ones.
+    let journal = await store.load(caller.key);
+    if ((await readManifest(ctx, journal.review.id))?.state === 'discarded') {
+      await finishEarlierPublish(ctx, store, caller.key, newId);
+      journal = await store.load(caller.key);
+    }
     if (!journal.ops.length) throw new ThreadsError('empty-review', 'there is nothing to publish');
     const ops = journal.ops;
     let reviewId = journal.review.id;
@@ -426,42 +603,17 @@ export async function publish(
     applied.sort((a, b) => (order.get(a.opId) ?? 0) - (order.get(b.opId) ?? 0));
 
     // Write everything or nothing: a failure restores the files already written.
-    const written: typeof results = [];
-    try {
-      for (const r of results) {
-        if (r.next === r.original) continue;
-        written.push(r);
-        await ctx.writeFile(r.file, r.next);
-      }
-      await writeManifest(ctx, {
-        version: 1,
-        id: reviewId,
-        authorKey: caller.key,
-        authorName: caller.name,
-        title: defaultTitle(caller.name, applied.length ? applied : ops, titles),
-        state: 'published',
-        publishedAt: new Date(now()).toISOString(),
-        ops: applied,
-        skipped,
-      });
-    } catch (e) {
-      const stuck: string[] = [];
-      for (const r of written.reverse()) {
-        try {
-          await ctx.writeFile(r.file, r.original);
-        } catch {
-          stuck.push(r.file);
-        }
-      }
-      if (stuck.length) {
-        throw new ThreadsError(
-          'invalid',
-          `publish failed on the server (${e instanceof Error ? e.message : String(e)}) and these files could not be restored, check them: ${stuck.join(', ')}`,
-          { cause: e },
-        );
-      }
-      throw e;
-    }
+    await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
+      version: 1,
+      id: reviewId,
+      authorKey: caller.key,
+      authorName: caller.name,
+      title: defaultTitle(caller.name, applied.length ? applied : ops, titles),
+      state: 'published',
+      publishedAt: new Date(now()).toISOString(),
+      ops: applied,
+      skipped,
+    }), 'publish');
 
     // Drop what was published (ops drafted meanwhile stay) and start a fresh review.
     const published = new Set(ops.map((o) => o.opId));
@@ -478,7 +630,8 @@ export async function publish(
  * drop the ops the manifest recorded (applied and skipped) and rotate the review id, so
  * ops still in the journal stand for what is really pending and later edits of the
  * published comments become real edit/delete ops. A no-op when the journal's review has no
- * published manifest.
+ * manifest; finishes the reset for a published or discarded one
+ * (a discard must not let the old ops be applied again).
  */
 export async function finishEarlierPublish(
   ctx: ActionContext,
@@ -487,11 +640,73 @@ export async function finishEarlierPublish(
   newId: (prefix: string) => string = (prefix) => prefix + crypto.randomBytes(4).toString('hex'),
 ): Promise<void> {
   const manifest = await readManifest(ctx, (await store.load(key)).review.id);
-  if (manifest?.state !== 'published' || manifest.authorKey !== key) return;
+  if (!manifest || manifest.authorKey !== key) return;
   const done = new Set([...manifest.ops.map((o) => o.opId), ...manifest.skipped.map((x) => x.opId)]);
   await store.transact(key, (j) => {
     if (j.review.id !== manifest.id) return;
     j.ops = j.ops.filter((o) => !done.has(o.opId));
     j.review.id = newId('r-');
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Discard
+// ---------------------------------------------------------------------------
+
+export interface DiscardDeps {
+  store: DraftStore;
+  /** The same per-docs-root lock `publish` uses. */
+  lock: Lock;
+  now?: () => number;
+}
+
+/**
+ * Take a review back. A published review is reversed from its manifest as a forward change
+ * (files first, all or nothing, then the manifest is marked `discarded`); the caller's own
+ * open review is only emptied. Runs under the same lock as `publish`.
+ */
+export async function discard(
+  caller: Caller,
+  ctx: ActionContext,
+  reviewId: string,
+  { store, lock, now = Date.now }: DiscardDeps,
+): Promise<{ discarded: true }> {
+  return lock.withLock(async () => {
+    const manifest = await readManifest(ctx, reviewId);
+    if (!manifest) {
+      const journal = await store.load(caller.key);
+      if (journal.review.id !== reviewId) throw new ThreadsError('not-found', `review ${reviewId} not found`);
+      await store.transact(caller.key, (j) => {
+        if (j.review.id === reviewId) j.ops = [];
+      });
+      return { discarded: true } as const;
+    }
+    if (manifest.state === 'discarded') throw new ThreadsError('invalid', `review ${reviewId} is already discarded`);
+
+    const files = [...new Set(manifest.ops.map((o) => o.file))];
+    const discardSkipped: Array<{ opId: string; reason: string }> = [];
+    const results: Array<{ file: string; original: string; next: string }> = [];
+    for (const file of files) {
+      const fileOps = manifest.ops.filter((o) => o.file === file);
+      let content: string;
+      try {
+        content = await ctx.readFile(file);
+      } catch {
+        for (const o of fileOps) discardSkipped.push({ opId: o.opId, reason: `file ${file} not readable` });
+        continue;
+      }
+      const result = reverseOps(content, fileOps, { authorName: manifest.authorName });
+      discardSkipped.push(...result.skipped);
+      results.push({ file, original: content, next: result.content });
+    }
+
+    await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
+      ...manifest,
+      state: 'discarded',
+      discardedAt: new Date(now()).toISOString(),
+      discardedBy: caller.key,
+      discardSkipped,
+    }), 'discard');
+    return { discarded: true } as const;
   });
 }

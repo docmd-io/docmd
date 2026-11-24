@@ -32,6 +32,8 @@ add('resolve-thread', { threadAuthor: 'alice' }, everyone(true, true, true), 'an
 add('resolve-thread', { threadAuthor: 'alice' }, everyone(true, false, true), 'author');
 add('resolve-thread', { threadAuthor: null }, everyone(false, false, true), 'author');
 add('resolve-thread', { threadAuthor: 'bob', drafted: true }, everyone(true, true, true), 'author');
+add('discard-review', { reviewAuthor: 'alice' }, everyone(true, false, true));
+add('discard-review', { reviewAuthor: null }, everyone(false, false, true));
 // upsert-author only ever touches the caller's own entry: admins are no exception
 add('upsert-author', {}, everyone(true, true, true));
 add('upsert-author', { authorKey: 'alice' }, everyone(true, false, false));

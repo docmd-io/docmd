@@ -142,10 +142,14 @@ export interface ReviewManifest {
   authorKey: string;
   authorName: string;
   title: string;
-  state: 'published';
+  state: 'published' | 'discarded';
   publishedAt: string;
+  discardedAt?: string;
+  discardedBy?: string;
   ops: ManifestOp[];
   skipped: Array<{ opId: string; reason: string }>;
+  /** Ops discard could not reverse (target gone since the publish). */
+  discardSkipped?: Array<{ opId: string; reason: string }>;
 }
 
 export interface PublishResult {

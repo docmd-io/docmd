@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, failingReset, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, failingReset, failingWrites, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
 import { applyOps, defaultTitle, finishEarlierPublish, pageTitleOf, publish } from '../src/plugin/reviews.ts';
@@ -402,17 +402,6 @@ test('ops on an unreadable file or a missing target are skipped and listed; the 
   assert.equal(m.title, 'Comments by Alice: 1 comment on docmd _playground', 'skipped ops are not counted');
 });
 
-/** A ctx whose writeFile fails from the n-th call on (or only on it). */
-function failingWrites(from: number, only = false): Partial<TestCtx> {
-  let n = 0;
-  return {
-    async writeFile(rel: string, content: string) {
-      n++;
-      if (only ? n === from : n >= from) throw new Error('disk full');
-      fs.writeFileSync(safePath(project.root, rel), content);
-    },
-  };
-}
 const twoPages = (): NewDraftOp[] => [
   { kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-1', parentId: null, body: 'one' },
   { kind: 'add-thread', file: OTHER, threadId: 't-oth', commentId: 'c-oth', anchor: anchor('Target sentence'), body: 'two' },
@@ -422,7 +411,7 @@ test('a write failing on the second page restores the first, writes no manifest 
   await fill('k-alice', twoPages());
   const bytes = { [FILE]: read(FILE), [OTHER]: read(OTHER) };
   const journalBytes = fs.readFileSync(safePath(path.dirname(journalFile('k-alice')), path.basename(journalFile('k-alice'))));
-  await assert.rejects(publish(ALICE, ctx(failingWrites(2, true)) as never, deps()), /disk full/);
+  await assert.rejects(publish(ALICE, ctx(failingWrites(project.root, 2, true)) as never, deps()), /disk full/);
   assert.equal(read(FILE), bytes[FILE]);
   assert.equal(read(OTHER), bytes[OTHER]);
   assert.deepEqual(manifests(), []);
@@ -442,7 +431,7 @@ test('a write failing on the second page restores the first, writes no manifest 
 
 test('when the restore fails too, the error names the files and keeps the first failure as cause', async () => {
   await fill('k-alice', twoPages());
-  await assert.rejects(publish(ALICE, ctx(failingWrites(2)) as never, deps()), (e: unknown) => {
+  await assert.rejects(publish(ALICE, ctx(failingWrites(project.root, 2)) as never, deps()), (e: unknown) => {
     assert.ok(e instanceof ThreadsError);
     assert.match(e.message, /could not be restored.*docs\/index\.md/);
     assert.match(String((e.cause as Error).message), /disk full/);

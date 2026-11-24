@@ -6,7 +6,7 @@ import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { lockFor } from './lock.js';
 import { getOptions } from './config.js';
-import { docsRootOf, finishEarlierPublish, publish } from './reviews.js';
+import { discard, docsRootOf, finishEarlierPublish, publish, readManifest } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
@@ -68,6 +68,7 @@ interface Payload {
   parentId?: string | null;
   body: string;
   emoji: string;
+  reviewId: string;
   [key: string]: unknown;
 }
 
@@ -332,4 +333,12 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
   'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
     publish(await resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
+
+  /** Take a review back: reverse a published one from its manifest, or empty the caller's open one. */
+  'threads:discard-review': async (payload, ctx): Promise<{ discarded: true }> => {
+    const caller = await begin(ctx, payload, 'threads:discard-review', ['reviewId']);
+    const manifest = await readManifest(ctx, payload.reviewId);
+    assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
+    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) });
+  },
 };
