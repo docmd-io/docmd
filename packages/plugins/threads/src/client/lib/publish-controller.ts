@@ -26,6 +26,10 @@ export interface PublishControllerDeps {
 export interface PublishView {
   state: WidgetState;
   mode: DraftMode;
+  /** The open review's id while the journal is known, else null. */
+  reviewId: string | null;
+  /** Unpublished operations in the open review; 0 while unknown. */
+  pendingCount: number;
   /** The countdown ring, while one is running: re-created per `updatedAt`, started `delayMs` into the countdown. */
   ring: { key: string; delayMs: number; totalMs: number } | null;
 }
@@ -149,6 +153,8 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
           t,
         }),
         mode: mode(),
+        pendingCount: pending(),
+        reviewId: known ? (journal?.review.id ?? null) : null,
         ring: timer && remaining !== null && ringKey ? { key: ringKey, delayMs: ringDelay, totalMs: timer.totalMs() } : null,
       };
     },

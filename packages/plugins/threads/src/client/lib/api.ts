@@ -166,3 +166,8 @@ export function setMode(mode: DraftMode): Promise<Journal> {
 export function publishReview(): Promise<PublishResult> {
   return call('threads:publish-review', { ...getIdentityPayload() });
 }
+
+/** Take a review back: reverse a published one, or empty the caller's open one. */
+export async function discardReview(reviewId: string): Promise<void> {
+  await call('threads:discard-review', { ...getIdentityPayload(), reviewId });
+}

@@ -107,6 +107,17 @@ test('refresh: the count is the ops of the latest whoami; no journal is 0', asyn
   assert.ok(changes() >= 3, 'every refresh asks for a render');
 });
 
+test('view.reviewId is the journal review id after a refresh, null before one and after a failed one', async () => {
+  const { c } = build();
+  assert.equal(c.view().reviewId, null);
+  s.journal = journal(2);
+  await c.refresh();
+  assert.equal(c.view().reviewId, 'r-1');
+  s.whoamiError = new Error('socket closed');
+  await c.refresh();
+  assert.equal(c.view().reviewId, null);
+});
+
 test('refresh: a rejected whoami shows …, disables Publish and shows the error text or the load-failed line', async () => {
   const { c } = build();
   s.journal = journal(2);

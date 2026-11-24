@@ -60,6 +60,7 @@ export class ThreadsApp extends LitElement {
     document.removeEventListener('mouseup', this.handleMouseUp);
     document.removeEventListener('mousedown', this.handleOutsidePopoverClick);
     document.removeEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
+    document.removeEventListener('reviews-changed', this.handleReviewsChanged);
     this.publishMount.stop();
   }
 
@@ -69,6 +70,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
+    document.addEventListener('reviews-changed', this.handleReviewsChanged);
 
     // Always initialize sidebar column so the panel is available for FAB toggle
     this.initSidebarColumn();
@@ -330,6 +332,12 @@ export class ThreadsApp extends LitElement {
       this.loadThreads();
       this.injectNewThreadButton();
     });
+  };
+
+  /** A review was discarded: the reload refreshes everything that shows it, so nobody else needs to. */
+  private handleReviewsChanged = (e: Event): void => {
+    e.preventDefault();
+    void this.loadThreads();
   };
 
   private async loadThreads(): Promise<void> {

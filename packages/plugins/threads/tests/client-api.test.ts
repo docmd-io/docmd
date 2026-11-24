@@ -119,6 +119,14 @@ test('setMode and publishReview send the identity, setMode with the mode', async
   assert.deepEqual(calls[1], { action: 'threads:publish-review', payload: stored });
 });
 
+test('discardReview sends the identity and the review id and turns a forbidden rejection into a ThreadsClientError', async () => {
+  identify();
+  await api.discardReview('r-1');
+  assert.deepEqual(calls[0], { action: 'threads:discard-review', payload: { ...stored, reviewId: 'r-1' } });
+  reject = new Error('threads/forbidden: not your review');
+  await assert.rejects(api.discardReview('r-1'), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden' && e.text === 'not your review');
+});
+
 test('a threads/<code>: <text> rejection becomes a ThreadsClientError; any other rejection passes through', async () => {
   reject = new Error('threads/invalid: first line\nsecond line');
   await assert.rejects(api.publishReview(), (e: unknown) => {

@@ -52,5 +52,8 @@
   "skippedOpsOne": "{n} change could not be applied",
   "modeFailed": "Could not change publishing mode",
   "loadFailed": "Could not load your comments",
-  "draft": "Draft"
+  "draft": "Draft",
+  "discardDrafts": "Discard",
+  "discardDraftsConfirm": "Discard your unpublished comments ({n})? This cannot be undone.",
+  "discardFailed": "Could not discard"
 }

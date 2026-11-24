@@ -52,5 +52,8 @@
   "skippedOpsOne": "{n} 项更改无法应用",
   "modeFailed": "无法更改发布模式",
   "loadFailed": "无法加载你的评论",
-  "draft": "草稿"
+  "draft": "草稿",
+  "discardDrafts": "丢弃",
+  "discardDraftsConfirm": "丢弃你的未发布评论（{n}）？此操作无法撤销。",
+  "discardFailed": "无法丢弃"
 }

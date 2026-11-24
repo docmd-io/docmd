@@ -59,6 +59,9 @@ const defaults: Record<string, string> = {
   modeFailed: 'Could not change publishing mode',
   loadFailed: 'Could not load your comments',
   draft: 'Draft',
+  discardDrafts: 'Discard',
+  discardDraftsConfirm: 'Discard your unpublished comments ({n})? This cannot be undone.',
+  discardFailed: 'Could not discard',
 };
 
 /**
