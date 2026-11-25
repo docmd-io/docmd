@@ -18,11 +18,20 @@ const identity = { author: "TestUser", authorKey: "testuser" };
 const manifestNames = (): string[] => (fs.existsSync(manifests) ? fs.readdirSync(manifests).sort() : []);
 let manifestsBefore: string[] = [];
 
+/** Empty the caller's open review, so a test starts from a journal with no ops whatever ran before it. */
+async function emptyOpenReview(page: Page): Promise<void> {
+  await page.evaluate(async (id) => {
+    const { journal } = await docmd.call("threads:whoami", id);
+    if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
+  }, identity);
+}
+
 async function load(page: Page): Promise<void> {
   await page.goto("/");
   await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
   await setAuthor(page, "TestUser");
   await cleanThreads(page);
+  await emptyOpenReview(page);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 }
@@ -54,10 +63,7 @@ test.beforeEach(() => {
 test.afterEach(async ({ page }) => {
   if (page.url() === "about:blank") return;
   // Leave the site as found: no open review, no manifest of ours, the page markdown restored.
-  await page.evaluate(async (id) => {
-    const { journal } = await docmd.call("threads:whoami", id);
-    if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
-  }, identity);
+  await emptyOpenReview(page);
   for (const name of manifestNames()) if (!manifestsBefore.includes(name)) fs.rmSync(safePath(manifests, name), { force: true });
   await cleanThreads(page);
 });
