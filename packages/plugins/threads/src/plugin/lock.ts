@@ -24,7 +24,6 @@ export function lockFor(docsRoot: string): Lock {
 
 /** What a publish or discard tells the sync layer (a git implementation builds the commit from it). */
 export interface PublishMeta {
-  reviewId: string;
   authorKey: string;
   authorName: string;
   /** What the change is: a published review or a discard (default publish). */

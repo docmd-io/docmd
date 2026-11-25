@@ -127,10 +127,16 @@ test('two concurrent publishes commit in call order through the shared docs-root
     const verbs: string[] = [];
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
+    let annAtPush!: () => void;
+    const reachedPush = new Promise<void>((r) => (annAtPush = r));
+    let bobLoaded = false;
     const canned = (who: string): ExecFile => async (_f, args) => {
       const verb = args.find((a) => ['fetch', 'reset', 'add', 'commit', 'push'].includes(a))!;
       verbs.push(`${who}:${verb}`);
-      if (who === 'ann' && verb === 'push') await gate;
+      if (who === 'ann' && verb === 'push') {
+        annAtPush();
+        await gate;
+      }
       return OK;
     };
     const people = [['ann', 'Ann'], ['bob', 'Bob']] as const;
@@ -139,13 +145,17 @@ test('two concurrent publishes commit in call order through the shared docs-root
       const ctx = ctxIn(project.root, `${key}@x.io`, GIT);
       await actions['threads:add-thread']({ file: project.file, body: `by ${key}`, anchor: ANCHOR }, ctx);
       const caller = { key: `${key}@x.io`, name, avatarUrl: '', source: 'header' as const, isAdmin: false };
-      const store = createDraftStore(path.join(project.root, 'docs'), { now: Date.now, defaultMode: () => 'collect' });
+      const real = createDraftStore(path.join(project.root, 'docs'), { now: Date.now, defaultMode: () => 'collect' });
+      // bob's first store read is the first thing his publish does under the lock
+      const store = key === 'bob' ? { ...real, load: (k: string) => ((bobLoaded = true), real.load(k)) } : real;
       jobs.push(publish(caller, ctx, { store, sync: getSync(ctx, { execFile: canned(key) }) }));
     }
-    for (let i = 0; i < 50; i++) await new Promise((r) => setImmediate(r));
-    assert.ok(!verbs.some((v) => v.startsWith('bob:')), 'bob has not started while ann waits on her push');
+    await reachedPush;
+    assert.equal(bobLoaded, false, 'bob has not started while ann waits on her push');
+    assert.ok(!verbs.some((v) => v.startsWith('bob:')));
     release();
     await Promise.all(jobs);
+    assert.equal(bobLoaded, true);
     assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'reset', 'add', 'commit', 'push', 'fetch', 'reset', 'add', 'commit', 'push']);
     assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob']);
   } finally {
@@ -205,9 +215,10 @@ test('discard is one forward commit by the discarding caller; an open review mak
   const ctx = gitCtx();
   await draft(ctx, 'Reword this.');
   await actions['threads:update-review']({ title: 'Wording' }, ctx);
-  const { reviewId } = await pub(ctx, realExec);
+  // through the handlers, with the real execFile: the remote is a local path
+  const { reviewId } = await actions['threads:publish-review']({}, ctx);
   const before = commits(trio.remote);
-  await dis(ctx, reviewId, realExec);
+  await actions['threads:discard-review']({ reviewId }, ctx);
 
   assert.equal(commits(trio.remote), before + 1);
   const [a, c, s] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);

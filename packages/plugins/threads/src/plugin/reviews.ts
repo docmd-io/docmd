@@ -695,7 +695,7 @@ export async function publish(
         return { title };
       },
       {
-        reviewId, authorKey: caller.key, authorName: caller.name, kind: 'publish',
+        authorKey: caller.key, authorName: caller.name, kind: 'publish',
         files, manifest: manifestFileOf(ctx, reviewId),
       },
     );
@@ -774,10 +774,14 @@ export async function discard(
     const files = [...new Set(manifest.ops.map((o) => o.file))];
     await sync.publishWithRetry(
       async () => {
+        // With git the checkout was just reset to the remote head: read the manifest as it is there.
+        const current = await readManifest(ctx, reviewId);
+        if (!current) throw new ThreadsError('not-found', `review ${reviewId} not found`);
+        if (current.state === 'discarded') throw new ThreadsError('invalid', `review ${reviewId} is already discarded`);
         const discardSkipped: Array<{ opId: string; reason: string }> = [];
         const results: Array<{ file: string; original: string; next: string }> = [];
         for (const file of files) {
-          const fileOps = manifest.ops.filter((o) => o.file === file);
+          const fileOps = current.ops.filter((o) => o.file === file);
           let content: string;
           try {
             content = await ctx.readFile(file);
@@ -785,21 +789,21 @@ export async function discard(
             for (const o of fileOps) discardSkipped.push({ opId: o.opId, reason: `file ${file} not readable` });
             continue;
           }
-          const result = reverseOps(content, fileOps, { authorName: manifest.authorName });
+          const result = reverseOps(content, fileOps, { authorName: current.authorName });
           discardSkipped.push(...result.skipped);
           results.push({ file, original: content, next: result.content });
         }
 
         await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
-          ...manifest,
+          ...current,
           state: 'discarded',
           discardedAt: new Date(now()).toISOString(),
           discardedBy: caller.key,
           discardSkipped,
         }), 'discard');
-        return { title: manifest.title };
+        return { title: current.title };
       },
-      { reviewId, authorKey: caller.key, authorName: caller.name, kind: 'discard', files, manifest: manifestFileOf(ctx, reviewId) },
+      { authorKey: caller.key, authorName: caller.name, kind: 'discard', files, manifest: manifestFileOf(ctx, reviewId) },
     );
     return { discarded: true } as const;
   });

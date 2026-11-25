@@ -75,10 +75,10 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
   };
 
   /** A coded error for the client, with no remote or path in it; the raw error stays in `cause` and is logged with credentials redacted. */
-  const fail = (what: string, cause: unknown) => {
+  const fail = (what: string, cause: unknown, after = '') => {
     const raw = cause instanceof Error ? cause.message : String(cause);
     console.error(`[threads] git ${what} failed: ${raw.replace(/\/\/[^@/\s]*@/g, '//***@')}`);
-    return new ThreadsError('push-failed', `could not ${what} the remote branch ${branch}; the review is unchanged, try again`, { cause });
+    return new ThreadsError('push-failed', `could not ${what} the remote branch ${branch}${after}; the review is unchanged, try again`, { cause });
   };
 
   return {
@@ -114,7 +114,7 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
           await resetQuietly(meta);
         }
       }
-      throw fail(`push ${MAX_ATTEMPTS} times to`, lastError);
+      throw fail('push to', lastError, ` after ${MAX_ATTEMPTS} attempts`);
     },
   };
 }

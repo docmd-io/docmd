@@ -64,6 +64,8 @@ test('invalid values throw threads/config', () => {
     [{ git: {} }, /plugins\.threads\.git\.branch must be a non-empty string/],
     [{ git: { branch: '  ' } }, /plugins\.threads\.git\.branch must be a non-empty string/],
     [{ git: { branch: 3 } }, /plugins\.threads\.git\.branch must be a non-empty string/],
+    [{ git: { branch: '--force' } }, /plugins\.threads\.git\.branch must not start with "-"/],
+    [{ git: { branch: 'm', remote: '--upload-pack=x' } }, /plugins\.threads\.git\.remote must not start with "-"/],
     [{ git: { branch: 'm', remote: '' } }, /plugins\.threads\.git\.remote must be a non-empty string/],
     [{ git: { branch: 'm', skipDeployMarker: ' ' } }, /plugins\.threads\.git\.skipDeployMarker must be a non-empty string/],
     [{ git: { branch: 'm', committer: 'bot' } }, /plugins\.threads\.git\.committer must be an object/],

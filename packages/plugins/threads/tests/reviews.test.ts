@@ -239,7 +239,7 @@ test('toggle ops set the state deriveTargets computed from the first read, so a 
   ];
   const targets = deriveTargets(PAGE, ops, OPTS.authorName);
   assert.deepEqual(targets, {
-    [ops[0].opId]: !parser.parseThreadsFromContent(PAGE).find((t) => t.id === 't-1')!.resolved,
+    [ops[0].opId]: true, // t-1 is open in PAGE, so resolving it targets resolved
     [ops[1].opId]: true,
     [ops[2].opId]: false,
     [ops[3].opId]: true,

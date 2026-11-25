@@ -45,6 +45,13 @@ function nonEmptyString(obj: Record<string, unknown>, path: string, key: string,
   return v as string;
 }
 
+/** A value that goes into a git argument: a leading dash would be read as an option. */
+function gitArgument(obj: Record<string, unknown>, key: string, def?: string): string {
+  const v = nonEmptyString(obj, 'git', key, def);
+  if (v.trim().startsWith('-')) bad(`git.${key}`, 'must not start with "-"');
+  return v;
+}
+
 function optionalBoolean(obj: Record<string, unknown>, key: string, def: boolean): boolean {
   const v = obj[key] ?? def;
   if (typeof v !== 'boolean') bad(key, 'must be a boolean');
@@ -84,8 +91,8 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
     const g = section(raw, 'git');
     const c = g.committer === undefined ? {} : isObject(g.committer) ? g.committer : bad('git.committer', 'must be an object');
     git = {
-      branch: nonEmptyString(g, 'git', 'branch'),
-      remote: nonEmptyString(g, 'git', 'remote', 'origin'),
+      branch: gitArgument(g, 'branch'),
+      remote: gitArgument(g, 'remote', 'origin'),
       skipDeployMarker: nonEmptyString(g, 'git', 'skipDeployMarker', '[skip ci]'),
       committer: {
         name: nonEmptyString(c, 'git.committer', 'name', 'docmd threads'),
