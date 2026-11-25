@@ -234,7 +234,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   /** Name and/or summarize the caller's open review (`null` clears a field, an absent key keeps it); the manifest takes them at publish. */
   'threads:update-review': async (payload, ctx): Promise<Journal> => {
     const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
-    const fields = parseReviewFields('threads:update-review', payload);
+    const fields = parseReviewFields(payload);
     return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, fields);
   },
 

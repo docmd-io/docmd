@@ -133,7 +133,11 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   await page.getByTestId("tpw-publish").click();
   await expect(entry).toBeVisible();
   await expect.poll(() => draftedIds(page), { message: "the journal after publishing" }).toEqual([]);
-  expect(await page.evaluate(async (id) => (await docmd.call("threads:whoami", id)).journal.review.summary, identity)).toBeNull();
+  // The next review starts without a summary: with a new draft the form is back, and its field is empty.
+  await addThread(page, quote, "next review");
+  await page.evaluate(() => (document.querySelector("threads-publish-widget") as unknown as { refresh(): Promise<void> }).refresh());
+  await expect(page.getByTestId("tpw-summary")).toHaveValue("");
+  await emptyOpenReview(page);
   await served(page, "/", `data-thread-id="${threadId}"`);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });

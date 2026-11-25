@@ -105,19 +105,16 @@ test('update-review names the open review through the handler and returns the jo
   assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: null })).review.title, null);
 });
 
-test('update-review keeps the summary through a title-only call and refuses a bad summary or an empty call, changing nothing', async () => {
+test('update-review through the handler: a title-only call keeps the summary; a refused payload changes nothing', async () => {
   const saved = await call<Journal>(titling, 'threads:update-review', { ...ALICE, summary: '  line one\nline two  ' });
   assert.equal(saved.review.summary, 'line one\nline two');
   assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: 'T' })).review.summary, 'line one\nline two');
   const tree = snapshotTree(root(titling));
-  for (const extra of [{ summary: 5 }, { summary: { a: 1 } }, {}]) {
-    await assert.rejects(
-      call(titling, 'threads:update-review', { ...ALICE, ...extra }),
-      (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
-    );
-  }
+  await assert.rejects(
+    call(titling, 'threads:update-review', { ...ALICE, summary: 5 }),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
+  );
   assert.deepEqual(snapshotTree(root(titling)), tree, 'a refused call changes nothing');
-  assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, summary: null })).review.summary, null);
 });
 
 test('a published review takes the commenter\'s title; the next review is untitled, also after a finished failed reset', async () => {

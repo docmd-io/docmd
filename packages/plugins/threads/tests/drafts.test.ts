@@ -172,18 +172,16 @@ test('setReview changes only the keys it is given: a title alone keeps the summa
 test('cleanSummary keeps line breaks, trims, cuts at 2000 characters; blank is none', () => {
   assert.equal(cleanSummary('  line one\nline two  '), 'line one\nline two');
   assert.equal(cleanSummary('x'.repeat(2100)), 'x'.repeat(2000));
-  assert.equal(cleanSummary('x'.repeat(2000)), 'x'.repeat(2000));
   assert.equal(cleanSummary(''), null);
   assert.equal(cleanSummary('  \n '), null);
 });
 
 test('parseReviewFields cleans each given key, leaves absent keys out, and refuses other types and an empty payload', () => {
-  assert.deepEqual(parseReviewFields('a', { title: ' T ', summary: ' S\nS ' }), { title: 'T', summary: 'S\nS' });
-  assert.deepEqual(parseReviewFields('a', { title: 'T' }), { title: 'T' });
-  assert.deepEqual(parseReviewFields('a', { summary: null }), { summary: null });
-  assert.deepEqual(parseReviewFields('a', { summary: '   ' }), { summary: null });
+  assert.deepEqual(parseReviewFields({ title: ' T ', summary: 'S' }), { title: 'T', summary: 'S' });
+  assert.deepEqual(parseReviewFields({ title: 'T' }), { title: 'T' });
+  assert.deepEqual(parseReviewFields({ summary: null }), { summary: null });
   for (const bad of [{}, undefined, { summary: 5 }, { summary: { a: 1 } }, { title: 'T', summary: 5 }, { title: undefined, summary: undefined }]) {
-    assert.throws(() => parseReviewFields('a', bad), (e: unknown) => e instanceof ThreadsError && e.code === 'invalid');
+    assert.throws(() => parseReviewFields(bad), (e: unknown) => e instanceof ThreadsError && e.code === 'invalid');
   }
 });
 

@@ -63,7 +63,7 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
     await git([
       '-c', `user.name=${committer.name}`, '-c', `user.email=${committer.email}`,
       'commit', `--author=${ident(meta.authorName)} <${ident(email)}>`, '-m', subject,
-      ...(meta.kind !== 'discard' && applied.summary ? ['-m', applied.summary] : []),
+      ...(applied.summary ? ['-m', applied.summary] : []),
     ]);
   };
 

@@ -56,16 +56,16 @@ export const cleanSummary = (summary: string): string | null => summary.trim().s
  * The `title` / `summary` keys of an update-review payload, cleaned. A key that is absent stays absent;
  * `null` or a blank string clears; any other type, or neither key, is `threads/invalid`.
  */
-export function parseReviewFields(action: string, payload: unknown): { title?: string | null; summary?: string | null } {
+export function parseReviewFields(payload: unknown): { title?: string | null; summary?: string | null } {
   const input = (payload ?? {}) as Record<string, unknown>;
   const out: { title?: string | null; summary?: string | null } = {};
   for (const [field, clean] of [['title', cleanTitle], ['summary', cleanSummary]] as const) {
     const value = input[field];
     if (value === undefined) continue;
-    if (value !== null && typeof value !== 'string') throw new ThreadsError('invalid', `${action}: ${field} must be a string or null`);
+    if (value !== null && typeof value !== 'string') throw new ThreadsError('invalid', `threads:update-review: ${field} must be a string or null`);
     out[field] = value === null ? null : clean(value);
   }
-  if (!('title' in out) && !('summary' in out)) throw new ThreadsError('invalid', `${action}: title or summary is required`);
+  if (!('title' in out) && !('summary' in out)) throw new ThreadsError('invalid', `threads:update-review: title or summary is required`);
   return out;
 }
 
@@ -521,7 +521,9 @@ export async function readManifest(ctx: ActionContext, id: string): Promise<Revi
   }
   try {
     const m = JSON.parse(text);
-    return m && m.version === 1 && typeof m.id === 'string' && Array.isArray(m.ops) ? (m as ReviewManifest) : null;
+    if (!m || m.version !== 1 || typeof m.id !== 'string' || !Array.isArray(m.ops)) return null;
+    // A manifest written before summaries existed has none.
+    return { ...m, summary: typeof m.summary === 'string' ? m.summary : null } as ReviewManifest;
   } catch {
     return null;
   }
