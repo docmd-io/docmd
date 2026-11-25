@@ -42,13 +42,15 @@ export class ThreadsApp extends LitElement {
   private pendingBlockEl: HTMLElement | null = null;
   private deleteTarget: { type: 'thread' | 'comment'; id: string; threadId?: string } | null = null;
   private inlineEditorEl: HTMLElement | null = null;
+  /** The drawer panel: the review section mounts into it. Null when no panel exists (nothing is mounted then). */
+  private panelEl: HTMLElement | null = null;
   private publishMount = createPublishMount<ThreadsPublishWidget>({
     isLive: () => docmd.isLive!(), // mountPublishWidget guards docmd and isLive before start()
     isConnected: () => this.isConnected,
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
       // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
-      document.querySelector('.tc-panel')!.appendChild(el);
+      this.panelEl?.appendChild(el);
       void el.refresh();
       return el;
     },
@@ -800,7 +802,10 @@ export class ThreadsApp extends LitElement {
    * Only called when sidebar config is enabled.
    */
   private initSidebarColumn(): void {
-    if (document.querySelector('.tc-sidebar-column')) return;
+    if (document.querySelector('.tc-sidebar-column')) {
+      this.panelEl = document.querySelector<HTMLElement>('.tc-panel');
+      return;
+    }
 
     if (this.sidebarEnabled) {
       // Activate permanent sidebar mode via body class
@@ -826,6 +831,7 @@ export class ThreadsApp extends LitElement {
     // Panel (expanded state)
     const panel = document.createElement('div');
     panel.className = 'tc-panel';
+    this.panelEl = panel;
 
     // Panel header
     const header = document.createElement('div');

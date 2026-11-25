@@ -14,6 +14,19 @@ const index = safePath(site, "docs/index.md");
 const manifests = safePath(site, "docs/.threads/reviews");
 const identity = { author: "TestUser", authorKey: "testuser" };
 
+/**
+ * The dev server reloads the page when the author profile file changes, which the first draft of a server's life
+ * does (it creates the file). Create it up front and wait for that rebuild, so no reload lands in the middle of a test.
+ */
+async function ensureAuthorProfile(page: Page): Promise<void> {
+  const file = safePath(site, "docs/.threads/authors.json");
+  if (fs.existsSync(file)) return;
+  const before = await (await page.request.get("/")).text();
+  fs.mkdirSync(safePath(site, "docs/.threads"), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ testuser: { name: "TestUser", avatarUrl: "" } }, null, 2) + "\n");
+  await expect.poll(async () => (await page.request.get("/")).text(), { message: "dev server rebuild after the profile file" }).not.toBe(before);
+}
+
 /** Empty the caller's open review, so the spec starts from (and leaves behind) a journal with no ops. */
 async function emptyOpenReview(page: Page): Promise<number> {
   return page.evaluate(async (id) => {
@@ -35,6 +48,7 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
   await setAuthor(page, "TestUser");
   await cleanThreads(page);
+  await ensureAuthorProfile(page);
   expect(await emptyOpenReview(page)).toBe(0);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
@@ -44,30 +58,42 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
 
   const para = page.locator("main p, .content p, article p").first();
   const quote = (await para.textContent())!.trim().split(" ").slice(0, 3).join(" ");
-  // The dev server reloads the page once the draft is written: wait for that load, so it cannot close the drawer later.
-  const [, threadId] = await Promise.all([page.waitForEvent("load"), page.evaluate(
-    async ({ quote }) =>
-      (await docmd.call("threads:add-thread", {
-        file: document.body.dataset["sourceFile"],
-        anchor: { quote, prefix: null, suffix: null, selector: null, offset: null, blockText: null },
-        author: "TestUser",
-        authorKey: "testuser",
-        body: "to be discarded",
-      })).id as string,
-    { quote },
-  )]);
+  // The dev server may reload the page after a write (when the author profile file changes) and the reload can beat
+  // the evaluate's reply: read the thread id from the journal instead, then reload ourselves.
+  await page
+    .evaluate(
+      async ({ quote }) =>
+        docmd.call("threads:add-thread", {
+          file: document.body.dataset["sourceFile"],
+          anchor: { quote, prefix: null, suffix: null, selector: null, offset: null, blockText: null },
+          author: "TestUser",
+          authorKey: "testuser",
+          body: "to be discarded",
+        }),
+      { quote },
+    )
+    .catch(() => null);
+  let threadId = "";
+  await expect
+    .poll(async () => (threadId = await page.evaluate(async (id) => ((await docmd.call("threads:whoami", id)).journal?.ops.find((op: { kind: string }) => op.kind === "add-thread") as { threadId?: string } | undefined)?.threadId ?? "", identity)))
+    .not.toBe("");
+  await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 
   // The review section lives in the drawer: open it first.
-  await page.locator(".threads-fab").click();
   const count = page.getByTestId("tpw-count");
   const open = page.getByTestId("discard-open");
-  await expect(count).toHaveText("1 unpublished comment");
-  // The draft is not in the served markdown: the client highlights its quote after the load, and its card is in the panel.
+  // Retried as a whole: a late dev-server reload closes the drawer.
+  await expect(async () => {
+    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click();
+    await expect(count).toHaveText("1 unpublished comment", { timeout: 1_000 });
+    // The draft is not in the served markdown: its card is in the drawer body.
+    await expect(page.locator(".tc-panel__body").getByText("to be discarded")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // The client highlights its quote after the load.
   const mark = page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`);
   await expect(mark).toHaveCount(1);
   await expect(mark).toContainText(quote);
-  await expect(page.locator(".tc-panel__body").getByText("to be discarded")).toBeVisible();
 
   // Cancel closes the dialog and changes nothing.
   await open.click();
