@@ -236,6 +236,21 @@ test('discard is one forward commit by the discarding caller; an open review mak
   assert.equal(commits(trio.remote), before + 1);
 });
 
+test('discard reads the manifest from the fetched head: a review discarded on the remote meanwhile is refused', async () => {
+  const ctx = gitCtx();
+  await draft(ctx, 'Reword this.');
+  const { reviewId } = await actions['threads:publish-review']({}, ctx);
+  const rel = `docs/.threads/reviews/${reviewId}.json`;
+  git(trio.other, 'pull', '-q', 'origin', BRANCH);
+  const file = safePath(trio.other, rel);
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), state: 'discarded' }, null, 2) + '\n');
+  git(trio.other, 'commit', '-qam', 'other: discard elsewhere');
+  git(trio.other, 'push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`);
+  const before = commits(trio.remote);
+  await assert.rejects(actions['threads:discard-review']({ reviewId }, ctx), /already discarded/);
+  assert.equal(commits(trio.remote), before, 'nothing was committed');
+});
+
 test('a push that loses a race is re-applied on the fresh head; a deleted page is skipped; three rejections leave the review open', async () => {
   const ctx = gitCtx();
   const store = storeOf();
