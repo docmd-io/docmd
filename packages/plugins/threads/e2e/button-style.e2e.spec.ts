@@ -174,12 +174,13 @@ test("Discard on a published review in the Reviews tab is on the same base and d
     await expect(reference).toBeVisible({ timeout: 1_000 });
   });
 
+  // Read before the write: the token does not change, and a reload after Publish would destroy an evaluate.
+  const danger = await tokenColor(page, "--sl-color-danger-600");
   await reference.click();
   // The dev server reloads the page a moment after the write and a reload closes the drawer: open the Reviews tab,
   // read the trigger and compare it as one retried block.
   const entry = page.locator('[data-testid="review"]').first();
   const discard = entry.getByTestId("discard-open");
-  const danger = await tokenColor(page, "--sl-color-danger-600");
   await expect(async () => {
     if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
     await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
@@ -192,6 +193,8 @@ test("Discard on a published review in the Reviews tab is on the same base and d
   await expect(async () => {
     if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
     await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
+    // Idempotent: an earlier attempt may have confirmed before a reload, and a discarded entry has no Discard.
+    if ((await entry.getAttribute("data-state", { timeout: 1_000 })) === "discarded") return;
     if (!(await entry.getByTestId("discard-dialog").isVisible())) await discard.click({ timeout: 1_000 });
     await entry.getByTestId("discard-confirm").click({ timeout: 1_000 });
     await expect(entry).toHaveAttribute("data-state", "discarded", { timeout: 1_000 });
