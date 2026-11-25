@@ -25,6 +25,22 @@ export interface GitSyncDeps {
 
 const MAX_ATTEMPTS = 3;
 
+/** Reads the token from the child environment: it is never an argument, a URL or a file. */
+const CREDENTIAL_HELPER = '!f(){ echo username=x-access-token; echo "password=$DOCMD_THREADS_GIT_TOKEN"; }; f';
+
+const AUTH = ['-c', 'credential.helper=', '-c', `credential.helper=${CREDENTIAL_HELPER}`];
+
+const realExec = (): ExecFile => promisify(nodeExecFile) as unknown as ExecFile;
+const firstLine = (text: string): string | undefined => text.split('\n').find((l) => l.trim());
+
+/** Runs git in `cwd` with the server's environment (the credential helper reads the token from it); resolves to trimmed stdout. */
+const gitRunner = (run: ExecFile, cwd: string) => async (args: string[]): Promise<string> =>
+  (await run('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })).stdout.trim();
+
+/** Fetches the branch into `origin/<branch>`, whatever the remote is called. */
+const fetchArgs = (remote: string, branch: string): string[] =>
+  [...AUTH, 'fetch', remote, `+refs/heads/${branch}:refs/remotes/origin/${branch}`];
+
 /** What the checkout moved past that the host has not rebuilt yet: `all` for a full rebuild, else the pages. */
 interface Moved { all: boolean; files: Set<string> }
 
@@ -44,17 +60,17 @@ const pendingFor = (root: string): Moved => {
 async function recordChanges(git: (args: string[]) => Promise<string>, branch: string, root: string, cwd: string): Promise<void> {
   const src = path.relative(cwd, root).split(path.sep).join('/');
   const moved = pendingFor(root);
-  const lines = (await git(['diff', '--name-status', '--relative', 'HEAD', `origin/${branch}`])).split('\n').filter(Boolean);
-  for (const line of lines) {
-    const cols = line.split('\t');
-    const file = cols[cols.length - 1];
-    if (cols[0] === 'M' && file.endsWith('.md') && (!src || file.startsWith(`${src}/`))) moved.files.add(file);
+  // Plumbing output: NUL-separated, unquoted, never coloured. A rename or copy carries two paths.
+  const tokens = (await git(['diff-tree', '-r', '-z', '--name-status', '--relative', 'HEAD', `origin/${branch}`])).split('\0').filter(Boolean);
+  for (let i = 0; i < tokens.length;) {
+    const status = tokens[i++];
+    const paths = tokens.slice(i, i + (/^[RC]/.test(status) ? 2 : 1));
+    i += paths.length;
+    const file = paths[paths.length - 1];
+    if (status === 'M' && file.endsWith('.md') && (!src || file.startsWith(`${src}/`))) moved.files.add(file);
     else moved.all = true;
   }
 }
-
-/** Reads the token from the child environment: it is never an argument, a URL or a file. */
-const CREDENTIAL_HELPER = '!f(){ echo username=x-access-token; echo "password=$DOCMD_THREADS_GIT_TOKEN"; }; f';
 
 /** A name or email as `--author` takes it: no angle brackets or line breaks. */
 const ident = (s: string): string => s.replace(/[<>\r\n]+/g, ' ').trim();
@@ -66,19 +82,13 @@ const ident = (s: string): string => s.replace(/[<>\r\n]+/g, ' ').trim();
  */
 export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: GitSyncDeps): Sync {
   const { cwd, lock, root } = deps;
-  const run: ExecFile = deps.execFile ?? (promisify(nodeExecFile) as unknown as ExecFile);
   const { branch, remote, skipDeployMarker, committer } = opts;
-
-  // The child gets the server's environment: the credential helper reads the token from it.
-  const git = (args: string[]) => run('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
-  const auth = ['-c', 'credential.helper=', '-c', `credential.helper=${CREDENTIAL_HELPER}`];
-
-  const out = async (args: string[]) => (await git(args)).stdout.trim();
+  const git = gitRunner(deps.execFile ?? realExec(), cwd);
 
   const syncToRemoteHead = async () => {
-    await git([...auth, 'fetch', remote, `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+    await git(fetchArgs(remote, branch));
     // Pages other people changed arrive with this reset; the next pull rebuilds them.
-    await recordChanges(out, branch, root, cwd);
+    await recordChanges(git, branch, root, cwd);
     await git(['reset', '--hard', `origin/${branch}`]);
   };
 
@@ -102,7 +112,7 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
     ]);
   };
 
-  const push = () => git([...auth, 'push', remote, `HEAD:refs/heads/${branch}`]);
+  const push = () => git([...AUTH, 'push', remote, `HEAD:refs/heads/${branch}`]);
 
   /** Back to origin, and drop the manifest the change created, so the review stays open. */
   const resetQuietly = async (meta: PublishMeta) => {
@@ -190,9 +200,6 @@ interface PullTimers {
   clearInterval: (id: ReturnType<typeof setInterval>) => void;
 }
 
-const realExec = (): ExecFile => promisify(nodeExecFile) as unknown as ExecFile;
-const firstLine = (text: string): string | undefined => text.split('\n').find((l) => l.trim());
-
 /**
  * One pull: fetch the branch and, when `origin/<branch>` moved, reset the checkout to it and
  * rebuild what changed (only the pages when every change is a modified markdown page, else the
@@ -207,13 +214,10 @@ export async function pullOnce(handle: ServerHandle, deps: PullDeps = {}): Promi
   const { branch, remote } = opts;
   const cwd = handle.projectRoot;
   const root = docsRootOf(handle);
-  const run = deps.execFile ?? realExec();
-  const git = async (args: string[]) =>
-    (await run('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })).stdout.trim();
-  const auth = ['-c', 'credential.helper=', '-c', `credential.helper=${CREDENTIAL_HELPER}`];
+  const git = gitRunner(deps.execFile ?? realExec(), cwd);
 
   await (deps.lock ?? lockFor(root)).withLock(async () => {
-    await git([...auth, 'fetch', remote, `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+    await git(fetchArgs(remote, branch));
     if ((await git(['rev-parse', 'HEAD'])) === (await git(['rev-parse', `origin/${branch}`]))) return;
     await recordChanges(git, branch, root, cwd);
     await git(['reset', '--hard', `origin/${branch}`]);
@@ -243,6 +247,7 @@ export async function pullOnce(handle: ServerHandle, deps: PullDeps = {}): Promi
 export function startPullLoop(
   handle: ServerHandle,
   timers: PullTimers = { setInterval, clearInterval },
+  deps: { execFile?: ExecFile } = {},
 ): () => void {
   const opts = handle.mode === 'serve' ? getOptions(handle).git : null;
   if (!opts) return () => undefined;
@@ -250,7 +255,7 @@ export function startPullLoop(
   const id = timers.setInterval(() => {
     if (inFlight) return;
     inFlight = true;
-    pullOnce(handle)
+    pullOnce(handle, deps)
       .catch(async (e: unknown) => {
         const err = e as { stderr?: unknown; message?: unknown };
         const text = typeof err?.stderr === 'string' && err.stderr.trim()
@@ -258,7 +263,7 @@ export function startPullLoop(
           : String(err?.message ?? e).split('\n').filter((l) => !l.startsWith('Command failed:')).join('\n');
         let line = firstLine(text) ?? 'git failed';
         // What the remote name points at (a URL or path, maybe with credentials) is kept out of the log.
-        const url = await realExec()('git', ['remote', 'get-url', opts.remote], { cwd: handle.projectRoot, env: process.env })
+        const url = await (deps.execFile ?? realExec())('git', ['remote', 'get-url', opts.remote], { cwd: handle.projectRoot, env: process.env })
           .then((r) => r.stdout.trim(), () => '');
         for (const secret of [url, opts.remote]) if (secret) line = line.split(secret).join('<remote>');
         console.error(`[threads] git pull failed: ${line.replace(/\/\/[^@/\s]*@/g, '//***@')}`);

@@ -57,10 +57,10 @@ const head = (dir: string, ref = 'HEAD') => git(dir, 'rev-parse', ref).trim();
 
 /** Canned git for the small cases: HEAD and origin differ (or not), the diff is `diff`. */
 const canned = (moved: boolean, diff: string, log: string[] = []): ExecFile => async (_f, args) => {
-  const verb = args.find((a) => ['fetch', 'rev-parse', 'diff', 'reset'].includes(a)) ?? args[0];
+  const verb = args.find((a) => ['fetch', 'rev-parse', 'diff-tree', 'reset'].includes(a)) ?? args[0];
   log.push(verb);
   if (verb === 'rev-parse') return { stdout: args.includes('HEAD') && moved ? 'aaa\n' : 'bbb\n', stderr: '' };
-  if (verb === 'diff') return { stdout: diff, stderr: '' };
+  if (verb === 'diff-tree') return { stdout: diff, stderr: '' };
   return { stdout: '', stderr: '' };
 };
 
@@ -82,6 +82,18 @@ test('a page edit on the remote resets the checkout and rebuilds that page only;
   assert.match(fs.readFileSync(safePath(trio.server, 'docs/index.md'), 'utf8'), /edited elsewhere/);
   assert.deepEqual(calls, [['docs/index.md']]);
   assert.deepEqual(fs.readFileSync(journal), before, 'the journal is byte-identical');
+});
+
+test('a page with a non-ASCII name is rebuilt on its own, whatever the git colour settings', async () => {
+  const name = 'docs/guía-ñ.md';
+  fs.writeFileSync(safePath(trio.other, name), '# g\n');
+  git(trio.other, 'add', '-A'); git(trio.other, 'commit', '-m', 'add'); git(trio.other, 'push', 'origin', `HEAD:refs/heads/${BRANCH}`);
+  git(trio.server, 'pull', '-q', 'origin', BRANCH);
+  commitOn(trio.other, name, 'edited');
+  const { calls, rebuild } = recorder();
+  const colored: ExecFile = (f, args, o) => realExec(f, ['-c', 'color.ui=always', '-c', 'core.quotePath=true', ...args], o);
+  await pullOnce(serverHandle(rebuild), { execFile: colored });
+  assert.deepEqual(calls, [[name]]);
 });
 
 const edits: Array<[string, () => void]> = [
@@ -108,7 +120,7 @@ test('anything but a page edit rebuilds the whole site; an unmoved remote runs t
   }
   trio.reset();
   const verbs: string[] = [];
-  const spy: ExecFile = (f, args, o) => (verbs.push(args.find((a) => ['fetch', 'rev-parse', 'reset', 'diff'].includes(a)) ?? args[0]), realExec(f, args, o));
+  const spy: ExecFile = (f, args, o) => (verbs.push(args.find((a) => ['fetch', 'rev-parse', 'reset', 'diff-tree'].includes(a)) ?? args[0]), realExec(f, args, o));
   const { calls, rebuild } = recorder();
   await pullOnce(serverHandle(rebuild), { execFile: spy });
   assert.deepEqual(verbs, ['fetch', 'rev-parse', 'rev-parse']);
@@ -135,33 +147,30 @@ test('pages a publish brought in with its reset are rebuilt by the next pull', a
 test('a tick during a running pull is skipped; the next one after it runs', async () => {
   const ticks: Array<() => void> = [];
   const timers = { setInterval: (fn: () => void) => (ticks.push(fn), { unref() {} }) as never, clearInterval: () => undefined };
-  let enter!: () => void;
-  let entered = new Promise<void>((r) => (enter = r));
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
+  const verbs: string[] = [];
   let started = 0;
-  const rebuild: Rebuild = async () => {
-    started++;
-    enter();
-    if (started === 1) await gate;
-  };
-  const stop = startPullLoop(serverHandle(rebuild), timers);
-  commitOn(trio.other, 'docs/index.md', 'first');
+  let enter!: () => void;
+  let entered = new Promise<void>((r) => (enter = r));
+  const rebuild: Rebuild = async () => { started++; enter(); if (started === 1) await gate; };
+  const handle = handleFor('/proj-inflight', rebuild);
+  const stop = startPullLoop(handle, timers, { execFile: canned(true, 'M\0docs/a.md\0', verbs) });
   ticks[0]();
   await entered;
-  commitOn(trio.other, 'docs/index.md', 'second');
+  const fetches = () => verbs.filter((v) => v === 'fetch').length;
+  assert.equal(fetches(), 1);
   ticks[0](); // skipped: the first pull's rebuild is still running
   // A pull that was not skipped has queued its git work on the lock already: wait it out.
-  await lockFor(docsRootOf(serverHandle(rebuild))).withLock(async () => undefined);
+  await lockFor(docsRootOf(handle)).withLock(async () => undefined);
   await new Promise((r) => setImmediate(r));
-  assert.equal(started, 1);
+  assert.equal(fetches(), 1, 'no second pull ran');
   release();
   await new Promise((r) => setImmediate(r));
   entered = new Promise<void>((r) => (enter = r));
   ticks[0]();
   await entered;
-  assert.equal(started, 2);
-  assert.match(fs.readFileSync(safePath(trio.server, 'docs/index.md'), 'utf8'), /second/);
+  assert.equal(fetches(), 2, 'the tick after the pull finished runs');
   stop();
 });
 
@@ -193,6 +202,28 @@ test('a failing pull logs one redacted line per tick and the loop keeps ticking'
   }
 });
 
+test('a credential in the git error is redacted even when it is not the configured remote', async () => {
+  const lines: string[] = [];
+  const spy = mock.method(console, 'error', (...a: unknown[]) => void lines.push(a.join(' ')));
+  const ticks: Array<() => void> = [];
+  const timers = { setInterval: (fn: () => void) => (ticks.push(fn), { unref() {} }) as never, clearInterval: () => undefined };
+  const exec: ExecFile = async (_f, args) => {
+    if (args.includes('get-url')) return { stdout: 'https://other.invalid/x.git\n', stderr: '' };
+    throw Object.assign(new Error('Command failed'), { stderr: "fatal: unable to access 'https://u:p@h.invalid/r.git/': Could not resolve host\nhint: more\n" });
+  };
+  try {
+    startPullLoop(handleFor('/proj-redact', async () => undefined), timers, { execFile: exec });
+    ticks[0]();
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+  } finally {
+    spy.mock.restore();
+  }
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /\/\/\*\*\*@h\.invalid/);
+  assert.ok(!lines[0].includes('u:p') && !lines[0].includes('\n'), lines[0]);
+});
+
 // ---------------------------------------------------------------------------
 // small: canned git, the shared lock, the timers
 // ---------------------------------------------------------------------------
@@ -208,7 +239,7 @@ test('the pull waits behind a publish holding the docs-root lock and rebuilds af
   const probe = { withLock: <T,>(fn: () => Promise<T>) => shared.withLock(async () => { held = true; try { return await fn(); } finally { held = false; } }) };
   const heldAtRebuild: boolean[] = [];
   const handle = handleFor(root, async () => { heldAtRebuild.push(held); order.push('rebuild'); });
-  const exec: ExecFile = async (f, args, o) => { order.push(`git ${args.includes('fetch') ? 'fetch' : ''}`.trim()); return canned(true, 'M\tdocs/a.md\n')(f, args, o); };
+  const exec: ExecFile = async (f, args, o) => { order.push(`git ${args.includes('fetch') ? 'fetch' : ''}`.trim()); return canned(true, 'M\0docs/a.md\0')(f, args, o); };
 
   const publishing = shared.withLock(async () => { order.push('publish in'); await gate; order.push('publish out'); });
   const pulling = pullOnce(handle, { execFile: exec, lock: probe });
@@ -230,7 +261,7 @@ test('a rebuild that rejects is logged as a build failure, kept pending and retr
   const spy = mock.method(console, 'error', (...a: unknown[]) => void lines.push(a.join(' ')));
   const lock = createLock();
   try {
-    await pullOnce(rebuilding, { execFile: canned(true, 'M\tdocs/a.md\nM\tdocs/b.md\n'), lock });
+    await pullOnce(rebuilding, { execFile: canned(true, 'M\0docs/a.md\0M\0docs/b.md\0'), lock });
     assert.deepEqual(lines, ['[threads] rebuild after pull failed: boom']);
     await pullOnce(rebuilding, { execFile: canned(false, ''), lock }); // the remote did not move
     assert.deepEqual(attempts, [['docs/a.md', 'docs/b.md'], ['docs/a.md', 'docs/b.md']]);
