@@ -12,7 +12,7 @@ import { tempProject, makeCtx, failingReset, snapshotTree, type TempProject, typ
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore } from '../src/plugin/drafts.ts';
 import { createLock } from '../src/plugin/lock.ts';
-import { publish, writeManifest } from '../src/plugin/reviews.ts';
+import { newestFirst, publish, writeManifest } from '../src/plugin/reviews.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 import type { Caller, Journal, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, WhoAmI } from '../src/types.ts';
 
@@ -46,9 +46,10 @@ before(async () => {
   await writeManifest(ctx as never, manifest('r-oldest', '2026-03-01T00:00:00.000Z', {
     state: 'discarded', discardedAt: '2026-03-04T00:00:00.000Z', discardedBy: 'k-bob', discardSkipped: [],
   }));
+  for (const id of ['r-tie-b', 'r-tie-a']) await writeManifest(ctx as never, manifest(id, '2026-03-02T12:00:00.000Z'));
   const dir = path.join(root(listing), '.threads', 'reviews');
   fs.writeFileSync(safePath(dir, 'bad.json'), '{ not json');
-  fs.writeFileSync(safePath(dir, 'no-time.json'), JSON.stringify({ version: 1, id: 'no-time', ops: [] }));
+  fs.writeFileSync(safePath(dir, 'no-time.json'), JSON.stringify({ version: 1, id: 'no-time', title: 'No time', ops: [] }));
   fs.mkdirSync(safePath(dir, 'a-directory.json'));
   fs.writeFileSync(safePath(dir, 'v2.json'), JSON.stringify({ version: 2, id: 'v2', ops: [] }));
   fs.writeFileSync(safePath(dir, 'r-newest.back'), JSON.stringify(manifest('r-stray', '2026-03-09T00:00:00.000Z')));
@@ -60,8 +61,8 @@ after(() => {
 
 test('list-reviews returns the manifests newest first, projected to the summary fields; bad and non-json files are left out', async () => {
   const out = await call<ReviewSummary[]>(listing, 'threads:list-reviews');
-  assert.deepEqual(out.map((r) => r.id), ['r-newest', 'r-middle', 'r-oldest']);
-  assert.deepEqual(out[1], {
+  assert.deepEqual(out.map((r) => r.id), ['r-newest', 'r-tie-a', 'r-tie-b', 'r-middle', 'r-oldest']);
+  assert.deepEqual(out[3], {
     id: 'r-middle', authorKey: 'k-alice', authorName: 'Alice', title: 'Title r-middle',
     publishedAt: '2026-03-02T00:00:00.000Z', state: 'published',
     ops: [
@@ -69,8 +70,14 @@ test('list-reviews returns the manifests newest first, projected to the summary 
       { file: 'docs/other.md', threadId: 't-b', quote: null, pageTitle: null },
     ],
   });
-  assert.equal(out[2].state, 'discarded');
-  assert.deepEqual(Object.keys(out[2]).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'state', 'title']);
+  assert.equal(out[4].state, 'discarded');
+  assert.deepEqual(Object.keys(out[4]).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'state', 'title']);
+});
+
+test('newestFirst orders equal publishedAt by id, whatever order the directory lists them in', () => {
+  const at = '2026-03-02T00:00:00.000Z';
+  const ids = [{ id: 'b', publishedAt: at }, { id: 'c', publishedAt: '2026-03-03T00:00:00.000Z' }, { id: 'a', publishedAt: at }].sort(newestFirst);
+  assert.deepEqual(ids.map((m) => m.id), ['c', 'a', 'b']);
 });
 
 test('list-reviews is [] without a reviews directory', async () => {
@@ -80,7 +87,7 @@ test('list-reviews is [] without a reviews directory', async () => {
 test('list-reviews under serve without an identity succeeds and writes nothing', async () => {
   const tree = snapshotTree(root(listing));
   const out = await call<ReviewSummary[]>(listing, 'threads:list-reviews', {}, { mode: 'serve', caller: { identity: null } });
-  assert.equal(out.length, 3);
+  assert.equal(out.length, 5);
   assert.deepEqual(snapshotTree(root(listing)), tree);
 });
 

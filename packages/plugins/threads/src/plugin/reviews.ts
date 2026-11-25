@@ -507,6 +507,10 @@ export async function listManifests(ctx: ActionContext): Promise<ReviewManifest[
   );
 }
 
+/** Listing order: newest `publishedAt` first, equal times by id so the order never depends on the directory. */
+export const newestFirst = (a: Pick<ReviewManifest, 'id' | 'publishedAt'>, b: Pick<ReviewManifest, 'id' | 'publishedAt'>): number =>
+  b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id);
+
 /** The listing projection of a manifest. */
 export const summarize = (m: ReviewManifest): ReviewSummary => ({
   id: m.id,
