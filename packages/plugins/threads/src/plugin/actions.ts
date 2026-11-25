@@ -211,7 +211,8 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     await finishEarlierPublish(ctx, store, identity.key);
     const journal = await store.load(identity.key);
     // A secondary counter: an unreadable file or directory must not cost the caller identity and journal.
-    const orphanedMine = await countOrphanedBy(docsRootOf(ctx), identity.key, fsOrphanScanDeps).catch(() => 0);
+    const docsRoot = docsRootOf(ctx);
+    const orphanedMine = await countOrphanedBy(docsRoot, identity.key, fsOrphanScanDeps(docsRoot)).catch(() => 0);
     return { identity, journal, orphanedMine };
   },
 
