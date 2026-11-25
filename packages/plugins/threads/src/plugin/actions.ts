@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { ActionContext } from '@docmd/api';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
+import { guardWrite } from './limits.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
@@ -246,6 +247,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     const caller = await begin(ctx, payload, 'threads:add-thread', ['file', 'author', 'body']);
+    guardWrite(ctx, payload, caller, { rate: true, now: () => Date.now() });
     const threadId = generateThreadId();
     const anchor = anchorFrom(payload.anchor);
     const view = await transact(ctx, caller, payload, (tx) =>
@@ -257,6 +259,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:add-comment', ['file', 'threadId', 'author', 'body']);
+    guardWrite(ctx, payload, caller, { rate: true, now: () => Date.now() });
     const commentId = generateCommentId();
     const view = await transact(ctx, caller, payload, (tx) => {
       findThread(tx.view, payload.threadId);
@@ -271,6 +274,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:edit-comment', ['file', 'threadId', 'commentId', 'body']);
+    guardWrite(ctx, payload, caller, { rate: false, now: () => Date.now() });
     const { threadId, commentId, body } = payload;
     const view = await transact(ctx, caller, payload, (tx) => {
       const target = findComment(findThread(tx.view, threadId), commentId);

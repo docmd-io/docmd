@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeOptions } from '../src/plugin/config.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
-const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, git: null };
+const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, limits: { maxCommentChars: 5000, commentsPerMinute: 10 }, git: null };
 
 test('absent, true and empty options all normalise to the defaults', () => {
   for (const raw of [{}, undefined, true]) {
@@ -23,6 +23,11 @@ test('valid values are kept', () => {
   );
   assert.deepEqual(normalizeOptions({ permissions: { admins: ['a@x'] } }).permissions, { admins: ['a@x'], resolve: 'anyone' });
   assert.deepEqual(normalizeOptions({ permissions: { resolve: 'author' } }).permissions, { admins: [], resolve: 'author' });
+});
+
+test('limits keep explicit positive integers and default the rest', () => {
+  assert.deepEqual(normalizeOptions({ limits: { maxCommentChars: 10 } }).limits, { maxCommentChars: 10, commentsPerMinute: 10 });
+  assert.deepEqual(normalizeOptions({ limits: { commentsPerMinute: 2 } }).limits, { maxCommentChars: 5000, commentsPerMinute: 2 });
 });
 
 test('git defaults fill in around the required branch; null is off; explicit values are kept', () => {
@@ -57,6 +62,11 @@ test('invalid values throw threads/config', () => {
     [{ autoPublish: { seconds: Infinity } }, /plugins\.threads\.autoPublish\.seconds must be a positive number/],
     [{ autoPublish: { seconds: NaN } }, /plugins\.threads\.autoPublish\.seconds must be a positive number/],
     [{ autoPublish: { startOn: 'yes' } }, /plugins\.threads\.autoPublish\.startOn must be a boolean/],
+    [{ limits: 'x' }, /plugins\.threads\.limits must be an object/],
+    [{ limits: { maxCommentChars: 0 } }, /plugins\.threads\.limits\.maxCommentChars must be a positive integer/],
+    [{ limits: { maxCommentChars: -1 } }, /plugins\.threads\.limits\.maxCommentChars/],
+    [{ limits: { maxCommentChars: '5' } }, /plugins\.threads\.limits\.maxCommentChars/],
+    [{ limits: { commentsPerMinute: 0.5 } }, /plugins\.threads\.limits\.commentsPerMinute must be a positive integer/],
     [{ permissions: 'all' }, /plugins\.threads\.permissions must be an object/],
     [{ permissions: [] }, /plugins\.threads\.permissions must be an object/],
     [{ permissions: { admins: 'a@x' } }, /plugins\.threads\.permissions\.admins must be an array of strings/],

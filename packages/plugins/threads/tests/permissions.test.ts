@@ -24,7 +24,8 @@ test('canDo decision table', () => {
 // ---------------------------------------------------------------------------
 
 let project: TempProject;
-const threadsCfg = { permissions: { admins: ['root'], resolve: 'author' } };
+// `seed` adds many threads and comments per key within one minute, so this file raises the per-minute rate.
+const threadsCfg = { permissions: { admins: ['root'], resolve: 'author' }, limits: { commentsPerMinute: 1000 } };
 const ctxFor = (key: string) =>
   makeCtx(project.root, { mode: 'serve', config: { src: 'docs', plugins: { threads: threadsCfg } }, caller: { identity: key } });
 type Json = Record<string, unknown>;

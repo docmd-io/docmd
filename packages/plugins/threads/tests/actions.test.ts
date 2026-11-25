@@ -13,7 +13,7 @@
  *  - input validation, threads/<code> prefixes                      → kept
  *  - plugin surface                                                 → kept, plus the sixteen action names
  */
-import { test, mock, before, after, beforeEach } from 'node:test';
+import { test, mock, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,6 +37,9 @@ before(() => {
 after(() => {
   mock.timers.reset();
   project.cleanup();
+});
+afterEach(() => {
+  mock.timers.tick(60_000); // the clock is frozen: a fresh rate-limit window per test, as this file's same-author adds share one
 });
 beforeEach(() => {
   project.reset();
