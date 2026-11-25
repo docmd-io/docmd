@@ -49,6 +49,16 @@ test('rate limiter: per key, sliding window, rejected calls are not recorded', (
   }
 });
 
+test('rate limiter: a call exactly one window old no longer counts', () => {
+  let t = 0;
+  const limiter = createRateLimiter({ now: () => t, windowMs: 60_000, max: 1 });
+  limiter.take('a');
+  t = 59_999;
+  assert.equal(code(() => limiter.take('a')), 'rate-limited');
+  t = 60_000;
+  assert.equal(code(() => limiter.take('a')), undefined);
+});
+
 type Handler = (payload: Record<string, unknown>, ctx: unknown) => Promise<Thread & Comment>;
 const handler = (name: string): Handler => (actions as unknown as Record<string, Handler>)[`threads:${name}`];
 
