@@ -99,6 +99,9 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
     if (paths.length) await git(['add', '-A', '--', ...paths]);
   };
 
+  /** Whether staging left anything to commit (a change that matches the head stages nothing). */
+  const hasStaged = async () => (await git(['diff', '--cached', '--name-only'])).stdout.trim() !== '';
+
   const commit = async (meta: PublishMeta, applied: Applied) => {
     const subject = meta.kind === 'discard'
       ? `revert(threads): discard review "${applied.title}" ${skipDeployMarker}`
@@ -147,6 +150,8 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
         }
         try {
           await stage(meta);
+          // Nothing staged (a profile the repository already holds): no commit and no push.
+          if (!(await hasStaged())) return;
           await commit(meta, applied);
         } catch (e) {
           await resetQuietly(meta);
@@ -166,6 +171,9 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
 }
 
 const syncs = new Map<string, Sync>();
+
+/** Whether git sync runs for this call: only under `docmd serve`, and only when the `git` option is set. */
+export const gitOn = (ctx: ActionContext): boolean => ctx.mode === 'serve' && !!getOptions(ctx).git;
 
 /**
  * The sync for this call: git-backed when `plugins.threads.git` is set and the host is

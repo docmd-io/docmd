@@ -14,11 +14,12 @@ const EN: Record<string, string> = JSON.parse(fs.readFileSync(safePath(pluginRoo
 const T0 = 1_000_000;
 const SECONDS = 60;
 
-const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(T0).toISOString()): Journal => ({
+const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(T0).toISOString(), profile?: Journal['profile']): Journal => ({
   version: 1,
   mode,
   review: { id: 'r-1', updatedAt, title: null, summary: null },
   ops: Array.from({ length: ops }, (_, i) => ({ kind: 'delete-thread', opId: `o-${i}`, at: updatedAt, file: 'a.md', threadId: 't-1' })),
+  ...(profile ? { profile } : {}),
 });
 
 // Fakes, built once; `beforeEach` resets what a test steers.
@@ -102,6 +103,13 @@ test('refresh: the count is the ops of the latest whoami; no journal is 0', asyn
   s.journal = journal(1);
   await c.refresh();
   assert.equal(c.view().state.label, '1 unpublished comment');
+  const profile = { name: 'Ann', avatarUrl: '' };
+  s.journal = journal(2, 'collect', undefined, profile);
+  await c.refresh();
+  assert.equal(c.view().state.label, '3 unpublished comments', 'a pending profile counts as one change');
+  s.journal = journal(0, 'collect', undefined, profile);
+  await c.refresh();
+  assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().pendingCount], ['1 unpublished comment', false, 1]);
   s.journal = null;
   await c.refresh();
   assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().state.errorLine], ['0 unpublished comments', true, null]);
@@ -283,12 +291,19 @@ test('auto: the timer fire publishes once; collect never does', async () => {
   assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1);
   assert.equal(c.view().ring, null, 'the ring goes when the timer fires');
 
+  s.journal = journal(0, 'auto', new Date(clock).toISOString(), { name: 'Ann', avatarUrl: '' });
+  await c.refresh();
+  assert.notEqual(c.view().ring, null, 'a profile alone starts the countdown');
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 2, 'and the fire publishes it');
+
   s.journal = journal(1, 'collect');
   await c.refresh();
   assert.equal(c.view().ring, null);
   advance(SECONDS * 5000);
   await settle();
-  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1, 'collect mode never auto-publishes');
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 2, 'collect mode never auto-publishes');
 });
 
 test('auto: a failed auto publish shows its error, drops the ring and does not retry until the journal changes', async () => {

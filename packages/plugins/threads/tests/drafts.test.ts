@@ -113,6 +113,7 @@ for (const [name, content, id] of legacy) {
       assert.match(first.review.id, /^r-[0-9a-f]{8}$/);
       assert.equal(first.review.title, null);
       assert.equal(first.review.summary, null);
+      assert.equal(first.profile, undefined, 'an older journal has no profile');
       if (id) assert.equal(first.review.id, id);
       assert.match(first.review.updatedAt, /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
       assert.equal(second.review.updatedAt, first.review.updatedAt, 'two loads without a write agree');
@@ -240,4 +241,18 @@ test('a failed write leaves no tmp file and the journal as it was', async () => 
   }
   assert.deepEqual(ls(draftsDir()).filter((f) => f.endsWith('.tmp')), []);
   assert.deepEqual(rdBytes(file), bytes);
+});
+
+test('a pending profile survives loads and later writes; a malformed one is dropped', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+  const file = path.join(draftsDir(), 'bob.json');
+  const profile = { name: 'Bob B', avatarUrl: 'http://b/b.png' };
+  const s = createDraftStore(docsRoot, { now: () => clock });
+  await s.transact('bob', (j) => void (j.profile = profile));
+  assert.deepEqual((await s.load('bob')).profile, profile);
+  await s.setMode('bob', 'auto');
+  await append(s, 'bob');
+  assert.deepEqual(JSON.parse(rd(file)).profile, profile, 'other writes keep it');
+  wr(file, JSON.stringify({ ...JSON.parse(rd(file)), profile: { name: 7 } }));
+  assert.equal((await s.load('bob')).profile, undefined);
 });

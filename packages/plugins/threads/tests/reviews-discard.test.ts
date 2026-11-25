@@ -352,3 +352,15 @@ test('an op drafted in the window is published under a new review id, without th
   assert.ok(commentIds(FILE, 't-thread2').includes('c-win'));
   assert.deepEqual(manifestOf(result.reviewId).ops.map((o: { commentId: string }) => o.commentId), ['c-win']);
 });
+
+test('a profile pending in a journal whose review was published, then discarded, is still written', async () => {
+  const { id, manifest } = await window();
+  const profile = { name: 'Alice B', avatarUrl: '' };
+  await store().transact('k-alice', (j) => void (j.profile = profile));
+  const result = await call<PublishResult>('threads:publish-review', ALICE);
+  assert.notEqual(result.reviewId, id, 'the journal had moved to a new review');
+  const authors = JSON.parse(readAt(path.join(docsRoot, '.threads', 'authors.json')));
+  assert.deepEqual(authors['k-alice'], profile);
+  assert.equal(readAt(manifestPath(id)), manifest, 'the discarded manifest is untouched');
+  assert.equal((await store().load('k-alice')).profile, undefined);
+});

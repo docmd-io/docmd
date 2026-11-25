@@ -5,7 +5,7 @@ import { ThreadsError } from './errors.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
-import { getSync } from './git-sync.js';
+import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
 import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
@@ -176,6 +176,12 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     assertCan(caller, 'upsert-author', { authorKey: claimedAuthorKey(payload) }, getOptions(ctx).permissions);
     if (caller.source === 'header') {
       // The key is the trusted identity: only the caller's own entry changes.
+      if (gitOn(ctx)) {
+        // With git the working tree stays clean between publishes: the profile waits in the journal and goes out with the next publish.
+        const profile = headerProfile(payload, caller);
+        await getStore(ctx).transact(caller.key, (j) => void (j.profile = profile));
+        return { ok: true };
+      }
       await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller)));
       return { ok: true };
     }

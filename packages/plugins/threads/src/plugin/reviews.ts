@@ -7,8 +7,9 @@ import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import { markPattern, splitPage } from './marks.js';
 import type { Sync } from './lock.js';
+import { authorsFileOf, setAuthorEntry } from './authors.js';
 import type { DraftStore } from './drafts.js';
-import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
+import type { Caller, Comment, DraftOp, Journal, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
 const TITLE_MAX = 120;
 const SUMMARY_MAX = 2000;
@@ -571,25 +572,36 @@ export const summarize = (m: ReviewManifest): ReviewSummary => ({
 // ---------------------------------------------------------------------------
 
 /**
- * Write every changed file, then run `finalWrite` (the manifest). A failure puts the files
- * already written back; files that cannot be restored are named in a `threads/invalid` error.
+ * Write every changed file, then `beforeFinal` (the author profile), then `finalWrite` (the manifest). A failure
+ * puts the profile back first, then the files already written; files that cannot be restored are named in a `threads/invalid` error.
  */
 async function writeAllOrNothing(
   ctx: ActionContext,
   results: Array<{ file: string; original: string; next: string }>,
   finalWrite: () => Promise<void>,
   label: 'publish' | 'discard',
+  /** Runs after the pages and before `finalWrite`; returns its undo, which runs first on a failure. */
+  beforeFinal?: () => Promise<{ file: string; undo: () => Promise<void> }>,
 ): Promise<void> {
   const written: typeof results = [];
+  let extra: Awaited<ReturnType<NonNullable<typeof beforeFinal>>> | undefined;
   try {
     for (const r of results) {
       if (r.next === r.original) continue;
       written.push(r);
       await ctx.writeFile(r.file, r.next);
     }
+    extra = await beforeFinal?.();
     await finalWrite();
   } catch (e) {
     const stuck: string[] = [];
+    if (extra) {
+      try {
+        await extra.undo();
+      } catch {
+        stuck.push(extra.file);
+      }
+    }
     for (const r of written.reverse()) {
       try {
         await ctx.writeFile(r.file, r.original);
@@ -630,6 +642,32 @@ function assertWritable({ key, name }: Caller): void {
 /** A path as the sync is told about it: relative to the project root, like a target file. */
 const manifestFileOf = (ctx: ActionContext, id: string): string => path.relative(ctx.projectRoot, safePath(reviewsDir(ctx), `${id}.json`));
 
+type Profile = NonNullable<Journal['profile']>;
+
+/** Drop the journal's profile when it is still the one that was written (edited again meanwhile: it stays). */
+function clearProfile(j: Journal, written: Profile): void {
+  if (j.profile?.name === written.name && j.profile.avatarUrl === written.avatarUrl) delete j.profile;
+}
+
+/**
+ * A journal with a pending profile and no ops: write `authors.json[key]` alone and commit it
+ * as its own change (no manifest, no new review). A profile the repository already holds
+ * stages nothing, so the sync commits and pushes nothing.
+ */
+async function publishProfileOnly(caller: Caller, ctx: ActionContext, store: DraftStore, sync: Sync, journal: Journal): Promise<PublishResult> {
+  const profile = journal.profile as Profile;
+  const file = authorsFileOf(ctx);
+  await sync.publishWithRetry(
+    async () => {
+      await setAuthorEntry(ctx, caller.key, profile);
+      return { title: oneLine(`${profile.name} updated their profile`, TITLE_MAX) };
+    },
+    { authorKey: caller.key, authorName: caller.name, kind: 'publish', files: [file] },
+  );
+  await store.transact(caller.key, (j) => clearProfile(j, profile));
+  return { reviewId: journal.review.id, skipped: [] };
+}
+
 /**
  * Write the caller's journal into the markdown files it targets, record the
  * review manifest, and drop the published ops from the journal. All touched
@@ -654,9 +692,12 @@ export async function publish(
       journal = await store.load(caller.key);
       earlier = await readManifest(ctx, journal.review.id);
     }
-    if (!journal.ops.length) throw new ThreadsError('empty-review', 'there is nothing to publish');
     const ops = journal.ops;
+    if (!ops.length && !journal.profile) throw new ThreadsError('empty-review', 'there is nothing to publish');
+    if (!ops.length) return publishProfileOnly(caller, ctx, store, sync, journal);
     let reviewId = journal.review.id;
+    // Written with the pages, unless this publish only finishes an earlier one (below).
+    const profile = journal.profile;
     const files = [...new Set(ops.map((o) => o.file))];
     const order = new Map(ops.map((o, i) => [o.opId, i]));
 
@@ -673,6 +714,7 @@ export async function publish(
       await store.transact(caller.key, (j) => void (j.review.id = reviewId));
     }
 
+    const authorsFile = authorsFileOf(ctx);
     let skipped: PublishResult['skipped'] = [];
     // Toggle targets come from the first read of each file and are reused by any retry of apply.
     const targetsByFile = new Map<string, Record<string, boolean>>();
@@ -716,18 +758,22 @@ export async function publish(
           publishedAt: new Date(now()).toISOString(),
           ops: applied,
           skipped,
-        }), 'publish');
+        }), 'publish', profile && (async () => ({
+          file: authorsFile,
+          undo: await setAuthorEntry(ctx, caller.key, profile),
+        })));
         return { title, summary };
       },
       {
         authorKey: caller.key, authorName: caller.name, kind: 'publish',
-        files, manifest: manifestFileOf(ctx, reviewId),
+        files: profile ? [...files, authorsFile] : files, manifest: manifestFileOf(ctx, reviewId),
       },
     );
 
     // Drop what was published (ops drafted meanwhile stay) and start a fresh review.
     const published = new Set(ops.map((o) => o.opId));
     await store.transact(caller.key, (j) => {
+      if (profile) clearProfile(j, profile);
       j.ops = j.ops.filter((o) => !published.has(o.opId));
       j.review.id = newId('r-');
       j.review.title = null;

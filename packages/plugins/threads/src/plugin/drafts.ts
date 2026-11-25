@@ -88,7 +88,9 @@ export function createDraftStore(
             : new Date((await fs.promises.stat(file)).mtimeMs).toISOString();
         const title = typeof j.review?.title === 'string' ? j.review.title : null;
         const summary = typeof j.review?.summary === 'string' ? j.review.summary : null;
-        return { version: 1, mode, review: { id, updatedAt, title, summary }, ops: j.ops };
+        const p = j.profile;
+        const profile = p && typeof p.name === 'string' && typeof p.avatarUrl === 'string' ? { name: p.name, avatarUrl: p.avatarUrl } : undefined;
+        return { version: 1, mode, review: { id, updatedAt, title, summary }, ops: j.ops, ...(profile ? { profile } : {}) };
       }
     } catch {
       // fall through: corrupt

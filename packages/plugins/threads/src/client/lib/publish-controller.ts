@@ -61,7 +61,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   let deferredFor: string | null = null;
 
   const mode = (): DraftMode => journal?.mode ?? 'collect';
-  const pending = (): number => (known ? (journal?.ops.length ?? 0) : 0);
+  const pending = (): number => (known ? (journal ? journal.ops.length + (journal.profile ? 1 : 0) : 0) : 0);
   const reason = (err: unknown, fallback: string): string => (err instanceof ThreadsClientError ? err.text : t(fallback));
 
   function syncTimer(): void {

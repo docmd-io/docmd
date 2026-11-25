@@ -135,12 +135,15 @@ test('two concurrent publishes commit in call order through the shared docs-root
     let bobLoaded = false;
     const canned = (who: string): ExecFile => async (_f, args) => {
       const verb = args.find((a) => ['fetch', 'diff-tree', 'reset', 'add', 'commit', 'push'].includes(a))!;
+||||||| parent of 6f89555b (feat(threads): keep a commenter's profile edit in their journal under git sync)
+      const verb = args.find((a) => ['fetch', 'reset', 'add', 'commit', 'push'].includes(a))!;
       verbs.push(`${who}:${verb}`);
       if (who === 'ann' && verb === 'push') {
         annAtPush();
         await gate;
       }
-      return OK;
+      // the staged-files check: something is staged
+      return verb === 'diff' ? { stdout: 'staged\n', stderr: '' } : OK;
     };
     const people = [['ann', 'Ann'], ['bob', 'Bob']] as const;
     const jobs = [];
@@ -161,6 +164,9 @@ test('two concurrent publishes commit in call order through the shared docs-root
     assert.equal(bobLoaded, true);
     assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'diff-tree', 'reset', 'add', 'commit', 'push', 'fetch', 'diff-tree', 'reset', 'add', 'commit', 'push']);
     assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob', 'bob']);
+||||||| parent of 6f89555b (feat(threads): keep a commenter's profile edit in their journal under git sync)
+    assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'reset', 'add', 'commit', 'push', 'fetch', 'reset', 'add', 'commit', 'push']);
+    assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob']);
   } finally {
     project.cleanup();
   }
@@ -213,6 +219,51 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
   // the argument channel: the token is in no argument, and the push child has it in its environment
   assert.ok(recorded.every((r) => r.args.every((x) => !x.includes(SENTINEL))));
   assert.equal(recorded.find((r) => r.args.includes('push'))?.env.DOCMD_THREADS_GIT_TOKEN, SENTINEL);
+});
+
+const remoteAuthors = () => JSON.parse(git(trio.remote, 'show', `${BRANCH}:docs/.threads/authors.json`));
+const changedFiles = () => git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
+
+test('a pending profile is committed with the review: pages, manifest and authors.json in one commit, then cleared', async () => {
+  const ctx = gitCtx();
+  await draft(ctx, 'Reword this link text.');
+  await actions['threads:upsert-author']({ name: 'Ann L.', avatarUrl: 'http://a/ann.png' }, ctx);
+  assert.equal(commits(trio.remote), 1);
+  assert.equal(fs.readFileSync(safePath(trio.server, 'docs/.threads/authors.json'), 'utf8').includes('Ann L.'), false, 'nothing is written before the publish');
+
+  await actions['threads:publish-review']({}, ctx);
+  assert.equal(commits(trio.remote), 2, 'exactly one new commit');
+  const files = changedFiles();
+  assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/.threads/authors.json', 'docs/index.md']);
+  assert.equal(files.filter((f) => f.includes('/reviews/')).length, 1);
+  assert.deepEqual(remoteAuthors(), { 'ann@example.com': { name: 'Ann L.', avatarUrl: 'http://a/ann.png' } });
+  assert.equal(git(trio.server, 'status', '--porcelain').trim(), '');
+  const journal = await storeOf().load(ANN.key);
+  assert.deepEqual([journal.ops, journal.profile], [[], undefined]);
+});
+
+test('a profile alone is one commit of authors.json named for the new name; an entry the repository already holds commits and pushes nothing', async () => {
+  const ctx = gitCtx();
+  await actions['threads:upsert-author']({ name: 'Ann Lee-Smith' }, ctx);
+  const open = (await storeOf().load(ANN.key)).review.id; // saved by the upsert
+  assert.deepEqual(await actions['threads:publish-review']({}, ctx), { reviewId: open, skipped: [] });
+
+  assert.equal(commits(trio.remote), 2);
+  assert.equal(log(trio.remote, '%s').pop(), 'Ann Lee-Smith updated their profile [skip ci]');
+  assert.deepEqual(changedFiles(), ['docs/.threads/authors.json'], 'no manifest');
+  assert.deepEqual(remoteAuthors(), { 'ann@example.com': { name: 'Ann Lee-Smith', avatarUrl: '' } });
+  assert.deepEqual(manifestFiles(), []);
+  const journal = await storeOf().load(ANN.key);
+  assert.deepEqual([journal.review.id, journal.profile], [open, undefined]);
+
+  // the same entry again: nothing is staged
+  await actions['threads:upsert-author']({ name: 'Ann Lee-Smith' }, ctx);
+  const verbs: string[] = [];
+  const recording: ExecFile = (file, args, opts) => (verbs.push(...args), realExec(file, args, opts));
+  assert.deepEqual(await pub(ctx, recording), { reviewId: open, skipped: [] });
+  assert.equal(commits(trio.remote), 2, 'no new commit');
+  assert.ok(!verbs.includes('commit') && !verbs.includes('push'), verbs.join(' '));
+  assert.equal((await storeOf().load(ANN.key)).profile, undefined, 'the profile is still cleared');
 });
 
 test('discard is one forward commit by the discarding caller; an open review makes none', async () => {

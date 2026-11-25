@@ -121,6 +121,11 @@ export interface Journal {
     summary: string | null;
   };
   ops: DraftOp[];
+  /**
+   * The caller's own author entry, waiting for their next publish (set only under serve with git
+   * sync on; a later edit replaces it). Absent on journals that never had one.
+   */
+  profile?: { name: string; avatarUrl: string };
 }
 
 export type DraftMode = 'auto' | 'collect';
