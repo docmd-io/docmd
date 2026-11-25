@@ -239,6 +239,18 @@ export const test = runTestFile({
       assert(/out:\s*['"]my-site['"]/.test(written), 'N-22: MkDocs site_dir "my-site" is preserved in the generated config');
     }
 
+    // VitePress at the project root (the `vitepress init` default): pages in folders are migrated.
+    {
+      const dir = setup('migrate-vitepress-root-subfolders');
+      writeFile(dir, '.vitepress/config.mjs', "export default { title: 'VP' }\n");
+      writeFile(dir, 'index.md', '# Home\n');
+      writeFile(dir, 'guide/setup.md', '# Setup\n');
+
+      execFileSync(process.execPath, [DOCMD, 'migrate', '--vitepress'], { cwd: dir, stdio: 'pipe' });
+      assert(fs.existsSync(path.join(dir, 'docs/guide/setup.md')), 'VitePress root layout: guide/setup.md is migrated to docs/');
+      assert(!fs.existsSync(path.join(dir, 'docs/.vitepress')), 'VitePress root layout: .vitepress is not copied to docs/');
+    }
+
     // N-9 — MkDocs nav: is parsed into the docmd navigation.
     {
       const dir = setup('migrate-fix-n9-mkdocs-nav');
