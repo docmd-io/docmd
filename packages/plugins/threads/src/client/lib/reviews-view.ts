@@ -46,7 +46,7 @@ export function threadHref(file: string, threadId: string, siteBase: string, src
   const rel = norm.startsWith(root) ? norm.slice(root.length) : norm;
   const segs = pageSegments(rel);
   const base = siteBase.endsWith('/') ? siteBase : `${siteBase}/`;
-  return `${base}${segs.length ? `${segs.join('/')}/` : ''}#thread-${threadId}`;
+  return `${base}${segs.length ? `${segs.join('/')}/` : ''}#thread-${encodeURIComponent(threadId)}`;
 }
 
 /** The thread id of a `#thread-<id>` location hash, decoded; null for any other or a malformed hash. */

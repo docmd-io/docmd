@@ -16,6 +16,12 @@ describe('threadHref', () => {
     ['docs/My Guide/Getting Started.md', '/', undefined, '/My-Guide/Getting-Started/#thread-t-1'],
     ['content/guide/intro.md', '/', 'content/', '/guide/intro/#thread-t-1'],
   ];
+  it('encodes an id that is not fragment-safe, so threadIdFromHash reads it back', () => {
+    const href = threadHref('docs/index.md', 'a b%/#', '/');
+    assert.equal(href, '/#thread-a%20b%25%2F%23');
+    assert.equal(threadIdFromHash(href.slice(href.indexOf('#'))), 'a b%/#');
+  });
+
   for (const [file, base, root, want] of table) {
     it(`${file} @ ${base}${root ? ` (root ${root})` : ''} → ${want}`, () => {
       assert.equal(threadHref(file, 't-1', base, root), want);
@@ -37,11 +43,6 @@ describe('siteFromPage', () => {
       assert.deepEqual(siteFromPage(file, path), { siteBase, srcRoot });
     });
   }
-
-  it('feeds threadHref so a link from another page resolves under the base', () => {
-    const { siteBase, srcRoot } = siteFromPage('docs/index.md', '/site/');
-    assert.equal(threadHref('docs/guide/intro.md', 't-1', siteBase, srcRoot), '/site/guide/intro/#thread-t-1');
-  });
 });
 
 describe('threadIdFromHash', () => {

@@ -166,12 +166,16 @@ export class ThreadsPublishWidget extends LitElement {
     }
   }
 
-  private renderTitle(reviewId: string, reviewTitle: string | null) {
-    // Keep what the user is typing; take the journal's title only when it or the review changed.
+  /** Keep what the user is typing; take the journal's title only when it or the review changed. */
+  override willUpdate(): void {
+    const { reviewId, reviewTitle } = this.controller.view();
     if (this.titleSeen.id !== reviewId || this.titleSeen.title !== reviewTitle) {
       this.titleSeen = { id: reviewId, title: reviewTitle };
       this.draftTitle = reviewTitle ?? '';
     }
+  }
+
+  private renderTitle() {
     return html`
       <form class="tpw__title" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
         <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
@@ -203,7 +207,7 @@ export class ThreadsPublishWidget extends LitElement {
   }
 
   override render() {
-    const { state: s, mode, ring, reviewId, reviewTitle, pendingCount } = this.controller.view();
+    const { state: s, mode, ring, reviewId, pendingCount } = this.controller.view();
     const auto = s.variant === 'auto';
     return html`
       <div class="tpw" data-variant=${s.variant}>
@@ -227,7 +231,7 @@ export class ThreadsPublishWidget extends LitElement {
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
-        ${reviewId && pendingCount > 0 ? this.renderTitle(reviewId, reviewTitle) : nothing}
+        ${reviewId && pendingCount > 0 ? this.renderTitle() : nothing}
         ${s.orphanLine ? html`<div class="tpw__line tpw__line--orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>

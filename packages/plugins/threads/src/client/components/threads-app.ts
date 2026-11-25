@@ -50,6 +50,8 @@ export class ThreadsApp extends LitElement {
   /** The drawer's tab. Reviews exists only while the socket is live; the tab buttons are created with the review section. */
   private panelTab: 'threads' | 'reviews' = 'threads';
   private tabsEl: HTMLElement | null = null;
+  /** The last unpublished count the review section reported. */
+  private unpublishedCount = 0;
   /** The `#thread-<id>` of the open URL has been revealed (or there is none); reset on a hash change and a page mount. */
   private deepLinkDone = false;
   private publishMount = createPublishMount<ThreadsPublishWidget>({
@@ -445,6 +447,9 @@ export class ThreadsApp extends LitElement {
   /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
   private handleUnpublishedCount = (e: CustomEvent<{ count: number }>): void => {
     const count = e.detail.count;
+    // Publishing empties the open review: the review it made is new in the Reviews tab.
+    if (count < 1 && this.unpublishedCount > 0) void this.reviewsPanel()?.refresh();
+    this.unpublishedCount = count;
     const label = t(count === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(count));
     for (const host of document.querySelectorAll<HTMLElement>('.threads-fab, .tc-sidebar-toggle')) {
       host.querySelector('.tc-unpublished-marker')?.remove();
@@ -938,13 +943,15 @@ export class ThreadsApp extends LitElement {
     if (!this.panelEl || this.tabsEl) return;
     const tabs = document.createElement('div');
     tabs.className = 'tc-panel__tabs';
+    tabs.setAttribute('role', 'tablist');
     for (const [id, label] of [['threads', t('threads')], ['reviews', t('reviews')]] as const) {
       const btn = document.createElement('button');
       btn.className = 'tc-panel__tab';
       btn.dataset.tab = id;
       btn.dataset.testid = `tab-${id}`;
       btn.textContent = label;
-      btn.setAttribute('aria-pressed', String(id === this.panelTab));
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(id === this.panelTab));
       btn.addEventListener('click', () => this.selectTab(id));
       tabs.appendChild(btn);
     }
@@ -973,7 +980,7 @@ export class ThreadsApp extends LitElement {
     if (!panelBody) return;
 
     this.tabsEl?.querySelectorAll<HTMLElement>('.tc-panel__tab').forEach(b =>
-      b.setAttribute('aria-pressed', String(b.dataset.tab === this.panelTab)));
+      b.setAttribute('aria-selected', String(b.dataset.tab === this.panelTab)));
 
     if (this.panelTab === 'reviews') {
       const existing = panelBody.querySelector<ThreadsReviewsPanel>('threads-reviews-panel');
@@ -1072,7 +1079,7 @@ export class ThreadsApp extends LitElement {
           e.stopPropagation();
           this.closeAiDrawerIfOpen();
           document.body.classList.add('tc-panel-open');
-          this.populateSidebarPanel();
+          this.selectTab('threads');
           const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${thread.id}"]`);
           if (targetInPanel) {
             targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1276,7 +1283,7 @@ export class ThreadsApp extends LitElement {
       } else {
         this.closeAiDrawerIfOpen();
         document.body.classList.add('tc-panel-open');
-        this.populateSidebarPanel();
+        this.populateSidebarPanel(true);
       }
     });
 

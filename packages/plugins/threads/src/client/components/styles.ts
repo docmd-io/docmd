@@ -171,7 +171,7 @@ export function injectComponentStyles(): void {
       background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer;
       color: var(--tc-muted-fg); font: inherit; font-size: 13px; padding: 6px 8px;
     }
-    .tc-panel__tab[aria-pressed="true"] { color: var(--tc-fg); border-bottom-color: var(--tc-ring); }
+    .tc-panel__tab[aria-selected="true"] { color: var(--tc-fg); border-bottom-color: var(--tc-ring); }
     .tc-reviews { padding: 8px 16px; display: flex; flex-direction: column; gap: 10px; font-family: var(--tc-font); color: var(--tc-fg); }
     .tc-reviews__error { color: var(--tc-muted-fg); font-size: 12px; border: 1px solid var(--tc-border); border-radius: 6px; padding: 6px 8px; }
     .tc-review { border: 1px solid var(--tc-border); border-radius: var(--tc-radius); padding: 10px 12px; background: var(--tc-card); }

@@ -34,7 +34,7 @@ export class ThreadsReviewsPanel extends LitElement {
       this.error = null;
     } catch (err) {
       console.error('[threads] reviews load failed:', err);
-      this.error = err instanceof api.ThreadsClientError ? err.text : t('loadFailed');
+      this.error = err instanceof api.ThreadsClientError ? err.text : err instanceof Error ? err.message : String(err);
     }
     this.loaded = true;
   }

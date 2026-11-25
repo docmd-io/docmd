@@ -116,12 +116,17 @@ test("a review gets its title, is listed with a link to its comment, and Discard
     .poll(() => page.evaluate(async (id) => (await docmd.call("threads:whoami", id)).journal.review.title, identity))
     .toBe("My review");
 
-  await publish(page);
+  // Publishing from the review section lists the new review in the open Reviews tab, titled as saved.
+  const entry = page.locator('[data-testid="review"]', { hasText: "My review" });
+  await page.getByTestId("tab-reviews").click();
+  await expect(entry).toHaveCount(0);
+  await page.getByTestId("tpw-publish").click();
+  await expect(entry).toBeVisible();
+  await expect.poll(() => draftedIds(page), { message: "the journal after publishing" }).toEqual([]);
   await served(page, "/", `data-thread-id="${threadId}"`);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 
-  const entry = page.locator('[data-testid="review"]', { hasText: "My review" });
   await inReviews(page, async () => {
     await expect(entry).toBeVisible({ timeout: 1_000 });
     await expect(entry).toContainText("TestUser", { timeout: 1_000 });
