@@ -67,5 +67,7 @@
   "noReviews": "暂无评审。",
   "reviewTitle": "评审标题",
   "reviewSummary": "摘要",
-  "saveFailed": "无法保存评审"
+  "saveFailed": "无法保存评审",
+  "limitChars": "此评论过长。请缩短后重试。",
+  "rateLimited": "您评论得太快了。请等待一分钟后重试。"
 }

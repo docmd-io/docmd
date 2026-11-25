@@ -38,6 +38,11 @@ export class ThreadsInlineEditor extends LitElement {
       font-size: 12px;
       color: var(--tc-muted-fg, hsl(0 0% 45.1%));
     }
+    .error {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: var(--sl-color-danger-700, inherit);
+    }
     .actions {
       display: flex;
       gap: 6px;
@@ -45,6 +50,8 @@ export class ThreadsInlineEditor extends LitElement {
   `;
 
   @property({ type: String }) quote = '';
+  /** A message shown under the text, e.g. why a submit was rejected; cleared on the next submit. */
+  @property({ type: String }) message = '';
   @state() private value = '';
   @state() private submitting = false;
 
@@ -108,6 +115,7 @@ export class ThreadsInlineEditor extends LitElement {
     const body = this.getTextareaValue().trim();
     if (!body || this.submitting) return;
     this.value = body; // sync state
+    this.message = '';
     this.submitting = true;
     this.dispatchEvent(new CustomEvent('inline-submit', {
       bubbles: true, composed: true,
@@ -138,6 +146,7 @@ export class ThreadsInlineEditor extends LitElement {
               if (e.key === 'Escape') this.cancel();
             }}
           ></sl-textarea>
+          ${this.message ? html`<p class="error" role="alert" data-testid="editor-message">${this.message}</p>` : null}
         </div>
         <div class="editor-footer">
           <span class="hint">${t('cmdEnterSubmit')}</span>
