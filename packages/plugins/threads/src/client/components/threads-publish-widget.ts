@@ -124,8 +124,9 @@ export class ThreadsPublishWidget extends LitElement {
   }
 
   override updated(): void {
-    // The discard element left (nothing pending any more) while its dialog was open: no close event will come.
-    if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release(true);
+    // The discard element left while its dialog was open (e.g. a failed refresh): no close event will come.
+    // That is not a discard; the controller decides that from the journal itself.
+    if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release(false);
   }
 
   /** Re-read the caller's journal. */

@@ -363,3 +363,38 @@ test('discard confirmation: Confirm before the old journal is re-read cannot pub
   await settle();
   assert.equal(publishes(), 0);
 });
+
+test('discard confirmation: a failed refresh while held is not a discard; the due fire publishes once after it recovers', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.whoamiError = new Error('offline');
+  await c.refresh();
+  c.release(false); // the widget lost the element
+  await settle();
+  assert.equal(publishes(), 0, 'count unknown: nothing to publish yet');
+  s.whoamiError = null;
+  await c.refresh();
+  await settle();
+  assert.equal(publishes(), 1);
+});
+
+test('discard confirmation: a newer journal while held moves the deadline; Cancel does not publish early', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.journal = journal(2, 'auto', new Date(clock).toISOString());
+  await c.refresh();
+  c.release(false);
+  await settle();
+  assert.equal(publishes(), 0);
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(publishes(), 1, 'fires at the new deadline');
+});

@@ -48,8 +48,9 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   let ringDelay = 0;
   /** A confirmation is open on the review: the timer's fire waits instead of publishing. */
   let held = false;
-  /** The timer fired while held. */
+  /** The timer fired while held; `deferredFor` is the journal's `updatedAt` it fired for. */
   let deferred = false;
+  let deferredFor: string | null = null;
 
   const mode = (): DraftMode => journal?.mode ?? 'collect';
   const pending = (): number => (known ? (journal?.ops.length ?? 0) : 0);
@@ -62,6 +63,8 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
     } else {
       timer.update({ mode: mode(), updatedAt: journal.review.updatedAt, pendingCount: pending() });
     }
+    // A newer journal re-armed the countdown for its own deadline: the old fire no longer counts.
+    if (deferred && journal?.review.updatedAt !== deferredFor) deferred = false;
     remaining = timer.remainingMs();
     // No ring while unarmed (collect, paused, fired): the next one is created fresh and re-measured.
     if (remaining === null || !journal) {
@@ -91,6 +94,13 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
       return;
     }
     syncTimer();
+    // The review is gone while a confirmation is open: it was discarded (here or elsewhere).
+    if (held && (!journal || pending() === 0)) release(true);
+    // A fire held back by a confirmation that closed while nothing could be published yet.
+    if (deferred && !held && pending() > 0) {
+      deferred = false;
+      void publish();
+    }
     onChange();
   }
 
@@ -138,10 +148,18 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   // Publishing re-syncs the timer when it ends, which drops the ring: nothing is scheduled after a fire.
-  timer?.onFire(() => {
-  if (held) deferred = true;
-  else void publish();
-});
+    timer?.onFire(() => {
+    if (!held) {
+      void publish();
+      return;
+    }
+    deferred = true;
+    deferredFor = journal?.review.updatedAt ?? null;
+    // Fired: no countdown to show while the question is open.
+    remaining = null;
+    ringKey = null;
+    onChange();
+  });
 
   /** A confirmation opened: no auto publish starts until `release`. The countdown itself keeps its deadline. */
   function hold(): void {
@@ -155,14 +173,15 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   function release(discarded: boolean): void {
     if (!held) return;
     held = false;
-    const due = deferred;
-    deferred = false;
     if (discarded) {
+      deferred = false;
       timer?.stop();
       remaining = null;
       ringKey = null;
       onChange();
-    } else if (due) {
+    } else if (deferred && pending() > 0) {
+      // Else (count unknown) the fire stays deferred; the next refresh publishes it.
+      deferred = false;
       void publish();
     }
   }
