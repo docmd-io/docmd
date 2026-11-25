@@ -1,5 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
 import * as api from '../lib/api';
 import { t } from '../lib/i18n';
@@ -71,6 +71,28 @@ const CSS = `
   }
   @keyframes tpw-countdown { to { stroke-dashoffset: 75.4; } }
   .tpw__count { color: var(--sl-color-neutral-700, inherit); }
+  .tpw__title { display: flex; gap: 6px; }
+  .tpw__title-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--tc-input, var(--sl-color-neutral-300, currentColor));
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
+  .tpw__title-save {
+    border: 1px solid var(--sl-color-neutral-300, currentColor);
+    background: transparent;
+    color: inherit;
+    border-radius: 6px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font: inherit;
+  }
+  .tpw__title-save:disabled { opacity: 0.5; cursor: default; }
   .tpw__line { color: var(--sl-color-warning-700, inherit); font-size: 12px; }
   .tpw__line--error { color: var(--sl-color-danger-700, inherit); }
   .tpw__line--orphan { color: var(--tc-muted-fg, inherit); }
@@ -122,6 +144,44 @@ export class ThreadsPublishWidget extends LitElement {
     this.controller.stop();
   }
 
+  /** The title field's text; reset to the journal's when the open review or its saved title changes. */
+  @state() private draftTitle = '';
+  @state() private savingTitle = false;
+  @state() private titleError: string | null = null;
+  private titleSeen: { id: string | null; title: string | null } = { id: null, title: null };
+
+  /** Save the field as the open review's title (empty: the default one). The journal is re-read after, which restarts the countdown. */
+  private async saveTitle(e: Event): Promise<void> {
+    e.preventDefault();
+    if (this.savingTitle) return;
+    this.savingTitle = true;
+    this.titleError = null;
+    try {
+      await api.updateReview({ title: this.draftTitle.trim() || null });
+      await this.controller.refresh();
+    } catch (err) {
+      this.titleError = err instanceof api.ThreadsClientError ? err.text : t('saveFailed');
+    } finally {
+      this.savingTitle = false;
+    }
+  }
+
+  private renderTitle(reviewId: string, reviewTitle: string | null) {
+    // Keep what the user is typing; take the journal's title only when it or the review changed.
+    if (this.titleSeen.id !== reviewId || this.titleSeen.title !== reviewTitle) {
+      this.titleSeen = { id: reviewId, title: reviewTitle };
+      this.draftTitle = reviewTitle ?? '';
+    }
+    return html`
+      <form class="tpw__title" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
+        <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
+          aria-label=${t('reviewTitle')} .value=${this.draftTitle}
+          @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
+        <button class="tpw__title-save" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+      </form>
+      ${this.titleError ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
+  }
+
   /** The unpublished count last announced to the page. */
   private announced: number | null = null;
 
@@ -143,7 +203,7 @@ export class ThreadsPublishWidget extends LitElement {
   }
 
   override render() {
-    const { state: s, mode, ring, reviewId, pendingCount } = this.controller.view();
+    const { state: s, mode, ring, reviewId, reviewTitle, pendingCount } = this.controller.view();
     const auto = s.variant === 'auto';
     return html`
       <div class="tpw" data-variant=${s.variant}>
@@ -167,6 +227,7 @@ export class ThreadsPublishWidget extends LitElement {
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
+        ${reviewId && pendingCount > 0 ? this.renderTitle(reviewId, reviewTitle) : nothing}
         ${s.orphanLine ? html`<div class="tpw__line tpw__line--orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>

@@ -166,6 +166,23 @@ export function injectComponentStyles(): void {
       padding: 10px 16px;
       border-bottom: 1px solid var(--tc-border);
     }
+    .tc-panel__tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--tc-border); }
+    .tc-panel__tab {
+      background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+      color: var(--tc-muted-fg); font: inherit; font-size: 13px; padding: 6px 8px;
+    }
+    .tc-panel__tab[aria-pressed="true"] { color: var(--tc-fg); border-bottom-color: var(--tc-ring); }
+    .tc-reviews { padding: 8px 16px; display: flex; flex-direction: column; gap: 10px; font-family: var(--tc-font); color: var(--tc-fg); }
+    .tc-reviews__error { color: var(--tc-muted-fg); font-size: 12px; border: 1px solid var(--tc-border); border-radius: 6px; padding: 6px 8px; }
+    .tc-review { border: 1px solid var(--tc-border); border-radius: var(--tc-radius); padding: 10px 12px; background: var(--tc-card); }
+    .tc-review--discarded { opacity: 0.55; }
+    .tc-review__head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .tc-review__title { font-weight: 600; font-size: 13px; }
+    .tc-review__badge { font-size: 11px; color: var(--tc-muted-fg); border: 1px solid var(--tc-border); border-radius: 999px; padding: 0 8px; }
+    .tc-review__meta { font-size: 12px; color: var(--tc-muted-fg); margin: 2px 0 6px; }
+    .tc-review__ops { margin: 0 0 4px; padding-left: 16px; font-size: 12px; }
+    .tc-review__link { color: var(--tc-ring); text-decoration: none; }
+    .tc-review__link:hover { text-decoration: underline; }
     .tc-panel__body {
       flex: 1;
       min-height: 0; /* scroll inside the panel so the review section stays pinned below the list */

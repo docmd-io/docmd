@@ -9,12 +9,15 @@ import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
 import { createSvgElement, getThreadSvg } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
+import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 
 import './threads-popover';
 import './threads-inline-editor';
 import './threads-identity';
 import './threads-publish-widget';
+import './threads-reviews-panel';
+import type { ThreadsReviewsPanel } from './threads-reviews-panel';
 import type { ThreadsPublishWidget } from './threads-publish-widget';
 
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
@@ -44,6 +47,11 @@ export class ThreadsApp extends LitElement {
   private inlineEditorEl: HTMLElement | null = null;
   /** The drawer panel: the review section mounts into it. Null when no panel exists (nothing is mounted then). */
   private panelEl: HTMLElement | null = null;
+  /** The drawer's tab. Reviews exists only while the socket is live; the tab buttons are created with the review section. */
+  private panelTab: 'threads' | 'reviews' = 'threads';
+  private tabsEl: HTMLElement | null = null;
+  /** The `#thread-<id>` of the open URL has been revealed (or there is none); reset on a hash change and a page mount. */
+  private deepLinkDone = false;
   private publishMount = createPublishMount<ThreadsPublishWidget>({
     isLive: () => docmd.isLive!(), // mountPublishWidget guards docmd and isLive before start()
     isConnected: () => this.isConnected,
@@ -52,10 +60,14 @@ export class ThreadsApp extends LitElement {
       // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
       if (!this.panelEl) return el; // no drawer to show it in: nothing to refresh
       this.panelEl.appendChild(el);
+      this.mountTabs();
       void el.refresh();
       return el;
     },
-    remove: (el) => el.remove(),
+    remove: (el) => {
+      el.remove();
+      this.unmountTabs();
+    },
   });
 
   /** Whether sidebar mode is enabled via plugin config. Default: false (inline mode). */
@@ -68,6 +80,7 @@ export class ThreadsApp extends LitElement {
     document.removeEventListener('mouseup', this.handleMouseUp);
     document.removeEventListener('mousedown', this.handleOutsidePopoverClick);
     document.removeEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
+    window.removeEventListener('hashchange', this.handleHashChange);
     document.removeEventListener('reviews-changed', this.handleReviewsChanged);
     document.removeEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
     this.publishMount.stop();
@@ -79,6 +92,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
+    window.addEventListener('hashchange', this.handleHashChange);
     document.addEventListener('reviews-changed', this.handleReviewsChanged);
     document.addEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
 
@@ -360,8 +374,15 @@ export class ThreadsApp extends LitElement {
 
   // ─── Page lifecycle ───────────────────────────────────────────────
 
+  /** A link to another spot of the open page only changes the fragment: reveal its thread without a reload. */
+  private handleHashChange = (): void => {
+    this.deepLinkDone = false;
+    this.handleDeepLink();
+  };
+
   private handlePageMounted = (_e: CustomEvent): void => {
     this.popoverActive = false;
+    this.deepLinkDone = false;
     void this.identityReady.then(() => {
       this.loadThreads();
       this.injectNewThreadButton();
@@ -372,7 +393,31 @@ export class ThreadsApp extends LitElement {
   private handleReviewsChanged = (e: Event): void => {
     e.preventDefault();
     void this.loadThreads();
+    void this.reviewsPanel()?.refresh();
   };
+
+  private reviewsPanel(): ThreadsReviewsPanel | null {
+    return document.querySelector<ThreadsReviewsPanel>('.tc-panel__body threads-reviews-panel');
+  }
+
+  /** `#thread-<id>` in the URL: scroll the thread's highlight (or inline card) into view and flash it once. An unknown id does nothing. */
+  private handleDeepLink(): void {
+    if (this.deepLinkDone) return;
+    const hash = location.hash;
+    if (!hash) { this.deepLinkDone = true; return; }
+    const id = threadIdFromHash(hash);
+    if (id === null) { this.deepLinkDone = true; return; }
+    // Not loaded yet (or not a thread of this page): leave the latch open for the next load.
+    if (!this.threads.some(th => th.id === id)) return;
+    const sel = `[data-thread-id="${CSS.escape(id)}"]`;
+    const target = document.querySelector<HTMLElement>(`mark.threads-highlight${sel}`)
+      ?? document.querySelector<HTMLElement>(`.threads-thread${sel}:not(.tc-panel .threads-thread)`);
+    if (!target) return;
+    this.deepLinkDone = true;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('threads-thread--flash');
+    setTimeout(() => target.classList.remove('threads-thread--flash'), 2000);
+  }
 
   private async loadThreads(): Promise<void> {
     await this.identityReady;
@@ -394,6 +439,7 @@ export class ThreadsApp extends LitElement {
     this.scanRenderedHighlights();
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
+    this.handleDeepLink();
   }
 
   /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
@@ -480,7 +526,7 @@ export class ThreadsApp extends LitElement {
         e.stopPropagation();
         this.closeAiDrawerIfOpen();
         document.body.classList.add('tc-panel-open');
-        this.populateSidebarPanel();
+        this.selectTab('threads');
         const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
         if (targetInPanel) {
           targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -824,7 +870,7 @@ export class ThreadsApp extends LitElement {
     toggle.addEventListener('click', () => {
       this.closeAiDrawerIfOpen();
       document.body.classList.add('tc-panel-open');
-      this.populateSidebarPanel();
+      this.populateSidebarPanel(true);
     });
     column.appendChild(toggle);
 
@@ -887,12 +933,65 @@ export class ThreadsApp extends LitElement {
     document.body.appendChild(column);
   }
 
+  /** The Threads / Reviews tab buttons, between the drawer's header and body. Only a live drawer has them. */
+  private mountTabs(): void {
+    if (!this.panelEl || this.tabsEl) return;
+    const tabs = document.createElement('div');
+    tabs.className = 'tc-panel__tabs';
+    for (const [id, label] of [['threads', t('threads')], ['reviews', t('reviews')]] as const) {
+      const btn = document.createElement('button');
+      btn.className = 'tc-panel__tab';
+      btn.dataset.tab = id;
+      btn.dataset.testid = `tab-${id}`;
+      btn.textContent = label;
+      btn.setAttribute('aria-pressed', String(id === this.panelTab));
+      btn.addEventListener('click', () => this.selectTab(id));
+      tabs.appendChild(btn);
+    }
+    this.panelEl.insertBefore(tabs, this.panelEl.querySelector('.tc-panel__body'));
+    this.tabsEl = tabs;
+  }
+
+  private unmountTabs(): void {
+    this.tabsEl?.remove();
+    this.tabsEl = null;
+    if (this.panelTab === 'reviews') this.selectTab('threads');
+  }
+
+  /** Show a tab. Choosing Reviews reads the list afresh. */
+  private selectTab(tab: 'threads' | 'reviews'): void {
+    this.panelTab = tab;
+    this.populateSidebarPanel(tab === 'reviews');
+  }
+
   /**
-   * Populate the sidebar panel body with thread cards directly from this.threads data.
+   * Populate the sidebar panel body with thread cards directly from this.threads data, or the Reviews tab.
+   * `refreshReviews`: re-read an already mounted Reviews tab (a user opened it); other callers leave its list alone.
    */
-  private populateSidebarPanel(): void {
+  private populateSidebarPanel(refreshReviews = false): void {
     const panelBody = document.querySelector('.tc-panel__body');
     if (!panelBody) return;
+
+    this.tabsEl?.querySelectorAll<HTMLElement>('.tc-panel__tab').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.tab === this.panelTab)));
+
+    if (this.panelTab === 'reviews') {
+      const existing = panelBody.querySelector<ThreadsReviewsPanel>('threads-reviews-panel');
+      if (existing) {
+        if (refreshReviews) void existing.refresh();
+        return;
+      }
+      panelBody.textContent = '';
+      const reviews = document.createElement('threads-reviews-panel');
+      // A link to the URL already open fires no hashchange: reveal the thread again.
+      reviews.addEventListener('reveal-thread', (e) => {
+        e.preventDefault();
+        this.deepLinkDone = false;
+        this.handleDeepLink();
+      });
+      panelBody.appendChild(reviews);
+      return;
+    }
 
     // Clear existing panel threads
     panelBody.textContent = '';
