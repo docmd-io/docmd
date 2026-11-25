@@ -13,7 +13,7 @@ import { createDraftStore } from '../src/plugin/drafts.ts';
 import { assertRuntime, normalizeOptions } from '../src/plugin/config.ts';
 import { publish, discard } from '../src/plugin/reviews.ts';
 import { getSync, type ExecFile } from '../src/plugin/git-sync.ts';
-import { onServerReady } from '../src/index.ts';
+import { onServerReady, generateScripts } from '../src/index.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
 const SENTINEL = 'SENTINEL-7f3a';
@@ -41,9 +41,24 @@ after(() => {
 beforeEach(() => trio.reset());
 
 /** Context for the server clone: serve mode with a trusted identity, git on (the remote may be replaced). */
-const ctxIn = (root: string, identity: string, git: unknown, mode: 'serve' | 'dev' = 'serve'): ActionContext =>
-  makeCtx(root, { mode, config: { src: 'docs', plugins: { threads: git ? { git } : {} } }, caller: { identity } }) as unknown as ActionContext;
+const ctxIn = (root: string, identity: string, git: unknown, mode: 'serve' | 'dev' = 'serve', headers: Record<string, string> = {}): ActionContext =>
+  makeCtx(root, { mode, config: { src: 'docs', plugins: { threads: git ? { git } : {} } }, caller: { identity, headers } }) as unknown as ActionContext;
 const gitCtx = (remote?: string) => ctxIn(trio.server, 'ann', remote ? { ...GIT, remote } : GIT);
+const EMAIL = 'ann@example.com';
+/** Git on with `authorEmailHeader`; the request carries `headers` (by default the e-mail under that header, in its proxy spelling). */
+const emailCtx = (headers: Record<string, string> = { 'x-auth-request-email': EMAIL }) =>
+  ctxIn(trio.server, 'ann', { ...GIT, authorEmailHeader: 'X-Auth-Request-Email' }, 'serve', headers);
+/** Whether any file of the pushed branch contains `text` (`git grep` exits 1 on no match). */
+const remoteTreeHolds = (text: string) => {
+  try {
+    git(trio.remote, 'grep', '-q', '-F', text, BRANCH, '--');
+    return true;
+  } catch {
+    return false;
+  }
+};
+/** Every file under the server clone outside `.git/` that holds the address. */
+const holdingEmail = () => allFiles(trio.server).filter((f) => !f.includes(`${path.sep}.git${path.sep}`) && fs.readFileSync(safePath(path.dirname(f), path.basename(f)), 'utf8').includes(EMAIL));
 const draft = (ctx: ActionContext, body: string, file = 'docs/index.md') =>
   actions['threads:add-thread']({ file, body, anchor: ANCHOR }, ctx);
 const storeOf = () => createDraftStore(path.join(trio.server, 'docs'), { now: Date.now, defaultMode: () => 'collect' });
@@ -218,8 +233,8 @@ test('two concurrent publishes commit in call order through the shared docs-root
 // medium: a real bare remote and two clones
 // ---------------------------------------------------------------------------
 
-test('publish makes one commit authored by the commenter; the token leaks nowhere', async () => {
-  const ctx = gitCtx();
+test('publish makes one commit authored by the commenter, with the address from the request header; the token and the address leak nowhere', async () => {
+  const ctx = emailCtx();
   await draft(ctx, 'Reword this link text.');
   await draft(ctx, 'And this one.', 'docs/extra.md');
   await actions['threads:update-review']({ title: 'Link wording', summary: '  Why the links change.\n\nSecond paragraph.  ' }, ctx);
@@ -242,7 +257,7 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
 
   assert.equal(commits(trio.remote), 2, 'exactly one new commit');
   const [a, c, subject] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
-  assert.deepEqual([a, c, subject], ['Ann Lee <ann@threads.invalid>', 'Threads Bot <bot@fixture.invalid>', 'Link wording [skip ci]']);
+  assert.deepEqual([a, c, subject], [`Ann Lee <${EMAIL}>`, 'Threads Bot <bot@fixture.invalid>', 'Link wording [skip ci]']);
   assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), 'Why the links change.\n\nSecond paragraph.', 'the body is the summary');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.equal(files.length, 3, files.join());
@@ -258,9 +273,32 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
     assert.ok(!fs.readFileSync(safePath(path.dirname(f), path.basename(f))).includes(SENTINEL), `${f} holds the token`);
   }
   assert.ok(!out.join('\n').includes(SENTINEL));
+
+  // the address is in the commit's author and nowhere else: not in the pushed tree, the clone, the output or the page scripts
+  assert.ok(!out.join('\n').includes(EMAIL), 'output');
+  assert.equal(remoteTreeHolds(EMAIL), false, 'pushed tree');
+  assert.deepEqual(holdingEmail(), [], 'server clone');
+  const scripts = generateScripts({ src: path.join(trio.server, 'docs') }, ctx.config.plugins && (ctx.config as { plugins: { threads: unknown } }).plugins.threads);
+  assert.ok(!(scripts.headScriptsHtml + scripts.bodyScriptsHtml).includes(EMAIL), 'generateScripts');
   // the argument channel: the token is in no argument, and the push child has it in its environment
   assert.ok(recorded.every((r) => r.args.every((x) => !x.includes(SENTINEL))));
   assert.equal(recorded.find((r) => r.args.includes('push'))?.env.DOCMD_THREADS_GIT_TOKEN, SENTINEL);
+});
+
+test('without the option, or when the request lacks the header or carries a malformed one, the author e-mail is the placeholder', async () => {
+  const cases: Array<[string, () => ActionContext]> = [
+    ['no option', () => ctxIn(trio.server, 'ann', GIT, 'serve', { 'x-auth-request-email': EMAIL })],
+    ['no header', () => emailCtx({})],
+    ['malformed header', () => emailCtx({ 'x-auth-request-email': 'Ann <ann@example.com>' })],
+  ];
+  for (const [name, make] of cases) {
+    trio.reset();
+    const ctx = make();
+    await draft(ctx, 'Reword this link text.');
+    await actions['threads:publish-review']({}, ctx);
+    assert.equal(log(trio.remote, '%an <%ae>').pop(), 'Ann Lee <ann@threads.invalid>', name);
+    assert.equal(remoteTreeHolds('example.com'), false, name);
+  }
 });
 
 const remoteAuthors = () => JSON.parse(git(trio.remote, 'show', `${BRANCH}:docs/.threads/authors.json`));
@@ -284,14 +322,15 @@ test('a pending profile is committed with the review: pages, manifest and author
   assert.deepEqual([journal.ops, journal.profile], [[], undefined]);
 });
 
-test('a profile alone is one commit of authors.json named for the new name; an entry the repository already holds commits and pushes nothing', async () => {
-  const ctx = gitCtx();
+test('a profile alone is one commit of authors.json named for the new name, authored with the request address; an entry the repository already holds commits and pushes nothing', async () => {
+  const ctx = emailCtx();
   await actions['threads:upsert-author']({ name: 'Ann Lee-Smith' }, ctx);
   const open = (await storeOf().load(ANN.key)).review.id; // saved by the upsert
   assert.deepEqual(await actions['threads:publish-review']({}, ctx), { reviewId: open, skipped: [] });
 
   assert.equal(commits(trio.remote), 2);
   assert.equal(log(trio.remote, '%s').pop(), 'Ann Lee-Smith updated their profile [skip ci]');
+  assert.equal(log(trio.remote, '%ae').pop(), EMAIL);
   assert.deepEqual(changedFiles(), ['docs/.threads/authors.json'], 'no manifest');
   assert.deepEqual(remoteAuthors(), { ann: { name: 'Ann Lee-Smith', avatarUrl: '' } });
   assert.deepEqual(manifestFiles(), []);
@@ -308,8 +347,8 @@ test('a profile alone is one commit of authors.json named for the new name; an e
   assert.equal((await storeOf().load(ANN.key)).profile, undefined, 'the profile is still cleared');
 });
 
-test('discard is one forward commit by the discarding caller; an open review makes none', async () => {
-  const ctx = gitCtx();
+test('discard is one forward commit by the discarding caller, authored with the request address; an open review makes none', async () => {
+  const ctx = emailCtx();
   await draft(ctx, 'Reword this.');
   await actions['threads:update-review']({ title: 'Wording', summary: 'Not for the discard commit.' }, ctx);
   // through the handlers, with the real execFile: the remote is a local path
@@ -319,7 +358,8 @@ test('discard is one forward commit by the discarding caller; an open review mak
 
   assert.equal(commits(trio.remote), before + 1);
   const [a, c, s] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
-  assert.deepEqual([a, c, s], ['Ann Lee <ann@threads.invalid>', 'Threads Bot <bot@fixture.invalid>', 'revert(threads): discard review "Wording" [skip ci]']);
+  assert.deepEqual([a, c, s], [`Ann Lee <${EMAIL}>`, 'Threads Bot <bot@fixture.invalid>', 'revert(threads): discard review "Wording" [skip ci]']);
+  assert.equal(remoteTreeHolds(EMAIL), false, 'the address is in no pushed file');
   assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), '', 'a discard commit has no body');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/index.md']);

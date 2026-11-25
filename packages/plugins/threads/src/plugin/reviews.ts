@@ -7,6 +7,7 @@ import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import { markPattern, splitPage } from './marks.js';
 import type { Sync } from './lock.js';
+import { authorEmailOf } from './author-email.js';
 import { authorsFileOf, setAuthorEntry } from './authors.js';
 import type { DraftStore } from './drafts.js';
 import type { Caller, Comment, DraftOp, Journal, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
@@ -640,6 +641,12 @@ function assertWritable({ key, name }: Caller): void {
 }
 
 /** A path as the sync is told about it: relative to the project root, like a target file. */
+/** The request's commit author e-mail as a meta fragment (empty when it carries none). */
+const emailMeta = (ctx: ActionContext): { authorEmail?: string } => {
+  const authorEmail = authorEmailOf(ctx);
+  return authorEmail ? { authorEmail } : {};
+};
+
 const manifestFileOf = (ctx: ActionContext, id: string): string => path.relative(ctx.projectRoot, safePath(reviewsDir(ctx), `${id}.json`));
 
 type Profile = NonNullable<Journal['profile']>;
@@ -662,7 +669,7 @@ async function publishProfileOnly(caller: Caller, ctx: ActionContext, store: Dra
       await setAuthorEntry(ctx, caller.key, profile);
       return { title: oneLine(`${profile.name} updated their profile`, TITLE_MAX) };
     },
-    { authorKey: caller.key, authorName: caller.name, kind: 'publish', files: [file] },
+    { authorKey: caller.key, authorName: caller.name, ...emailMeta(ctx), kind: 'publish', files: [file] },
   );
   await store.transact(caller.key, (j) => clearProfile(j, profile));
   return { reviewId: journal.review.id, skipped: [] };
@@ -763,7 +770,7 @@ export async function publish(
         return { title, summary };
       },
       {
-        authorKey: caller.key, authorName: caller.name, kind: 'publish',
+        authorKey: caller.key, authorName: caller.name, ...emailMeta(ctx), kind: 'publish',
         files: profile ? [...files, authorsFile] : files, manifest: manifestFileOf(ctx, reviewId),
       },
     );
@@ -874,7 +881,7 @@ export async function discard(
         }), 'discard');
         return { title: current.title };
       },
-      { authorKey: caller.key, authorName: caller.name, kind: 'discard', files, manifest: manifestFileOf(ctx, reviewId) },
+      { authorKey: caller.key, authorName: caller.name, ...emailMeta(ctx), kind: 'discard', files, manifest: manifestFileOf(ctx, reviewId) },
     );
     return { discarded: true } as const;
   });

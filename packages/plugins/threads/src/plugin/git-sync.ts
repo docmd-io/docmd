@@ -110,8 +110,8 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
     const subject = meta.kind === 'discard'
       ? `revert(threads): discard review "${applied.title}" ${skipDeployMarker}`
       : `${applied.title} ${skipDeployMarker}`;
-    // The caller key is the email when it looks like one, else a placeholder address on a reserved domain.
-    const email = meta.authorKey.includes('@') ? meta.authorKey : `${meta.authorKey.replace(/[^a-z0-9._-]+/gi, '-')}@threads.invalid`;
+    // The request's address when it carried one, else a placeholder on a reserved domain.
+    const email = meta.authorEmail ?? `${meta.authorKey.replace(/[^a-z0-9._-]+/gi, '-')}@threads.invalid`;
     await git([
       '-c', `user.name=${committer.name}`, '-c', `user.email=${committer.email}`,
       'commit', `--author=${ident(meta.authorName)} <${ident(email)}>`, '-m', subject,

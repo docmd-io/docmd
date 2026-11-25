@@ -14,6 +14,12 @@ export interface ThreadsOptions {
     skipDeployMarker: string;
     /** How often the server fetches the branch and rebuilds what other people changed. */
     pullSeconds: number;
+    /**
+     * The request header (case-insensitive) that carries the commenter's e-mail, e.g. a proxy's
+     * `X-Auth-Request-Email`. Read only while making that person's commit; never stored. Only a
+     * proxy that strips the client's own copy of the header may set it.
+     */
+    authorEmailHeader?: string;
     /** Who commits; the commenter is the author. */
     committer: { name: string; email: string };
   };
@@ -92,11 +98,16 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
   if (raw.git !== undefined && raw.git !== null) {
     const g = section(raw, 'git');
     const c = g.committer === undefined ? {} : isObject(g.committer) ? g.committer : bad('git.committer', 'must be an object');
+    const authorEmailHeader = g.authorEmailHeader === undefined ? undefined : nonEmptyString(g, 'git', 'authorEmailHeader');
+    if (authorEmailHeader !== undefined && /^(set-)?cookie$/i.test(authorEmailHeader.trim())) {
+      bad('git.authorEmailHeader', 'must not be cookie or set-cookie');
+    }
     git = {
       branch: gitArgument(g, 'branch'),
       remote: gitArgument(g, 'remote', 'origin'),
       skipDeployMarker: nonEmptyString(g, 'git', 'skipDeployMarker', '[skip ci]'),
       pullSeconds: positiveNumber(g, 'git', 'pullSeconds', 60),
+      ...(authorEmailHeader !== undefined ? { authorEmailHeader: authorEmailHeader.trim() } : {}),
       committer: {
         name: nonEmptyString(c, 'git.committer', 'name', 'docmd threads'),
         email: nonEmptyString(c, 'git.committer', 'email', 'threads@docmd.invalid'),

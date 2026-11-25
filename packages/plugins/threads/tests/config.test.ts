@@ -30,6 +30,8 @@ test('git defaults fill in around the required branch; null is off; explicit val
     branch: 'main', remote: 'origin', skipDeployMarker: '[skip ci]', pullSeconds: 60, committer: { name: 'docmd threads', email: 'threads@docmd.invalid' },
   });
   assert.equal(normalizeOptions({ git: null }).git, null);
+  assert.equal(normalizeOptions({ git: { branch: 'main' } }).git?.authorEmailHeader, undefined, 'the e-mail header is optional');
+  assert.equal(normalizeOptions({ git: { branch: 'main', authorEmailHeader: ' X-Auth-Request-Email ' } }).git?.authorEmailHeader, 'X-Auth-Request-Email');
   assert.deepEqual(
     normalizeOptions({ git: { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', pullSeconds: 5, committer: { name: 'Bot', email: 'b@x.io' } } }).git,
     { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', pullSeconds: 5, committer: { name: 'Bot', email: 'b@x.io' } },
@@ -71,6 +73,10 @@ test('invalid values throw threads/config', () => {
     [{ git: { branch: 'm', pullSeconds: 0 } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
     [{ git: { branch: 'm', pullSeconds: -5 } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
     [{ git: { branch: 'm', pullSeconds: '30' } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
+    [{ git: { branch: 'm', authorEmailHeader: '' } }, /plugins\.threads\.git\.authorEmailHeader must be a non-empty string/],
+    [{ git: { branch: 'm', authorEmailHeader: 7 } }, /plugins\.threads\.git\.authorEmailHeader must be a non-empty string/],
+    [{ git: { branch: 'm', authorEmailHeader: 'cookie' } }, /plugins\.threads\.git\.authorEmailHeader must not be cookie or set-cookie/],
+    [{ git: { branch: 'm', authorEmailHeader: 'Set-Cookie' } }, /plugins\.threads\.git\.authorEmailHeader must not be cookie or set-cookie/],
     [{ git: { branch: 'm', committer: 'bot' } }, /plugins\.threads\.git\.committer must be an object/],
     [{ git: { branch: 'm', committer: { name: '' } } }, /plugins\.threads\.git\.committer\.name must be a non-empty string/],
     [{ git: { branch: 'm', committer: { email: 7 } } }, /plugins\.threads\.git\.committer\.email must be a non-empty string/],

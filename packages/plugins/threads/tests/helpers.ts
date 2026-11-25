@@ -51,8 +51,8 @@ export interface TestCtx {
   readFileLines(relativePath: string): Promise<string[]>;
   /** Which command hosts the call; the dispatcher's default is dev. */
   mode?: 'dev' | 'serve';
-  /** Only `identity` is read by the plugin. */
-  caller?: { identity: string | null };
+  /** Only `identity` and `headers` are read by the plugin. */
+  caller?: { identity: string | null; headers?: Record<string, string> };
 }
 
 /** Action context matching what the action dispatcher provides. */

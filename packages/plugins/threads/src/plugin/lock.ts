@@ -26,6 +26,8 @@ export function lockFor(docsRoot: string): Lock {
 export interface PublishMeta {
   authorKey: string;
   authorName: string;
+  /** The request's well-formed e-mail for the commit author; in memory only, never serialised. */
+  authorEmail?: string;
   /** What the change is: a published review or a discard (default publish). */
   kind?: 'publish' | 'discard';
   /** Pages the change may touch, relative to the project root. */
