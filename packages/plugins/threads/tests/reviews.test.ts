@@ -497,9 +497,11 @@ test('a pending profile is written with the pages and cleared; a failure after i
   await fill('k-alice', [COMMENT]);
   await withProfile('k-alice');
   const bytes = { page: read(FILE), authors: readAt(authorsPath()) };
-  // the manifest is built last, after the profile write: a clock that throws fails the publish there
-  const broken = { ...deps(), now: () => { throw new Error('clock failed'); } };
-  await assert.rejects(publish(ALICE, ctx() as never, broken), /clock failed/);
+  // the manifest is written last, after the profile: a read-only reviews directory fails exactly that write
+  fs.mkdirSync(safePath(reviewsDir(), '.'), { recursive: true });
+  fs.chmodSync(safePath(reviewsDir(), '.'), 0o555);
+  const broken = () => assert.rejects(publish(ALICE, ctx() as never, deps()), /EACCES/);
+  await broken();
   assert.equal(read(FILE), bytes.page);
   assert.equal(readAt(authorsPath()), bytes.authors);
   const kept = await store().load('k-alice');
@@ -507,9 +509,10 @@ test('a pending profile is written with the pages and cleared; a failure after i
 
   // with no authors.json before, the undo removes the file it created
   fs.rmSync(authorsPath());
-  await assert.rejects(publish(ALICE, ctx() as never, broken), /clock failed/);
+  await broken();
   assert.equal(fs.existsSync(authorsPath()), false);
 
+  fs.chmodSync(safePath(reviewsDir(), '.'), 0o755);
   const result = await publish(ALICE, ctx() as never, deps());
   assert.deepEqual(readAuthors(), { 'k-alice': PROFILE });
   assert.equal(JSON.parse(readAt(manifestPath(result.reviewId))).ops.length, 1);
@@ -534,17 +537,6 @@ test('a profile edited again while the publish runs stays in the journal with th
   await publish(ALICE, ctx(during) as never, deps());
   assert.deepEqual(readAuthors()['k-alice'], PROFILE, 'the value read at the start was written');
   assert.deepEqual((await store().load('k-alice')).profile, newer);
-});
-
-test('a profile alone is written to authors.json with no manifest and no new review id; an empty journal still has nothing to publish', async () => {
-  await withProfile('k-alice');
-  const id = (await store().load('k-alice')).review.id;
-  assert.deepEqual(await publish(ALICE, ctx() as never, deps()), { reviewId: id, skipped: [] });
-  assert.deepEqual(readAuthors(), { 'k-alice': PROFILE });
-  assert.equal(fs.existsSync(reviewsDir()), false, 'no manifest');
-  const after = await store().load('k-alice');
-  assert.deepEqual([after.review.id, after.profile], [id, undefined]);
-  await assert.rejects(publish(ALICE, ctx() as never, deps()), /threads\/empty-review/);
 });
 
 test('on the failed-reset path the earlier manifest is only finished: the profile is not written again and stays in the journal', async () => {

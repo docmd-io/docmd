@@ -109,7 +109,10 @@ test('refresh: the count is the ops of the latest whoami; no journal is 0', asyn
   assert.equal(c.view().state.label, '3 unpublished comments', 'a pending profile counts as one change');
   s.journal = journal(0, 'collect', undefined, profile);
   await c.refresh();
-  assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().pendingCount], ['1 unpublished comment', false, 1]);
+  assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().pendingCount, c.view().opCount], ['1 unpublished comment', false, 1, 0], 'no comment, so nothing for Discard or the title');
+  s.journal = journal(2, 'collect', undefined, profile);
+  await c.refresh();
+  assert.deepEqual([c.view().pendingCount, c.view().opCount], [3, 2]);
   s.journal = null;
   await c.refresh();
   assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().state.errorLine], ['0 unpublished comments', true, null]);
@@ -438,6 +441,16 @@ test('discard confirmation: a newer journal while held moves the deadline; Cance
   advance(SECONDS * 1000);
   await settle();
   assert.equal(publishes(), 1, 'fires at the new deadline');
+});
+
+test('discard confirmation: a refresh that finds no comments left releases the hold, whatever profile is pending', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  s.journal = journal(0, 'auto', undefined, { name: 'Ann', avatarUrl: '' });
+  await c.refresh();
+  assert.equal(c.isHeld(), false);
 });
 
 test('discard confirmation: a failed Confirm drops the due fire without publishing; a newer edit re-arms it', async () => {

@@ -135,15 +135,12 @@ test('two concurrent publishes commit in call order through the shared docs-root
     let bobLoaded = false;
     const canned = (who: string): ExecFile => async (_f, args) => {
       const verb = args.find((a) => ['fetch', 'diff-tree', 'reset', 'add', 'commit', 'push'].includes(a))!;
-||||||| parent of 6f89555b (feat(threads): keep a commenter's profile edit in their journal under git sync)
-      const verb = args.find((a) => ['fetch', 'reset', 'add', 'commit', 'push'].includes(a))!;
       verbs.push(`${who}:${verb}`);
       if (who === 'ann' && verb === 'push') {
         annAtPush();
         await gate;
       }
-      // the staged-files check: something is staged
-      return verb === 'diff' ? { stdout: 'staged\n', stderr: '' } : OK;
+      return OK;
     };
     const people = [['ann', 'Ann'], ['bob', 'Bob']] as const;
     const jobs = [];
@@ -164,9 +161,6 @@ test('two concurrent publishes commit in call order through the shared docs-root
     assert.equal(bobLoaded, true);
     assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'diff-tree', 'reset', 'add', 'commit', 'push', 'fetch', 'diff-tree', 'reset', 'add', 'commit', 'push']);
     assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob', 'bob']);
-||||||| parent of 6f89555b (feat(threads): keep a commenter's profile edit in their journal under git sync)
-    assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'reset', 'add', 'commit', 'push', 'fetch', 'reset', 'add', 'commit', 'push']);
-    assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob']);
   } finally {
     project.cleanup();
   }

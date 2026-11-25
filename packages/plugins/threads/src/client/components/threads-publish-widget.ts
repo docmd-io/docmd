@@ -196,7 +196,7 @@ export class ThreadsPublishWidget extends LitElement {
   }
 
   override render() {
-    const { state: s, mode, ring, reviewId, pendingCount } = this.controller.view();
+    const { state: s, mode, ring, reviewId, opCount } = this.controller.view();
     const auto = s.variant === 'auto';
     return html`
       <div class="tpw" data-variant=${s.variant}>
@@ -215,12 +215,12 @@ export class ThreadsPublishWidget extends LitElement {
               <span aria-hidden="true">${s.playPauseAction === 'pause' ? '⏸' : '▶'}</span>
             </button>` : nothing}
           <button class="tc-btn tc-btn--primary tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
-          ${reviewId && !s.publishDisabled ? html`
+          ${reviewId && opCount > 0 && !s.publishDisabled ? html`
             <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; outcome: DiscardOutcome }>) =>
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
-              .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
+              .confirmText=${t('discardDraftsConfirm').replace('{n}', String(opCount))}></threads-discard-review>` : nothing}
         </div>
-        ${reviewId && pendingCount > 0 ? this.renderTitle() : nothing}
+        ${reviewId && opCount > 0 ? this.renderTitle() : nothing}
         ${s.orphanLine ? html`<div class="tpw__line tpw__line--orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>

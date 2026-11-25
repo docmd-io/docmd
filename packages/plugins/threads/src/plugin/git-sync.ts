@@ -150,8 +150,8 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
         }
         try {
           await stage(meta);
-          // Nothing staged (a profile the repository already holds): no commit and no push.
-          if (!(await hasStaged())) return;
+          // A change with no manifest (a profile the repository already holds) may stage nothing: then no commit and no push.
+          if (!meta.manifest && !(await hasStaged())) return;
           await commit(meta, applied);
         } catch (e) {
           await resetQuietly(meta);
@@ -184,7 +184,7 @@ export const gitOn = (ctx: ActionContext): boolean => ctx.mode === 'serve' && !!
 export function getSync(ctx: ActionContext, deps: { execFile?: ExecFile } = {}): Sync {
   const root = docsRootOf(ctx);
   const lock = lockFor(root);
-  const git = ctx.mode === 'serve' ? getOptions(ctx).git : null;
+  const git = gitOn(ctx) ? getOptions(ctx).git : null;
   if (!git) {
     let sync = syncs.get(root);
     if (!sync) syncs.set(root, (sync = createNoGitSync(lock)));

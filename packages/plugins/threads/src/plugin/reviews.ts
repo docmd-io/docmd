@@ -681,8 +681,6 @@ export async function publish(
 ): Promise<PublishResult> {
   assertWritable(caller);
   return sync.withLock(async () => {
-    // The journal's review was published, then discarded, but its reset never finished: finish it
-    // now so only ops drafted since are published (under the new id), never the discarded ones.
     let journal = await store.load(caller.key);
     let earlier = await readManifest(ctx, journal.review.id);
     if (earlier?.state === 'discarded' && earlier.authorKey === caller.key) {

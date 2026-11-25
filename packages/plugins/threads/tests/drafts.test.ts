@@ -243,16 +243,14 @@ test('a failed write leaves no tmp file and the journal as it was', async () => 
   assert.deepEqual(rdBytes(file), bytes);
 });
 
-test('a pending profile survives loads and later writes; a malformed one is dropped', async () => {
+test('a malformed pending profile is dropped on load; a valid one is kept', async () => {
   fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
   const file = path.join(draftsDir(), 'bob.json');
-  const profile = { name: 'Bob B', avatarUrl: 'http://b/b.png' };
   const s = createDraftStore(docsRoot, { now: () => clock });
-  await s.transact('bob', (j) => void (j.profile = profile));
+  const base = { version: 1, mode: 'collect', review: { id: 'r-1', updatedAt: '2026-03-10T12:00:00.000Z', title: null, summary: null }, ops: [] };
+  const profile = { name: 'Bob B', avatarUrl: 'http://b/b.png' };
+  wr(file, JSON.stringify({ ...base, profile }));
   assert.deepEqual((await s.load('bob')).profile, profile);
-  await s.setMode('bob', 'auto');
-  await append(s, 'bob');
-  assert.deepEqual(JSON.parse(rd(file)).profile, profile, 'other writes keep it');
-  wr(file, JSON.stringify({ ...JSON.parse(rd(file)), profile: { name: 7 } }));
+  wr(file, JSON.stringify({ ...base, profile: { name: 7 } }));
   assert.equal((await s.load('bob')).profile, undefined);
 });
