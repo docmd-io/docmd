@@ -128,8 +128,8 @@ test('a body rejected for length does not use up the rate', async () => {
 test('under serve: no identity is refused first; the rate is keyed by the trusted identity', async () => {
   const limits = { maxCommentChars: 3, commentsPerMinute: 1 };
   await assert.rejects(callServe('add-thread', { body: 'too long' }, null, limits), { message: /^threads\/no-identity/ });
-  await callServe('add-thread', { body: 'one', authorKey: 'x1' }, 'id@serve-1', limits);
+  await callServe('add-thread', { body: 'one', authorKey: 'x1' }, 'id-serve-1', limits);
   // the payload key is ignored: the same identity is still the same window
-  await assert.rejects(callServe('add-thread', { body: 'two', authorKey: 'x2' }, 'id@serve-1', limits), { message: /^threads\/rate-limited/ });
-  await callServe('add-thread', { body: 'one', authorKey: 'x1' }, 'id@serve-2', limits);
+  await assert.rejects(callServe('add-thread', { body: 'two', authorKey: 'x2' }, 'id-serve-1', limits), { message: /^threads\/rate-limited/ });
+  await callServe('add-thread', { body: 'one', authorKey: 'x1' }, 'id-serve-2', limits);
 });
