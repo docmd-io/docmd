@@ -31,12 +31,16 @@ async function ensureAuthorProfile(page: Page): Promise<void> {
   await expect.poll(async () => (await page.request.get("/")).text(), { message: "dev server rebuild after the profile file" }).not.toBe(before);
 }
 
-/** Empty the caller's open review, so a test starts from a journal with no ops whatever ran before it. */
+/** Empty the caller's open review, so a test starts from a journal with no ops whatever ran before it. A dev-server reload can tear the page down mid-call: retried until the journal is empty. */
 async function emptyOpenReview(page: Page): Promise<void> {
-  await page.evaluate(async (id) => {
-    const { journal } = await docmd.call("threads:whoami", id);
-    if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
-  }, identity);
+  await expect(async () => {
+    const left = await page.evaluate(async (id) => {
+      const { journal } = await docmd.call("threads:whoami", id);
+      if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
+      return (await docmd.call("threads:whoami", id)).journal?.ops.length ?? 0;
+    }, identity);
+    expect(left).toBe(0);
+  }).toPass({ timeout: 10_000 });
 }
 
 async function load(page: Page): Promise<void> {

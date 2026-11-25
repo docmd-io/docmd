@@ -50,7 +50,8 @@ export class ThreadsApp extends LitElement {
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
       // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
-      this.panelEl?.appendChild(el);
+      if (!this.panelEl) return el; // no drawer to show it in: nothing to refresh
+      this.panelEl.appendChild(el);
       void el.refresh();
       return el;
     },
@@ -404,7 +405,6 @@ export class ThreadsApp extends LitElement {
       if (count < 1) continue;
       const marker = document.createElement('span');
       marker.className = 'tc-unpublished-marker';
-      marker.dataset.testid = 'unpublished-marker';
       marker.textContent = String(count);
       marker.title = label;
       marker.setAttribute('aria-label', label);
@@ -917,7 +917,6 @@ export class ThreadsApp extends LitElement {
       }
       if (orphaned.length > 0) {
         const group = document.createElement('div');
-        group.className = 'tc-panel__group';
         group.dataset.testid = 'orphaned-group';
         const heading = document.createElement('div');
         heading.className = 'tc-panel__group-title';
