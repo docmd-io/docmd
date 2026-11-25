@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeOptions } from '../src/plugin/config.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
-const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' } };
+const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, git: null };
 
 test('absent, true and empty options all normalise to the defaults', () => {
   for (const raw of [{}, undefined, true]) {
@@ -23,6 +23,18 @@ test('valid values are kept', () => {
   );
   assert.deepEqual(normalizeOptions({ permissions: { admins: ['a@x'] } }).permissions, { admins: ['a@x'], resolve: 'anyone' });
   assert.deepEqual(normalizeOptions({ permissions: { resolve: 'author' } }).permissions, { admins: [], resolve: 'author' });
+});
+
+test('git defaults fill in around the required branch; null is off; explicit values are kept', () => {
+  assert.deepEqual(normalizeOptions({ git: { branch: 'main' } }).git, {
+    branch: 'main', remote: 'origin', skipDeployMarker: '[skip ci]', committer: { name: 'docmd threads', email: 'threads@docmd.invalid' },
+  });
+  assert.equal(normalizeOptions({ git: null }).git, null);
+  assert.deepEqual(
+    normalizeOptions({ git: { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', committer: { name: 'Bot', email: 'b@x.io' } } }).git,
+    { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', committer: { name: 'Bot', email: 'b@x.io' } },
+  );
+  assert.deepEqual(normalizeOptions({ git: { branch: 'main', committer: { name: 'Bot' } } }).git?.committer, { name: 'Bot', email: 'threads@docmd.invalid' });
 });
 
 test('the identity header option is not read: the plugin trusts the core identity only', () => {
@@ -47,6 +59,16 @@ test('invalid values throw threads/config', () => {
     [{ permissions: [] }, /plugins\.threads\.permissions must be an object/],
     [{ permissions: { admins: 'a@x' } }, /plugins\.threads\.permissions\.admins must be an array of strings/],
     [{ permissions: { admins: ['a@x', 3] } }, /plugins\.threads\.permissions\.admins must be an array of strings/],
+    [{ git: 'main' }, /plugins\.threads\.git must be an object/],
+    [{ git: [] }, /plugins\.threads\.git must be an object/],
+    [{ git: {} }, /plugins\.threads\.git\.branch must be a non-empty string/],
+    [{ git: { branch: '  ' } }, /plugins\.threads\.git\.branch must be a non-empty string/],
+    [{ git: { branch: 3 } }, /plugins\.threads\.git\.branch must be a non-empty string/],
+    [{ git: { branch: 'm', remote: '' } }, /plugins\.threads\.git\.remote must be a non-empty string/],
+    [{ git: { branch: 'm', skipDeployMarker: ' ' } }, /plugins\.threads\.git\.skipDeployMarker must be a non-empty string/],
+    [{ git: { branch: 'm', committer: 'bot' } }, /plugins\.threads\.git\.committer must be an object/],
+    [{ git: { branch: 'm', committer: { name: '' } } }, /plugins\.threads\.git\.committer\.name must be a non-empty string/],
+    [{ git: { branch: 'm', committer: { email: 7 } } }, /plugins\.threads\.git\.committer\.email must be a non-empty string/],
     [{ permissions: { resolve: 'nobody' } }, /plugins\.threads\.permissions\.resolve must be 'anyone' or 'author'/],
   ];
   for (const [raw, naming] of cases) {

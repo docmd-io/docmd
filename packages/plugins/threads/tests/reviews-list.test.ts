@@ -11,7 +11,7 @@ import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, failingReset, snapshotTree, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore } from '../src/plugin/drafts.ts';
-import { createLock } from '../src/plugin/lock.ts';
+import { createLock, createNoGitSync } from '../src/plugin/lock.ts';
 import { newestFirst, publish, writeManifest } from '../src/plugin/reviews.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 import type { Caller, Journal, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, WhoAmI } from '../src/types.ts';
@@ -124,7 +124,7 @@ test('a published review takes the commenter\'s title; the next review is untitl
   await draft(bob);
   const real = createDraftStore(root(titling));
   const bobCaller: Caller = { ...ALICE_CALLER, key: 'k-bob', name: 'Bob' };
-  await assert.rejects(publish(bobCaller, ctxOf(titling) as never, { store: failingReset(real), lock: createLock() }), /journal write failed/);
+  await assert.rejects(publish(bobCaller, ctxOf(titling) as never, { store: failingReset(real), sync: createNoGitSync(createLock()) }), /journal write failed/);
   const journal = (await whoami(bob)).journal!;
   assert.equal(journal.review.title, null);
   assert.deepEqual(journal.ops, []);

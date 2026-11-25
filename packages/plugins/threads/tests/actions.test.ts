@@ -21,7 +21,7 @@ import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, MarkdownIt, failingReset, snapshotTree, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, slug } from '../src/plugin/drafts.ts';
-import { createLock } from '../src/plugin/lock.ts';
+import { createLock, createNoGitSync } from '../src/plugin/lock.ts';
 import { publish } from '../src/plugin/reviews.ts';
 import * as plugin from '../src/index.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
@@ -404,7 +404,7 @@ test('whoami in the window after a publish whose journal reset failed leaves out
   const ctx = makeCtx(project.root, { config: { src: 'docs' } });
   await assert.rejects(
     publish({ key: 'alice', name: 'Alice' }, ctx as never, {
-      store: failingReset(real), lock: createLock(), now: Date.now, newId: (prefix) => prefix + 'aaaaaaaa',
+      store: failingReset(real), sync: createNoGitSync(createLock()), now: Date.now, newId: (prefix) => prefix + 'aaaaaaaa',
     }),
     /journal write failed/,
   );
@@ -485,6 +485,10 @@ test('lookup and validation failures carry the threads/<code> prefix', async () 
 test('plugin surface: descriptor, hooks and action names', () => {
   assert.equal(plugin.plugin.name, 'threads');
   assert.ok(plugin.plugin.capabilities?.includes('actions'));
+  assert.ok(plugin.plugin.capabilities?.includes('server'));
+  assert.equal(typeof plugin.onServerReady, 'function');
+  const pkg = JSON.parse(fs.readFileSync(safePath(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'), 'package.json'), 'utf8'));
+  assert.deepEqual(pkg.docmd.capabilities, plugin.plugin.capabilities);
   assert.equal(plugin.plugin.requiresLiveServer, true);
   assert.equal(typeof plugin.markdownSetup, 'function');
   assert.equal(typeof plugin.generateScripts, 'function');

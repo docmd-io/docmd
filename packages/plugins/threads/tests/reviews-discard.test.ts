@@ -7,7 +7,7 @@ import { tempProject, makeCtx, failingReset, failingWrites, type TempProject, ty
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp } from '../src/plugin/drafts.ts';
 import { applyOps, discard, publish, reverseOps } from '../src/plugin/reviews.ts';
-import { createLock, type Lock } from '../src/plugin/lock.ts';
+import { createLock, createNoGitSync, type Sync } from '../src/plugin/lock.ts';
 import * as parser from '../src/plugin/parser.ts';
 import type { Caller, DraftOp, NewDraftOp, PublishResult, WhoAmI } from '../src/types.ts';
 
@@ -191,7 +191,7 @@ const call = <T>(name: string, payload: Record<string, unknown>, extra: Partial<
 const pageThreads = (rel: string) => parser.parseThreadsFromContent(read(rel));
 const idsOf = (rel: string) => pageThreads(rel).map((t) => t.id);
 const commentIds = (rel: string, threadId: string) => pageThreads(rel).find((t) => t.id === threadId)!.comments.map((c) => c.id);
-const deps = (extra: { lock?: Lock; now?: () => number } = {}) => ({ store: store(), lock: createLock(), ...extra });
+const deps = (extra: { sync?: Sync; now?: () => number } = {}) => ({ store: store(), sync: createNoGitSync(createLock()), ...extra });
 
 const aliceOps = (): NewDraftOp[] => [
   { kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor('parser rules'), body: 'New on index' },
@@ -294,7 +294,7 @@ test('discard and publish on one docs root run one after the other', async () =>
   await fill('k-bob', [{ kind: 'add-comment', file: FILE, threadId: 't-thread2', commentId: 'c-b2', parentId: null, body: 'second' }]);
   const log: string[] = [];
   const inner = createLock();
-  const lock: Lock = {
+  const sync = createNoGitSync({
     withLock: (fn) => inner.withLock(async () => {
       log.push('enter');
       try {
@@ -303,10 +303,10 @@ test('discard and publish on one docs root run one after the other', async () =>
         log.push('exit');
       }
     }),
-  };
+  });
   const [discarded, published] = await Promise.all([
-    discard(ALICE_CALLER, ctx() as never, id, deps({ lock })),
-    publish({ ...ALICE_CALLER, key: 'k-bob', name: 'Bob' }, ctx() as never, deps({ lock })),
+    discard(ALICE_CALLER, ctx() as never, id, deps({ sync })),
+    publish({ ...ALICE_CALLER, key: 'k-bob', name: 'Bob' }, ctx() as never, deps({ sync })),
   ]);
   assert.deepEqual(log, ['enter', 'exit', 'enter', 'exit']);
   assert.deepEqual(discarded, { discarded: true });
@@ -319,7 +319,7 @@ test('discard and publish on one docs root run one after the other', async () =>
 async function window(): Promise<{ id: string; manifest: string }> {
   await fill('k-alice', aliceOps());
   const real = store();
-  await assert.rejects(publish(ALICE_CALLER, ctx() as never, { store: failingReset(real), lock: createLock() }), /journal write failed/);
+  await assert.rejects(publish(ALICE_CALLER, ctx() as never, { store: failingReset(real), sync: createNoGitSync(createLock()) }), /journal write failed/);
   const id = (await real.load('k-alice')).review.id;
   assert.equal((await real.load('k-alice')).ops.length, 2, 'the journal still lists the ops');
   await call('threads:discard-review', { reviewId: id, ...ALICE });
