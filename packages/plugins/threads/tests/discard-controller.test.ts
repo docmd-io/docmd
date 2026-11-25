@@ -51,7 +51,9 @@ test('a second confirm while the first runs makes no second call', async () => {
   assert.equal(c.state(), 'discarding');
   const second = c.confirm();
   c.cancel();
+  assert.equal(c.state(), 'discarding', 'cancel is ignored while the call runs');
   c.ask('r-2');
+  assert.equal(c.state(), 'discarding', 'ask is ignored while the call runs');
   await settle();
   release();
   await Promise.all([first, second]);

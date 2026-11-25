@@ -26,6 +26,7 @@ async function emptyOpenReview(page: Page): Promise<number> {
 const manifestNames = (): string[] => (fs.existsSync(manifests) ? fs.readdirSync(manifests).sort() : []);
 
 test.afterEach(async ({ page }) => {
+  if (page.url() === "about:blank") return; // the test failed before the page loaded: nothing was drafted
   expect(await emptyOpenReview(page)).toBe(0);
 });
 
