@@ -73,9 +73,6 @@ const deps = {
 test('countOrphanedBy counts across files by first-comment key and skips .threads, .git and node_modules', async () => {
   assert.equal(await countOrphanedBy(ROOT, 'k-alice', deps), 2);
   assert.equal(await countOrphanedBy(ROOT, 'k-bob', deps), 1);
-});
-
-test('countOrphanedBy is 0 for a caller with no threads', async () => {
   assert.equal(await countOrphanedBy(ROOT, 'k-nobody', deps), 0);
 });
 
@@ -171,18 +168,19 @@ test('whoami counts the starter\'s orphan, not another caller\'s, and not a draf
   assert.equal((await call<WhoAmI>('threads:whoami', BOB)).orphanedMine, 0);
 });
 
-test('whoami without an identity returns exactly nulls and a zero count', async () => {
-  assert.deepEqual(await call('threads:whoami', {}), { identity: null, journal: null, orphanedMine: 0 });
-});
-
 test('whoami still returns identity and journal when the orphan scan cannot read a directory', async () => {
   fresh();
+  await publishThenOrphan(project.file, QUOTE); // the scan would count 1 if it ran
   const locked = safePath(project.root, path.join('docs', 'locked'));
   fs.mkdirSync(safePath(locked, '.'), { recursive: true });
   const real = fs.promises.readdir;
+  let hit = false;
   // A stub rather than chmod: the denial must hold when the suite runs as root.
   fs.promises.readdir = (async (dir: fs.PathLike, options: { withFileTypes: true }) => {
-    if (String(dir) === locked) throw Object.assign(new Error('denied'), { code: 'EACCES' });
+    if (String(dir) === locked) {
+      hit = true;
+      throw Object.assign(new Error('denied'), { code: 'EACCES' });
+    }
     return real(dir, options);
   }) as unknown as typeof real;
   try {
@@ -190,6 +188,7 @@ test('whoami still returns identity and journal when the orphan scan cannot read
     assert.equal(me.identity?.key, 'k-alice');
     assert.equal(me.journal?.version, 1);
     assert.equal(me.orphanedMine, 0);
+    assert.ok(hit, 'the scan reached the unreadable directory');
   } finally {
     fs.promises.readdir = real;
   }

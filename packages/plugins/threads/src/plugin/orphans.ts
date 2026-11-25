@@ -23,6 +23,7 @@ export function markOrphans(content: string, threads: Thread[]): Thread[] {
   });
 }
 
+/** Exported as the parameter type of `countOrphanedBy`. */
 export interface OrphanScanDeps {
   /** Content of a file given the path `listMarkdown` returned. */
   readFile: (file: string) => Promise<string>;
@@ -30,9 +31,9 @@ export interface OrphanScanDeps {
   listMarkdown: (root: string) => Promise<string[]>;
 }
 
-/** Disk-backed deps: recursive `*.md` listing, skipping `.threads`, `node_modules` and `.git`. */
-export const fsOrphanScanDeps: OrphanScanDeps = {
-  readFile: (file) => fs.promises.readFile(safePath(path.dirname(file), path.basename(file)), 'utf8'),
+/** Disk-backed deps for one docs root: recursive `*.md` listing, skipping `.threads`, `node_modules` and `.git`. */
+export const fsOrphanScanDeps = (docsRoot: string): OrphanScanDeps => ({
+  readFile: (file) => fs.promises.readFile(safePath(docsRoot, path.relative(docsRoot, file)), 'utf8'),
   async listMarkdown(root) {
     const out: string[] = [];
     const walk = async (dir: string): Promise<void> => {
@@ -52,7 +53,7 @@ export const fsOrphanScanDeps: OrphanScanDeps = {
     await walk(root);
     return out;
   },
-};
+});
 
 /**
  * Orphaned published threads, under `docsRoot`, whose first comment was written by
