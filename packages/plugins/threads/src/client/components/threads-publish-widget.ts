@@ -6,6 +6,7 @@ import { t } from '../lib/i18n';
 import { createPublishTimer } from '../lib/mode';
 import { createPublishController } from '../lib/publish-controller';
 import './threads-discard-review';
+import type { DiscardOutcome } from '../lib/discard-controller';
 
 const STYLE_ID = 'tc-publish-widget-styles';
 
@@ -126,7 +127,7 @@ export class ThreadsPublishWidget extends LitElement {
   override updated(): void {
     // The discard element left while its dialog was open (e.g. a failed refresh): no close event will come.
     // That is not a discard; the controller decides that from the journal itself.
-    if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release(false);
+    if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release('kept');
   }
 
   /** Re-read the caller's journal. */
@@ -155,8 +156,8 @@ export class ThreadsPublishWidget extends LitElement {
             </button>` : nothing}
           <button class="tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
           ${reviewId && !s.publishDisabled ? html`
-            <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; discarded: boolean }>) =>
-                e.detail.open ? this.controller.hold() : this.controller.release(e.detail.discarded)} .reviewId=${reviewId} .label=${t('discardDrafts')}
+            <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; outcome: DiscardOutcome }>) =>
+                e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}

@@ -60,9 +60,9 @@ test('a second confirm while the first runs makes no second call', async () => {
   assert.deepEqual([s.calls, s.done, c.state()], [['r-1'], 1, 'closed']);
 });
 
-test('onOpenChange reports open, then closed with whether the review was discarded', async () => {
-  const seen: Array<[boolean, boolean]> = [];
-  const mk = () => createDiscardController({ api, t, onDone: () => {}, onChange: () => {}, onOpenChange: (o, d) => void seen.push([o, d]) });
+test('onOpenChange reports open, then closed with the outcome', async () => {
+  const seen: Array<[boolean, string]> = [];
+  const mk = () => createDiscardController({ api, t, onDone: () => {}, onChange: () => {}, onOpenChange: (o, r) => void seen.push([o, r]) });
   let c = mk();
   c.ask('r-1'); c.cancel();
   c = mk();
@@ -70,5 +70,5 @@ test('onOpenChange reports open, then closed with whether the review was discard
   s.error = new Error('x');
   c = mk();
   c.ask('r-1'); await c.confirm();
-  assert.deepEqual(seen, [[true, false], [false, false], [true, false], [false, true], [true, false], [false, false]]);
+  assert.deepEqual(seen, [[true, 'kept'], [false, 'kept'], [true, 'kept'], [false, 'discarded'], [true, 'kept'], [false, 'failed']]);
 });

@@ -6,6 +6,7 @@
  */
 import { ThreadsClientError } from './api';
 import { widgetState, type PublishTimer, type WidgetState } from './mode';
+import type { DiscardOutcome } from './discard-controller';
 import type { DraftMode, Journal, PublishResult, WhoAmI } from '../../types';
 
 export interface PublishControllerApi {
@@ -95,7 +96,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
     }
     syncTimer();
     // The review is gone while a confirmation is open: it was discarded (here or elsewhere).
-    if (held && (!journal || pending() === 0)) release(true);
+    if (held && (!journal || pending() === 0)) release('discarded');
     // A fire held back by a confirmation that closed while nothing could be published yet.
     if (deferred && !held && pending() > 0) {
       deferred = false;
@@ -148,7 +149,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   // Publishing re-syncs the timer when it ends, which drops the ring: nothing is scheduled after a fire.
-    timer?.onFire(() => {
+  timer?.onFire(() => {
     if (!held) {
       void publish();
       return;
@@ -167,13 +168,17 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   /**
-   * The confirmation closed. Kept (`discarded` false): a fire that came due meanwhile publishes now.
-   * Discarded: nothing publishes; the countdown is dropped until the next refresh re-reads the journal.
+   * The confirmation closed. `kept` (Cancel): a fire that came due meanwhile publishes now.
+   * `discarded`: nothing publishes; the countdown is dropped until the next refresh re-reads the journal.
+   * `failed` (Confirm, the call rejected): the caller asked to discard, so a due fire is dropped without
+   * publishing and the timer is left alone; the next edit re-arms it and an undue countdown keeps its deadline.
    */
-  function release(discarded: boolean): void {
+  function release(outcome: DiscardOutcome): void {
     if (!held) return;
     held = false;
-    if (discarded) {
+    if (outcome === 'failed') {
+      deferred = false;
+    } else if (outcome === 'discarded') {
       deferred = false;
       timer?.stop();
       remaining = null;

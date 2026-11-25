@@ -5,6 +5,7 @@
  */
 import { ThreadsClientError } from './api';
 
+export type DiscardOutcome = 'kept' | 'discarded' | 'failed';
 export type DiscardState = 'closed' | 'confirming' | 'discarding';
 
 export interface DiscardControllerDeps {
@@ -15,11 +16,12 @@ export interface DiscardControllerDeps {
   /** Called after every state change, so the element can re-render. */
   onChange: () => void;
   /**
-   * Called when the confirmation opens (`open: true`) and when it closes. On close, `discarded` says
-   * whether the review was discarded (confirmed and succeeded) or kept (cancelled, or the call failed).
+   * Called when the confirmation opens (`open: true`) and when it closes. On close, `outcome` says
+   * what happened: `discarded` (confirmed and succeeded), `failed` (confirmed, the call rejected) or
+   * `kept` (cancelled). On open it is `kept`.
    * A host that must not act on the review while the question is open listens to this.
    */
-  onOpenChange?: (open: boolean, discarded: boolean) => void;
+  onOpenChange?: (open: boolean, outcome: DiscardOutcome) => void;
 }
 
 export function createDiscardController({ api, t, onDone, onChange, onOpenChange }: DiscardControllerDeps) {
@@ -41,14 +43,14 @@ export function createDiscardController({ api, t, onDone, onChange, onOpenChange
       reviewId = id;
       error = null;
       set('confirming');
-      onOpenChange?.(true, false);
+      onOpenChange?.(true, 'kept');
     },
     /** Close the confirmation without calling anything. */
     cancel(): void {
       if (state !== 'confirming') return;
       reviewId = null;
       set('closed');
-      onOpenChange?.(false, false);
+      onOpenChange?.(false, 'kept');
     },
     /** Discard the asked review: one call, however often it is confirmed. */
     async confirm(): Promise<void> {
@@ -61,13 +63,13 @@ export function createDiscardController({ api, t, onDone, onChange, onOpenChange
         error = err instanceof ThreadsClientError ? err.text : t('discardFailed');
         reviewId = null;
         set('closed');
-        onOpenChange?.(false, false);
+        onOpenChange?.(false, 'failed');
         return;
       }
       reviewId = null;
       set('closed');
       onDone();
-      onOpenChange?.(false, true);
+      onOpenChange?.(false, 'discarded');
     },
   };
 }

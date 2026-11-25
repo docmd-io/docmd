@@ -311,10 +311,10 @@ test('discard confirmation: Cancel after the deadline publishes once, right afte
   c.hold();
   advance(SECONDS * 1000 + 5);
   await settle();
-  c.release(false);
+  c.release('kept');
   await settle();
   assert.equal(publishes(), 1);
-  c.release(false);
+  c.release('kept');
   advance(SECONDS * 10_000);
   await settle();
   assert.equal(publishes(), 1, 'one publish only');
@@ -327,7 +327,7 @@ test('discard confirmation: Cancel before the deadline keeps the original deadli
   advance(20_000);
   c.hold();
   advance(10_000);
-  c.release(false);
+  c.release('kept');
   await settle();
   assert.equal(publishes(), 0, 'closing early does not publish');
   advance(SECONDS * 1000 - 30_000 - 1);
@@ -346,7 +346,7 @@ test('discard confirmation: Confirm publishes nothing, even when the deadline pa
   advance(SECONDS * 1000 + 5);
   await settle();
   s.journal = journal(0, 'auto');
-  c.release(true);
+  c.release('discarded');
   await c.refresh();
   advance(SECONDS * 10_000);
   await settle();
@@ -358,7 +358,7 @@ test('discard confirmation: Confirm before the old journal is re-read cannot pub
   s.journal = journal(1, 'auto');
   await c.refresh();
   c.hold();
-  c.release(true);
+  c.release('discarded');
   advance(SECONDS * 1000 + 5);
   await settle();
   assert.equal(publishes(), 0);
@@ -373,7 +373,7 @@ test('discard confirmation: a failed refresh while held is not a discard; the du
   await settle();
   s.whoamiError = new Error('offline');
   await c.refresh();
-  c.release(false); // the widget lost the element
+  c.release('kept'); // the widget lost the element
   await settle();
   assert.equal(publishes(), 0, 'count unknown: nothing to publish yet');
   s.whoamiError = null;
@@ -391,10 +391,27 @@ test('discard confirmation: a newer journal while held moves the deadline; Cance
   await settle();
   s.journal = journal(2, 'auto', new Date(clock).toISOString());
   await c.refresh();
-  c.release(false);
+  c.release('kept');
   await settle();
   assert.equal(publishes(), 0);
   advance(SECONDS * 1000);
   await settle();
   assert.equal(publishes(), 1, 'fires at the new deadline');
+});
+
+test('discard confirmation: a failed Confirm drops the due fire without publishing; a newer edit re-arms it', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  c.release('failed');
+  await settle();
+  assert.equal(publishes(), 0);
+  s.journal = journal(2, 'auto', new Date(clock).toISOString());
+  await c.refresh();
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(publishes(), 1);
 });
