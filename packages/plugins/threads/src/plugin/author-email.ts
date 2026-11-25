@@ -3,8 +3,9 @@ import { getOptions } from './config.js';
 
 const MAX_EMAIL = 254;
 
-/** One `@` with text on both sides; no whitespace, angle bracket or control character. */
-const WELL_FORMED = /^[^@\s<>\u0000-\u001f\u007f]+@[^@\s<>\u0000-\u001f\u007f]+$/;
+/** One `@` with text on both sides; no whitespace or angle bracket (control characters are checked apart). */
+const WELL_FORMED = /^[^@\s<>]+@[^@\s<>]+$/;
+const hasControl = (s: string) => [...s].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f);
 
 /**
  * The commit author e-mail carried by the request, or null. Read only when a
@@ -19,5 +20,5 @@ export function authorEmailOf(ctx: Pick<ActionContext, 'mode' | 'caller' | 'conf
   const value = ctx.caller?.headers?.[header.toLowerCase()];
   if (typeof value !== 'string') return null;
   const email = value.trim();
-  return email.length <= MAX_EMAIL && WELL_FORMED.test(email) ? email : null;
+  return email.length <= MAX_EMAIL && WELL_FORMED.test(email) && !hasControl(email) ? email : null;
 }
