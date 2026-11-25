@@ -158,7 +158,13 @@ test("a review gets its title, is listed with a link to its comment, and Discard
 
   // Confirm discards it: the entry says so and has no Discard.
   await entry.getByTestId("discard-open").click();
+  // The tab refreshes itself on success: watch this very entry (the dev server reloads the page soon after).
+  const handle = await entry.elementHandle();
   await entry.getByTestId("discard-confirm").click();
+  await page.waitForFunction(
+    (el) => el?.getAttribute("data-state") === "discarded" && !el.querySelector('[data-testid="discard-open"]'),
+    handle,
+  );
   await inReviews(page, async () => {
     await expect(entry).toHaveAttribute("data-state", "discarded", { timeout: 1_000 });
     await expect(entry.getByTestId("review-state")).toHaveText("Discarded", { timeout: 1_000 });
