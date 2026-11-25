@@ -133,6 +133,10 @@ test('a dirty checkout is refused with both groups listed and the variable named
 });
 
 test('the variable commits exactly the listed paths as one committer commit on the remote and starts', async () => {
+  // The base for a folder the remote will later turn into a file: both clones track docs/dir/page.md.
+  fs.mkdirSync(safePath(trio.other, 'docs/dir'), { recursive: true });
+  commitOn(trio.other, 'docs/dir/page.md', 'a page in a folder');
+  git(trio.server, 'pull', '-q', '--ff-only', 'origin', BRANCH);
   dirty();
   const edited = bytes('docs/index.md');
   process.env[VAR] = '1';
@@ -153,6 +157,13 @@ test('the variable commits exactly the listed paths as one committer commit on t
   git(trio.other, 'push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`);
   commitOn(trio.other, 'docs/data.json', 'theirs');
   commitOn(trio.other, 'docs/nested', 'theirs');
+  // The folder the server tracks becomes a file on the remote, and the server keeps an untracked file in it.
+  fs.writeFileSync(safePath(trio.server, 'docs/dir/keep.txt'), 'keep me\n');
+  git(trio.other, 'rm', '-q', 'docs/dir/page.md');
+  fs.writeFileSync(safePath(trio.other, 'docs/dir'), 'now a file\n');
+  git(trio.other, 'add', 'docs/dir');
+  git(trio.other, 'commit', '-q', '-m', 'other: a folder becomes a file');
+  git(trio.other, 'push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`);
   const collided = { status: status(), head: headOf(), remote: log(trio.remote, '%H') };
   const refused = await captured(() => onServerReady(handle()));
   assert.ok(refused.error instanceof ThreadsError && refused.error.code === 'config');
@@ -161,6 +172,8 @@ test('the variable commits exactly the listed paths as one committer commit on t
   assert.match((refused.error as Error).message, /docs\/\.threads\/drafts\/d\.json/, 'an ignored file counts');
   assert.match((refused.error as Error).message, /docs\/folder\/y\.txt/);
   assert.deepEqual({ status: status(), head: headOf(), remote: log(trio.remote, '%H') }, collided);
+  assert.match((refused.error as Error).message, /docs\/dir(,|;)/);
+  assert.equal(bytes('docs/dir/keep.txt'), 'keep me\n');
   assert.equal(bytes('docs/data.json'), 'mine\n');
   assert.equal(bytes('docs/nested/x.txt'), 'mine too\n');
   assert.equal(bytes('docs/.threads/drafts/d.json'), 'ignored, mine\n');
@@ -169,6 +182,9 @@ test('the variable commits exactly the listed paths as one committer commit on t
   fs.rmSync(safePath(trio.server, 'docs/folder'));
   fs.rmSync(safePath(trio.server, 'docs/.threads/drafts/d.json'));
   fs.rmSync(safePath(trio.server, 'docs/nested'), { recursive: true });
+  fs.rmSync(safePath(trio.server, 'docs/dir/keep.txt'));
+  // The remote also edits a page both clones track: an ordinary change the move must allow.
+  commitOn(trio.other, 'docs/extra.md', 'remote edit');
   const remoteBefore = log(trio.remote, '%H').length;
   const stops: Array<() => void | Promise<void>> = [];
   const { error, lines } = await captured(() => onServerReady(handle(stops)));
@@ -184,6 +200,7 @@ test('the variable commits exactly the listed paths as one committer commit on t
     assert.equal(headOf(), headOf('origin/main'));
     assert.equal(headOf(), tip);
     assert.equal(bytes('docs/index.md'), edited);
+    assert.match(bytes('docs/extra.md'), /remote edit/);
     assert.equal(stops.length, 1, 'the pull loop started');
     assert.deepEqual(lines.filter((l) => l.startsWith('[threads]')), ['[threads] pushed 0 local commits and committed 2 files found at startup']);
   } finally {

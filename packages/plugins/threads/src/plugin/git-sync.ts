@@ -13,7 +13,7 @@ import { docsRootOf } from './reviews.js';
 export type ExecFile = (
   file: string,
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv },
+  options: { cwd: string; env: NodeJS.ProcessEnv; maxBuffer?: number },
 ) => Promise<{ stdout: string; stderr: string }>;
 
 export interface GitSyncDeps {
@@ -26,6 +26,9 @@ export interface GitSyncDeps {
 
 const MAX_ATTEMPTS = 3;
 
+/** Room for git's output: a big diff or many untracked files must not fail on node's 1 MiB default. */
+const MAX_BUFFER = 64 * 1024 * 1024;
+
 /** Reads the token from the child environment: it is never an argument, a URL or a file. */
 const CREDENTIAL_HELPER = '!f(){ echo username=x-access-token; echo "password=$DOCMD_THREADS_GIT_TOKEN"; }; f';
 
@@ -36,7 +39,7 @@ const firstLine = (text: string): string | undefined => text.split('\n').find((l
 
 /** Runs git in `cwd` with the server's environment (the credential helper reads the token from it); resolves to trimmed stdout. */
 const gitRunner = (run: ExecFile, cwd: string, extraEnv: NodeJS.ProcessEnv = {}) => async (args: string[]): Promise<string> =>
-  (await run('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...extraEnv } })).stdout.trim();
+  (await run('git', args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...extraEnv }, maxBuffer: MAX_BUFFER })).stdout.trim();
 
 /** Fetches the branch into `origin/<branch>`, whatever the remote is called. */
 const fetchArgs = (remote: string, branch: string): string[] =>
@@ -382,7 +385,7 @@ export async function checkStartup(
     let ahead: string[];
     try {
       // Untrimmed: the first entry may begin with a space (an unstaged change).
-      const { stdout: status } = await run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+      const { stdout: status } = await run('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, maxBuffer: MAX_BUFFER });
       state = classifyStatus(status, { prefix, docs: path.relative(cwd, root).split(path.sep).join('/') });
       ahead = (await git(['log', '--format=%h %s', `origin/${branch}..HEAD`])).split('\n').filter(Boolean);
     } catch (e) {
@@ -488,8 +491,31 @@ async function pushPending(job: PendingJob): Promise<void> {
   const prefixes = (f: string) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'));
   const lookups = [...new Set(written.flatMap((f) => [f, ...prefixes(f)]))];
   const tracked = new Set<string>();
+  const folders = new Set<string>();
   for (let i = 0; i < lookups.length; i += 200) {
-    for (const f of (await top(['ls-tree', '--name-only', '-z', 'HEAD', '--', ...lookups.slice(i, i + 200)])).split('\0')) if (f) tracked.add(f);
+    for (const entry of (await top(['ls-tree', '-r', '-t', '-z', 'HEAD', '--', ...lookups.slice(i, i + 200)])).split('\0')) {
+      const [meta, name] = entry.split('\t');
+      if (!name) continue;
+      tracked.add(name);
+      if (meta.split(' ')[1] === 'tree') folders.add(name);
+    }
+  }
+  // A folder HEAD tracks that the tip turns into a file: the move deletes whatever else sits in it.
+  const replaced: string[] = [];
+  const maybe = written.filter((f) => folders.has(f));
+  for (let i = 0; i < maybe.length; i += 200) {
+    for (const entry of (await top(['ls-tree', '-r', '-t', '-z', tip, '--', ...maybe.slice(i, i + 200)])).split('\0')) {
+      const [meta, name] = entry.split('\t');
+      if (name && maybe.includes(name) && meta.split(' ')[1] !== 'tree') replaced.push(name);
+    }
+  }
+  const strays: string[] = [];
+  for (const f of replaced) {
+    const left = [
+      await top(['ls-files', '-z', '--others', '--exclude-standard', '--directory', '--', f]),
+      await top(['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory', '--', f]),
+    ];
+    if (left.some(Boolean)) strays.push(f);
   }
   const onDisk = (f: string) => {
     try {
@@ -499,9 +525,9 @@ async function pushPending(job: PendingJob): Promise<void> {
       throw e;
     }
   };
-  const collide = written.filter((f) =>
+  const collide = [...strays, ...written.filter((f) =>
     (!own.has(f) && !tracked.has(f) && onDisk(f)) ||
-    prefixes(f).some((q) => !tracked.has(q) && onDisk(q)?.isDirectory() === false));
+    prefixes(f).some((q) => !tracked.has(q) && onDisk(q)?.isDirectory() === false))];
   if (collide.length) throw refusal(`the pending work could not be pushed: untracked or ignored files would be overwritten by files on the remote branch: ${collide.join(', ')}; the checkout is unchanged`);
 
   await git([...AUTH, 'push', remote, `${tip}:refs/heads/${branch}`]);
