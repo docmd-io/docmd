@@ -5,6 +5,7 @@ import type { ActionContext } from '@docmd/api';
 import { safePath } from '@docmd/utils';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
+import { markPattern, splitPage } from './marks.js';
 import type { Lock } from './lock.js';
 import type { DraftStore } from './drafts.js';
 import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
@@ -12,7 +13,6 @@ import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifes
 const TITLE_MAX = 120;
 
 const day = (iso: string) => iso.slice(0, 10);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 let tmpSeq = 0;
 
 // ---------------------------------------------------------------------------
@@ -88,20 +88,6 @@ export interface ApplyResult {
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
 const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
 
-/** Pattern for `==quote=={id}`; the quote may span lines. Group 1 is the quote. Without an id it matches any thread's mark. */
-const markPattern = (threadId?: string, flags = '') =>
-  new RegExp(`==((?:(?!==)[\\s\\S])+)==\\{${threadId === undefined ? '[^}]+' : escapeRe(threadId)}\\}`, flags);
-
-/** Offset of the first line that is exactly `::: threads` (the parser's rule), or -1. */
-function threadsBlockStart(content: string): number {
-  let offset = 0;
-  for (const line of content.split('\n')) {
-    if (line.trim() === '::: threads') return offset;
-    offset += line.length + 1;
-  }
-  return -1;
-}
-
 /** Ranges of fenced code blocks and inline code spans, where `==q=={id}` would render literally. */
 function codeRanges(body: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
@@ -134,9 +120,7 @@ const unmarkable = (quote: string) => quote.includes('==') || quote.startsWith('
  * still recorded).
  */
 function wrapQuote(content: string, quote: string, threadId: string): string {
-  const cut = threadsBlockStart(content);
-  const body = cut >= 0 ? content.slice(0, cut) : content;
-  const rest = cut >= 0 ? content.slice(cut) : '';
+  const { body, rest } = splitPage(content);
   const from = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(body)?.[0].length ?? 0;
   const spans = [...body.matchAll(markPattern(undefined, 'g'))].map((m) => [m.index, m.index + m[0].length]);
   spans.push(...codeRanges(body));

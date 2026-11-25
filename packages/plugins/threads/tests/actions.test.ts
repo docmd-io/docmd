@@ -298,7 +298,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   console.warn = warn;
   // Reads treat an e-mail-shaped identity as unidentified and never carry the address.
   const mail = { mode: 'serve', caller: { identity: EMAIL } } as const;
-  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null });
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null, orphanedMine: 0 });
   for (const name of ['threads:get-authors', 'threads:list-reviews']) {
     assert.ok(!JSON.stringify((await call(name, {}, mail)).result).includes(EMAIL), name);
   }
@@ -308,7 +308,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   assert.deepEqual(snapshotTree(docsRoot), tree, 'e-mail reads changed nothing');
   const none = { mode: 'serve', caller: { identity: null } } as const;
   assert.deepEqual((await call<Record<string, unknown>>('threads:get-authors', {}, none)).result, {});
-  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null });
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null, orphanedMine: 0 });
   for (const [name, payload] of MUTATIONS) {
     await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
   }
@@ -384,17 +384,17 @@ test('set-mode rejects any mode but auto and collect with threads/invalid and le
   }
 });
 
-test('whoami returns the caller\'s journal, or null without an identity, and nothing else', async () => {
+test('whoami returns the caller\'s journal, or null without an identity, and the orphan count, nothing else', async () => {
   await addThread();
   await addThread();
   await addThread(BOB);
   const mine = await whoami(ALICE);
-  assert.deepEqual(Object.keys(mine), ['identity', 'journal']);
+  assert.deepEqual(Object.keys(mine), ['identity', 'journal', 'orphanedMine']);
   assert.deepEqual(mine.identity, { key: 'alice', name: 'Alice', avatarUrl: '', source: 'payload', isAdmin: false });
   assert.equal(mine.journal?.ops.length, 2);
   assert.equal((await whoami(BOB)).journal?.ops.length, 1);
-  assert.deepEqual(await whoami({}), { identity: null, journal: null });
-  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null });
+  assert.deepEqual(await whoami({}), { identity: null, journal: null, orphanedMine: 0 });
+  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null, orphanedMine: 0 });
 });
 
 test('whoami in the window after a publish whose journal reset failed leaves out the ops it published', async () => {
@@ -423,7 +423,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
     (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity',
   );
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false, 'nothing was written');
-  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null });
+  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null, orphanedMine: 0 });
 
   const set = await setMode({ author: 'Mallory', authorKey: 'bob', mode: 'collect' }, serve('alice'));
   assert.equal(set.mode, 'collect');

@@ -4,6 +4,7 @@ import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { lockFor } from './lock.js';
 import { getOptions } from './config.js';
 import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, publish, readManifest, summarize } from './reviews.js';
@@ -186,7 +187,8 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   /** Published threads plus the caller's own drafts. */
   'threads:get-threads': async (payload, ctx): Promise<Thread[]> => {
     requireFields('threads:get-threads', payload, ['file']);
-    const published = parser.parseThreadsFromContent(await ctx.readFile(payload.file));
+    const content = await ctx.readFile(payload.file);
+    const published = markOrphans(content, parser.parseThreadsFromContent(content));
     const caller = await findCaller(ctx, payload);
     if (!caller) return published;
     // After a publish whose journal reset failed, the journal still holds ops the file already has.
@@ -203,11 +205,14 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
    */
   'threads:whoami': async (payload, ctx): Promise<WhoAmI> => {
     const identity = await findCaller(ctx, payload);
-    if (!identity) return { identity: null, journal: null };
+    if (!identity) return { identity: null, journal: null, orphanedMine: 0 };
     const store = getStore(ctx);
     // After a publish whose journal reset failed, the journal still holds ops the file already has.
     await finishEarlierPublish(ctx, store, identity.key);
-    return { identity, journal: await store.load(identity.key) };
+    const journal = await store.load(identity.key);
+    // A secondary counter: an unreadable file or directory must not cost the caller identity and journal.
+    const orphanedMine = await countOrphanedBy(docsRootOf(ctx), identity.key, fsOrphanScanDeps).catch(() => 0);
+    return { identity, journal, orphanedMine };
   },
 
   'threads:set-mode': async (payload, ctx): Promise<Journal> => {
