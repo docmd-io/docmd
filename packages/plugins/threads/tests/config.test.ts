@@ -23,9 +23,6 @@ test('valid values are kept', () => {
   );
   assert.deepEqual(normalizeOptions({ permissions: { admins: ['a@x'] } }).permissions, { admins: ['a@x'], resolve: 'anyone' });
   assert.deepEqual(normalizeOptions({ permissions: { resolve: 'author' } }).permissions, { admins: [], resolve: 'author' });
-});
-
-test('limits keep explicit positive integers and default the rest', () => {
   assert.deepEqual(normalizeOptions({ limits: { maxCommentChars: 10 } }).limits, { maxCommentChars: 10, commentsPerMinute: 10 });
   assert.deepEqual(normalizeOptions({ limits: { commentsPerMinute: 2 } }).limits, { maxCommentChars: 5000, commentsPerMinute: 2 });
 });

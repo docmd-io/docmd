@@ -16,7 +16,7 @@ export function checkBody(body: string, opts: { maxCommentChars: number }): void
   }
 }
 
-export interface RateLimiter {
+interface RateLimiter {
   /** Record one event for `key`, or throw `rate-limited` when the window already holds `max`. */
   take(key: string): void;
 }
@@ -27,6 +27,8 @@ export function createRateLimiter(opts: { now: () => number; windowMs: number; m
   return {
     take(key) {
       const t = opts.now();
+      // Forget keys whose every hit has slid out, so rotating keys cannot grow the map without bound.
+      for (const [k, at] of hits) if (t - at[at.length - 1] >= opts.windowMs) hits.delete(k);
       const recent = (hits.get(key) ?? []).filter((at) => t - at < opts.windowMs);
       if (recent.length >= opts.max) {
         hits.set(key, recent);
@@ -47,7 +49,10 @@ const limiters = new Map<string, { max: number; limiter: RateLimiter }>();
  * caller's rate. A too-long body does not consume the caller's rate; a call
  * the handler rejects later (e.g. an unknown thread) still counts toward it.
  * `now` is read only when the project's limiter is created, so pass a
- * closure that reads the clock on each call, not a captured value.
+ * closure that reads the clock on each call, not a captured value. Under
+ * `docmd dev` the key comes from the payload, so it is not a defence against
+ * a caller that rotates keys; a change of `commentsPerMinute` in the config
+ * resets the project's windows.
  */
 export function guardWrite(
   ctx: ActionContext,

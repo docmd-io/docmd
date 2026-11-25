@@ -74,6 +74,9 @@ interface Payload {
   [key: string]: unknown;
 }
 
+/** The rate limiter's clock; it reads the wall clock on every call so tests can mock Date. */
+const wallClock = () => Date.now();
+
 /** Validate that required string fields are present and non-empty. */
 function requireFields(action: string, payload: Record<string, unknown>, fields: string[]): void {
   for (const field of fields) {
@@ -247,7 +250,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     const caller = await begin(ctx, payload, 'threads:add-thread', ['file', 'author', 'body']);
-    guardWrite(ctx, payload, caller, { rate: true, now: () => Date.now() });
+    guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const threadId = generateThreadId();
     const anchor = anchorFrom(payload.anchor);
     const view = await transact(ctx, caller, payload, (tx) =>
@@ -259,7 +262,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:add-comment', ['file', 'threadId', 'author', 'body']);
-    guardWrite(ctx, payload, caller, { rate: true, now: () => Date.now() });
+    guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const commentId = generateCommentId();
     const view = await transact(ctx, caller, payload, (tx) => {
       findThread(tx.view, payload.threadId);
@@ -274,7 +277,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:edit-comment', ['file', 'threadId', 'commentId', 'body']);
-    guardWrite(ctx, payload, caller, { rate: false, now: () => Date.now() });
+    guardWrite(ctx, payload, caller, { rate: false, now: wallClock });
     const { threadId, commentId, body } = payload;
     const view = await transact(ctx, caller, payload, (tx) => {
       const target = findComment(findThread(tx.view, threadId), commentId);
