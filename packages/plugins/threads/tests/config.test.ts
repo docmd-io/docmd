@@ -27,12 +27,12 @@ test('valid values are kept', () => {
 
 test('git defaults fill in around the required branch; null is off; explicit values are kept', () => {
   assert.deepEqual(normalizeOptions({ git: { branch: 'main' } }).git, {
-    branch: 'main', remote: 'origin', skipDeployMarker: '[skip ci]', committer: { name: 'docmd threads', email: 'threads@docmd.invalid' },
+    branch: 'main', remote: 'origin', skipDeployMarker: '[skip ci]', pullSeconds: 60, committer: { name: 'docmd threads', email: 'threads@docmd.invalid' },
   });
   assert.equal(normalizeOptions({ git: null }).git, null);
   assert.deepEqual(
-    normalizeOptions({ git: { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', committer: { name: 'Bot', email: 'b@x.io' } } }).git,
-    { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', committer: { name: 'Bot', email: 'b@x.io' } },
+    normalizeOptions({ git: { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', pullSeconds: 5, committer: { name: 'Bot', email: 'b@x.io' } } }).git,
+    { branch: 'docs', remote: 'up', skipDeployMarker: '[ci skip]', pullSeconds: 5, committer: { name: 'Bot', email: 'b@x.io' } },
   );
   assert.deepEqual(normalizeOptions({ git: { branch: 'main', committer: { name: 'Bot' } } }).git?.committer, { name: 'Bot', email: 'threads@docmd.invalid' });
 });
@@ -68,6 +68,9 @@ test('invalid values throw threads/config', () => {
     [{ git: { branch: 'm', remote: '--upload-pack=x' } }, /plugins\.threads\.git\.remote must not start with "-"/],
     [{ git: { branch: 'm', remote: '' } }, /plugins\.threads\.git\.remote must be a non-empty string/],
     [{ git: { branch: 'm', skipDeployMarker: ' ' } }, /plugins\.threads\.git\.skipDeployMarker must be a non-empty string/],
+    [{ git: { branch: 'm', pullSeconds: 0 } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
+    [{ git: { branch: 'm', pullSeconds: -5 } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
+    [{ git: { branch: 'm', pullSeconds: '30' } }, /plugins\.threads\.git\.pullSeconds must be a positive number/],
     [{ git: { branch: 'm', committer: 'bot' } }, /plugins\.threads\.git\.committer must be an object/],
     [{ git: { branch: 'm', committer: { name: '' } } }, /plugins\.threads\.git\.committer\.name must be a non-empty string/],
     [{ git: { branch: 'm', committer: { email: 7 } } }, /plugins\.threads\.git\.committer\.email must be a non-empty string/],

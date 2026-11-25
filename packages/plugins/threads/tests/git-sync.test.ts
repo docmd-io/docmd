@@ -78,7 +78,9 @@ test('assertRuntime: the token is required only when git is configured', () => {
 test('onServerReady: serve rejects without the token; dev ignores git with one line', async () => {
   const lines: string[] = [];
   const spy = mock.method(console, 'log', (...a: unknown[]) => void lines.push(a.join(' ')));
-  const handle = (mode: 'serve' | 'dev', threads: unknown) => ({ mode, projectRoot: '/x', config: { plugins: { threads } } }) as unknown as ServerHandle;
+  const stops: Array<() => void | Promise<void>> = [];
+  const handle = (mode: 'serve' | 'dev', threads: unknown) =>
+    ({ mode, projectRoot: '/x', config: { plugins: { threads } }, onShutdown: (fn: () => void) => stops.push(fn) }) as unknown as ServerHandle;
   const withGit = { git: { branch: 'secret-branch', remote: 'https://u:p@h.invalid/r.git' } };
   try {
     delete process.env.DOCMD_THREADS_GIT_TOKEN;
@@ -93,7 +95,9 @@ test('onServerReady: serve rejects without the token; dev ignores git with one l
     process.env.DOCMD_THREADS_GIT_TOKEN = SENTINEL;
     await onServerReady(handle('serve', withGit));
     assert.equal(lines.length, 1, 'serve with the token logs nothing');
+    assert.equal(stops.length, 1, 'only the serve start with git registers a shutdown callback');
   } finally {
+    await Promise.all(stops.map((stop) => stop()));
     spy.mock.restore();
     process.env.DOCMD_THREADS_GIT_TOKEN = SENTINEL;
   }
@@ -131,7 +135,7 @@ test('two concurrent publishes commit in call order through the shared docs-root
     const reachedPush = new Promise<void>((r) => (annAtPush = r));
     let bobLoaded = false;
     const canned = (who: string): ExecFile => async (_f, args) => {
-      const verb = args.find((a) => ['fetch', 'reset', 'add', 'commit', 'push'].includes(a))!;
+      const verb = args.find((a) => ['fetch', 'diff', 'reset', 'add', 'commit', 'push'].includes(a))!;
       verbs.push(`${who}:${verb}`);
       if (who === 'ann' && verb === 'push') {
         annAtPush();
@@ -156,8 +160,8 @@ test('two concurrent publishes commit in call order through the shared docs-root
     release();
     await Promise.all(jobs);
     assert.equal(bobLoaded, true);
-    assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'reset', 'add', 'commit', 'push', 'fetch', 'reset', 'add', 'commit', 'push']);
-    assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob']);
+    assert.deepEqual(verbs.map((v) => v.split(':')[1]), ['fetch', 'diff', 'reset', 'add', 'commit', 'push', 'fetch', 'diff', 'reset', 'add', 'commit', 'push']);
+    assert.deepEqual(verbs.map((v) => v.split(':')[0]), ['ann', 'ann', 'ann', 'ann', 'ann', 'ann', 'bob', 'bob', 'bob', 'bob', 'bob', 'bob']);
   } finally {
     project.cleanup();
   }

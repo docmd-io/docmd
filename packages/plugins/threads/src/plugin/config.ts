@@ -12,6 +12,8 @@ export interface ThreadsOptions {
     remote: string;
     /** Appended to every commit subject so the host's CI skips the deploy. */
     skipDeployMarker: string;
+    /** How often the server fetches the branch and rebuilds what other people changed. */
+    pullSeconds: number;
     /** Who commits; the commenter is the author. */
     committer: { name: string; email: string };
   };
@@ -94,6 +96,7 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
       branch: gitArgument(g, 'branch'),
       remote: gitArgument(g, 'remote', 'origin'),
       skipDeployMarker: nonEmptyString(g, 'git', 'skipDeployMarker', '[skip ci]'),
+      pullSeconds: positiveNumber(g, 'git', 'pullSeconds', 60),
       committer: {
         name: nonEmptyString(c, 'git.committer', 'name', 'docmd threads'),
         email: nonEmptyString(c, 'git.committer', 'email', 'threads@docmd.invalid'),
