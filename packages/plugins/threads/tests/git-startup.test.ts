@@ -143,20 +143,31 @@ test('the variable commits exactly the listed paths as one committer commit on t
   fs.writeFileSync(safePath(trio.server, 'docs/folder'), 'a file where the remote has a folder\n');
   fs.mkdirSync(safePath(trio.other, 'docs/folder'), { recursive: true });
   commitOn(trio.other, 'docs/folder/y.txt', 'theirs');
+  // The server holds an ignored journal file at a path the remote force-added.
+  fs.mkdirSync(safePath(trio.server, 'docs/.threads/drafts'), { recursive: true });
+  fs.writeFileSync(safePath(trio.server, 'docs/.threads/drafts/d.json'), 'ignored, mine\n');
+  fs.mkdirSync(safePath(trio.other, 'docs/.threads/drafts'), { recursive: true });
+  fs.writeFileSync(safePath(trio.other, 'docs/.threads/drafts/d.json'), 'theirs\n');
+  git(trio.other, 'add', '-f', 'docs/.threads/drafts/d.json');
+  git(trio.other, 'commit', '-q', '-m', 'other: force-add a journal');
+  git(trio.other, 'push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`);
   commitOn(trio.other, 'docs/data.json', 'theirs');
   commitOn(trio.other, 'docs/nested', 'theirs');
   const collided = { status: status(), head: headOf(), remote: log(trio.remote, '%H') };
   const refused = await captured(() => onServerReady(handle()));
   assert.ok(refused.error instanceof ThreadsError && refused.error.code === 'config');
   assert.match((refused.error as Error).message, /would be overwritten by files on the remote branch: .*docs\/data\.json/);
-  assert.match((refused.error as Error).message, /docs\/nested\/x\.txt/);
-  assert.match((refused.error as Error).message, /docs\/folder(,|;)/);
+  assert.match((refused.error as Error).message, /docs\/nested(,|;)/);
+  assert.match((refused.error as Error).message, /docs\/\.threads\/drafts\/d\.json/, 'an ignored file counts');
+  assert.match((refused.error as Error).message, /docs\/folder\/y\.txt/);
   assert.deepEqual({ status: status(), head: headOf(), remote: log(trio.remote, '%H') }, collided);
   assert.equal(bytes('docs/data.json'), 'mine\n');
   assert.equal(bytes('docs/nested/x.txt'), 'mine too\n');
-  // Out of the way, the run goes through; the remote has moved on by the other clone's two commits.
+  assert.equal(bytes('docs/.threads/drafts/d.json'), 'ignored, mine\n');
+  // Out of the way, the run goes through; the remote has moved on by the other clone's commits.
   fs.rmSync(safePath(trio.server, 'docs/data.json'));
   fs.rmSync(safePath(trio.server, 'docs/folder'));
+  fs.rmSync(safePath(trio.server, 'docs/.threads/drafts/d.json'));
   fs.rmSync(safePath(trio.server, 'docs/nested'), { recursive: true });
   const remoteBefore = log(trio.remote, '%H').length;
   const stops: Array<() => void | Promise<void>> = [];

@@ -478,19 +478,30 @@ async function pushPending(job: PendingJob): Promise<void> {
     })(['commit-tree', tree, '-p', tip, '-m', message]);
   }
 
-  // The move onto the pushed tip (`reset --hard`) removes any untracked or ignored file that is in its way: a file at a path
-  // the tip tracks, a file where the tip has a folder, or a file inside a folder where the tip has a file. Checked repository-wide
-  // before pushing, so a refusal leaves everything as found.
-  const top = gitRunner(run, await git(['rev-parse', '--show-toplevel']));
+  // The move onto the pushed tip (`reset --hard`) writes only the paths that differ between HEAD and the tip, and silently replaces
+  // whatever untracked or ignored file is in its way. Look at just those paths (bounded by the diff, not by the repository), from the
+  // top level, before pushing, so a refusal leaves everything as found.
+  const topDir = await git(['rev-parse', '--show-toplevel']);
+  const top = gitRunner(run, topDir);
   const own = new Set(changed.map((f) => path.posix.normalize(path.posix.join(job.prefix, f))));
-  const tipFiles = new Set((await top(['ls-tree', '-r', '--name-only', '-z', tip])).split('\0').filter(Boolean));
-  const tipDirs = new Set([...tipFiles].flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
-  const others = [
-    ...(await top(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0'),
-    ...(await top(['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])).split('\0'),
-  ].filter(Boolean);
-  const inTheWay = (f: string) => tipFiles.has(f) || tipDirs.has(f) || f.split('/').slice(0, -1).some((_, i, parts) => tipFiles.has(parts.slice(0, i + 1).join('/')));
-  const collide = [...new Set(others)].filter((f) => !own.has(f) && inTheWay(f));
+  const written = (await top(['diff', '--name-only', '--no-renames', '-z', 'HEAD', tip])).split('\0').filter(Boolean);
+  const prefixes = (f: string) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'));
+  const lookups = [...new Set(written.flatMap((f) => [f, ...prefixes(f)]))];
+  const tracked = new Set<string>();
+  for (let i = 0; i < lookups.length; i += 200) {
+    for (const f of (await top(['ls-tree', '--name-only', '-z', 'HEAD', '--', ...lookups.slice(i, i + 200)])).split('\0')) if (f) tracked.add(f);
+  }
+  const onDisk = (f: string) => {
+    try {
+      return fs.lstatSync(safePath(topDir, f), { throwIfNoEntry: false });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOTDIR') return undefined; // a file stands where a folder is expected: its own prefix is the finding
+      throw e;
+    }
+  };
+  const collide = written.filter((f) =>
+    (!own.has(f) && !tracked.has(f) && onDisk(f)) ||
+    prefixes(f).some((q) => !tracked.has(q) && onDisk(q)?.isDirectory() === false));
   if (collide.length) throw refusal(`the pending work could not be pushed: untracked or ignored files would be overwritten by files on the remote branch: ${collide.join(', ')}; the checkout is unchanged`);
 
   await git([...AUTH, 'push', remote, `${tip}:refs/heads/${branch}`]);
