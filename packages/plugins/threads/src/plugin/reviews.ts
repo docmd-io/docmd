@@ -489,7 +489,7 @@ export async function readManifest(ctx: ActionContext, id: string): Promise<Revi
 export async function listManifests(ctx: ActionContext): Promise<ReviewManifest[]> {
   let names: string[];
   try {
-    names = await fs.promises.readdir(reviewsDir(ctx));
+    names = await fs.promises.readdir(safePath(reviewsDir(ctx), '.'));
   } catch (e) {
     if (isNotFound(e)) return [];
     throw e;
