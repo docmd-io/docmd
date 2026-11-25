@@ -128,10 +128,12 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
   };
 
   /** A coded error for the client, with no remote or path in it; the raw error stays in `cause` and is logged with credentials redacted. */
-  const fail = (what: string, cause: unknown, after = '') => {
+  const fail = (what: string, cause: unknown, after = '', secret?: string) => {
     const raw = cause instanceof Error ? cause.message : String(cause);
-    console.error(`[threads] git ${what} failed: ${raw.replace(/\/\/[^@/\s]*@/g, '//***@')}`);
-    return new ThreadsError('push-failed', `could not ${what} the remote branch ${branch}${after}; the review is unchanged, try again`, { cause });
+    const redacted = (secret ? raw.split(secret).join('***') : raw).replace(/\/\/[^@/\s]*@/g, '//***@');
+    console.error(`[threads] git ${what} failed: ${redacted}`);
+    // The cause is rebuilt from the redacted text: the raw error names the commit's author argument.
+    return new ThreadsError('push-failed', `could not ${what} the remote branch ${branch}${after}; the review is unchanged, try again`, { cause: new Error(redacted) });
   };
 
   return {
@@ -159,7 +161,7 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
           await commit(meta, applied);
         } catch (e) {
           await resetQuietly(meta);
-          throw fail('commit to', e);
+          throw fail('commit to', e, '', meta.authorEmail);
         }
         try {
           await push();

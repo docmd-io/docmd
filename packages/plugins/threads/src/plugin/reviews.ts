@@ -640,13 +640,13 @@ function assertWritable({ key, name }: Caller): void {
   }
 }
 
-/** A path as the sync is told about it: relative to the project root, like a target file. */
 /** The request's commit author e-mail as a meta fragment (empty when it carries none). */
 const emailMeta = (ctx: ActionContext): { authorEmail?: string } => {
   const authorEmail = authorEmailOf(ctx);
   return authorEmail ? { authorEmail } : {};
 };
 
+/** A path as the sync is told about it: relative to the project root, like a target file. */
 const manifestFileOf = (ctx: ActionContext, id: string): string => path.relative(ctx.projectRoot, safePath(reviewsDir(ctx), `${id}.json`));
 
 type Profile = NonNullable<Journal['profile']>;

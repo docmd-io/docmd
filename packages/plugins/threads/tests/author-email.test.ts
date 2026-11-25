@@ -23,6 +23,8 @@ test('authorEmailOf: the header value is trimmed and checked; anything else is a
     ['@example.com', null],
     ['ann@', null],
     ['"Ann" <ann@x.org>', null],
+    ['<ann@x.org>', null],
+    ['ann@x.org>', null],
     ['ann @example.com', null],
     ['ann@example.com\r\nX: y', null],
     ['ann@exa\u0000mple.com', null],

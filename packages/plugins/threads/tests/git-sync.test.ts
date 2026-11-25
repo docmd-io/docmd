@@ -285,11 +285,10 @@ test('publish makes one commit authored by the commenter, with the address from 
   assert.equal(recorded.find((r) => r.args.includes('push'))?.env.DOCMD_THREADS_GIT_TOKEN, SENTINEL);
 });
 
-test('without the option, or when the request lacks the header or carries a malformed one, the author e-mail is the placeholder', async () => {
+test('without the option, or when the request lacks the header, the author e-mail is the placeholder', async () => {
   const cases: Array<[string, () => ActionContext]> = [
     ['no option', () => ctxIn(trio.server, 'ann', GIT, 'serve', { 'x-auth-request-email': EMAIL })],
     ['no header', () => emailCtx({})],
-    ['malformed header', () => emailCtx({ 'x-auth-request-email': 'Ann <ann@example.com>' })],
   ];
   for (const [name, make] of cases) {
     trio.reset();
@@ -439,6 +438,25 @@ test('a push that loses a race is re-applied on the fresh head; a deleted page i
   assert.equal(commits(trio.remote), 1);
   await pub(ctx, realExec); // the review was left open: the next publish goes through
   assert.equal(commits(trio.remote), 2);
+});
+
+test('a commit that fails logs and throws without the request address', async () => {
+  const ctx = emailCtx();
+  await draft(ctx, 'Reword this link text.');
+  const failing: ExecFile = (file, args, opts) =>
+    args.includes('commit') ? Promise.reject(new Error(`Command failed: git ${args.join(' ')}`)) : realExec(file, args, opts);
+  const logged: string[] = [];
+  const spy = mock.method(console, 'error', (...a: unknown[]) => void logged.push(a.join(' ')));
+  let err: unknown;
+  try {
+    err = await pub(ctx, failing).catch((e) => e);
+  } finally {
+    spy.mock.restore();
+  }
+  assert.ok(err instanceof ThreadsError && err.code === 'push-failed');
+  assert.ok(logged.length > 0 && !logged.join('\n').includes(EMAIL), 'the log');
+  const cause = (err as ThreadsError).cause;
+  assert.ok(!err.message.includes(EMAIL) && !(cause instanceof Error && cause.message.includes(EMAIL)), 'the error and its cause');
 });
 
 test('a staging that fails leaves no manifest, the ops in the journal and no credential in the error; the next publish succeeds', async () => {
