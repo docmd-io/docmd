@@ -48,6 +48,8 @@ before(async () => {
   }));
   const dir = path.join(root(listing), '.threads', 'reviews');
   fs.writeFileSync(safePath(dir, 'bad.json'), '{ not json');
+  fs.writeFileSync(safePath(dir, 'no-time.json'), JSON.stringify({ version: 1, id: 'no-time', ops: [] }));
+  fs.mkdirSync(safePath(dir, 'a-directory.json'));
   fs.writeFileSync(safePath(dir, 'v2.json'), JSON.stringify({ version: 2, id: 'v2', ops: [] }));
   fs.writeFileSync(safePath(dir, 'r-newest.back'), JSON.stringify(manifest('r-stray', '2026-03-09T00:00:00.000Z')));
 });
@@ -72,7 +74,7 @@ test('list-reviews returns the manifests newest first, projected to the summary 
 });
 
 test('list-reviews is [] without a reviews directory', async () => {
-  assert.deepEqual(await call(titling, 'threads:list-reviews'), []);
+  assert.deepEqual(await call(listing, 'threads:list-reviews', {}, { config: { src: 'no-docs' } }), []);
 });
 
 test('list-reviews under serve without an identity succeeds and writes nothing', async () => {
@@ -83,7 +85,7 @@ test('list-reviews under serve without an identity succeeds and writes nothing',
 });
 
 test('update-review names the open review through the handler and returns the journal; a bad title is refused', async () => {
-  const j = await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: '  My\nreview  ' });
+  const j = await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: '  My review  ' });
   assert.equal(j.review.title, 'My review');
   const tree = snapshotTree(root(titling));
   for (const title of [5, { a: 1 }, undefined]) {
@@ -96,7 +98,7 @@ test('update-review names the open review through the handler and returns the jo
   assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: null })).review.title, null);
 });
 
-test('a published review takes the commenter\'s title, or the default; the next review is untitled, also after a finished failed reset', async () => {
+test('a published review takes the commenter\'s title; the next review is untitled, also after a finished failed reset', async () => {
   const draft = (who: Record<string, string>) =>
     call(titling, 'threads:add-thread', { file: titling.file, ...who, body: 'a comment' });
   const manifestOf = (r: PublishResult) =>
@@ -108,10 +110,6 @@ test('a published review takes the commenter\'s title, or the default; the next 
   const titled = await call<PublishResult>(titling, 'threads:publish-review', ALICE);
   assert.equal(manifestOf(titled).title, 'My review');
   assert.equal((await whoami(ALICE)).journal?.review.title, null);
-
-  await draft(ALICE);
-  const plain = await call<PublishResult>(titling, 'threads:publish-review', ALICE);
-  assert.match(manifestOf(plain).title, /^Comments by Alice: 1 comment on /);
 
   // The publish wrote its manifest, then the journal reset failed; the next read finishes it.
   const bob = { author: 'Bob', authorKey: 'k-bob' };

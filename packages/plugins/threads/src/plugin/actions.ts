@@ -221,7 +221,9 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   /** Every published or discarded review, newest first. A read: needs no identity. */
   'threads:list-reviews': async (_payload, ctx): Promise<ReviewSummary[]> =>
-    (await listManifests(ctx)).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).map(summarize),
+    (await listManifests(ctx))
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id))
+      .map(summarize),
 
   /** Name the caller's open review (`null` clears it); the manifest takes it at publish. */
   'threads:update-review': async (payload, ctx): Promise<Journal> => {

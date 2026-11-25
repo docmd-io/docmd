@@ -495,9 +495,16 @@ export async function listManifests(ctx: ActionContext): Promise<ReviewManifest[
     throw e;
   }
   const found = await Promise.all(
-    names.filter((n) => n.endsWith('.json')).map((n) => readManifest(ctx, n.slice(0, -'.json'.length))),
+    names.filter((n) => n.endsWith('.json')).map((n) => readManifest(ctx, n.slice(0, -'.json'.length)).catch(() => null)),
   );
-  return found.filter((m): m is ReviewManifest => m !== null);
+  // A manifest the listing cannot project (no times or title, a non-object op) is left out like a corrupt file.
+  return found.filter(
+    (m): m is ReviewManifest =>
+      m !== null &&
+      typeof m.publishedAt === 'string' &&
+      typeof m.title === 'string' &&
+      m.ops.every((o) => o !== null && typeof o === 'object'),
+  );
 }
 
 /** The listing projection of a manifest. */
