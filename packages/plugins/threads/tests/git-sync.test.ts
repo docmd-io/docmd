@@ -124,9 +124,11 @@ test('onServerReady: serve rejects without the token; dev ignores git with one l
     };
     await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing('fetch') }), (e: unknown) =>
       e instanceof ThreadsError && e.code === 'config' && /could not fetch/.test(e.message) && !/\n/.test(e.message) && !e.message.includes(SENTINEL) && !e.message.includes('h.invalid'));
-    // Not a working tree: the status read fails.
-    await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing('status') }), (e: unknown) =>
-      e instanceof ThreadsError && e.code === 'config' && /could not be inspected/.test(e.message) && !e.message.includes(SENTINEL));
+    // Not a working tree: git fails at once (rev-parse); a failing status read is refused the same way.
+    for (const verb of ['rev-parse', 'status']) {
+      await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing(verb) }), (e: unknown) =>
+        e instanceof ThreadsError && e.code === 'config' && /could not be inspected/.test(e.message) && !e.message.includes(SENTINEL));
+    }
     assert.equal(stops.length, 1 + 2, 'only the starts that were allowed registered a loop');
   } finally {
     await Promise.all(stops.map((stop) => stop()));

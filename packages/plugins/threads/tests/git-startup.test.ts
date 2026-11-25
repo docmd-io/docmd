@@ -55,7 +55,6 @@ test('classifyStatus: tracked changes of every kind, and only the untracked cont
     '?? README.md',
     '?? docs/data.json',
     '?? docs/.threads/reviews/nested/r-2.json',
-    '!! docs/.threads/drafts/page.json',
   );
   assert.deepEqual(classifyStatus(status, { docs: 'docs' }), {
     tracked: ['docs/deleted.md', 'docs/new-name.md', 'docs/old-name.md', 'docs/staged.md', 'docs/modified.md', 'docs/conflict.md', 'docs/typechange.md'],
@@ -66,6 +65,10 @@ test('classifyStatus: tracked changes of every kind, and only the untracked cont
     tracked: ['docs/a.md', '../top.txt'],
     untracked: ['docs/b.md'],
   });
+  // A hidden docs folder keeps its dot; a project in a subfolder with docs at its root ignores paths outside it.
+  assert.deepEqual(classifyStatus(z('?? .docs/new.md', '?? docs/x.md'), { docs: '.docs' }).untracked, ['.docs/new.md']);
+  assert.deepEqual(classifyStatus(z('?? other/x.md'), { prefix: 'site/', docs: '' }).untracked, []);
+  assert.deepEqual(classifyStatus(z('?? a.md'), { docs: '.' }).untracked, ['a.md']);
   // The docs root is the project root.
   assert.deepEqual(classifyStatus(z('?? index.md', '?? .threads/authors.json'), { docs: '' }).untracked, ['index.md', '.threads/authors.json']);
   assert.deepEqual(classifyStatus('', { docs: 'docs' }), { tracked: [], untracked: [] });
@@ -214,4 +217,31 @@ test('local commits ahead are refused and listed; the variable pushes them with 
   assert.equal(behind.error, undefined);
   assert.equal(log(trio.remote, '%H').length, remoteCommits);
   await Promise.all(stops.map((stop) => stop()));
+});
+
+test('an untracked file the remote branch also tracks is never overwritten: the run is refused before anything is pushed', async () => {
+  dirty();
+  fs.writeFileSync(safePath(trio.server, 'docs/data.json'), 'mine\n');
+  commitOn(trio.other, 'docs/data.json', 'theirs');
+  const remoteBefore = log(trio.remote, '%H');
+  const before = { status: status(), head: headOf() };
+  process.env[VAR] = '1';
+  const { error } = await captured(() => onServerReady(handle()));
+  assert.ok(error instanceof ThreadsError && error.code === 'config');
+  assert.match((error as Error).message, /untracked files would be overwritten.*docs\/data\.json/);
+  assert.equal(bytes('docs/data.json'), 'mine\n');
+  assert.deepEqual({ status: status(), head: headOf() }, before);
+  assert.deepEqual(log(trio.remote, '%H'), remoteBefore);
+});
+
+test('a file whose staged and working-tree versions differ is refused by the variable, not committed half-way', async () => {
+  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nstaged edit\n');
+  git(trio.server, 'add', 'docs/index.md');
+  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nunstaged edit\n');
+  const before = { status: status(), head: headOf(), index: bytes('docs/index.md') };
+  process.env[VAR] = '1';
+  const { error } = await captured(() => onServerReady(handle()));
+  assert.ok(error instanceof ThreadsError && error.code === 'config');
+  assert.match((error as Error).message, /staged changes that differ from the working tree: docs\/index\.md/);
+  assert.deepEqual({ status: status(), head: headOf(), index: bytes('docs/index.md') }, before);
 });

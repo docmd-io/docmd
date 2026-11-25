@@ -286,7 +286,7 @@ export function startPullLoop(
 // Startup: the checkout must hold nothing the first reset would lose
 // ---------------------------------------------------------------------------
 
-export interface CheckoutState {
+interface CheckoutState {
   /** Tracked files with staged or unstaged changes, relative to the project root. */
   tracked: string[];
   /** Untracked, not ignored content files under the docs root, relative to the project root. */
@@ -302,11 +302,11 @@ export interface CheckoutState {
  */
 export function classifyStatus(output: string, where: { prefix?: string; docs?: string } = {}): CheckoutState {
   const prefix = (where.prefix ?? '').replace(/\/+$/, '');
-  const docs = (where.docs ?? '').replace(/^\.\/?|\/+$/g, '');
+  const docs = where.docs === '.' ? '' : (where.docs ?? '').replace(/^\.\//, '').replace(/\/+$/, '');
   const rel = (p: string) => (prefix ? path.posix.relative(prefix, p) : p);
   const under = (p: string, dir: string) => !dir || p.startsWith(`${dir}/`);
   const isContent = (p: string): boolean => {
-    if (!under(p, docs)) return false;
+    if (p.startsWith('../') || !under(p, docs)) return false;
     const inDocs = docs ? p.slice(docs.length + 1) : p;
     return inDocs.endsWith('.md') || inDocs === '.threads/authors.json' || /^\.threads\/reviews\/[^/]+\.json$/.test(inDocs);
   };
@@ -319,7 +319,6 @@ export function classifyStatus(output: string, where: { prefix?: string; docs?: 
     const file = rel(entry.slice(3));
     // A rename or copy carries the path it came from as the next entry.
     const from = /[RC]/.test(code) ? rel(entries[++i] ?? '') : '';
-    if (code === '!!') continue;
     if (code === '??') {
       if (isContent(file)) state.untracked.push(file);
     } else {
@@ -356,7 +355,7 @@ const commitPendingOn = (env: NodeJS.ProcessEnv): boolean => env[COMMIT_PENDING]
  */
 export async function checkStartup(
   handle: ServerHandle,
-  deps: { execFile?: ExecFile; lock?: Lock; env?: NodeJS.ProcessEnv } = {},
+  deps: { execFile?: ExecFile } = {},
 ): Promise<void> {
   const opts = handle.mode === 'serve' ? getOptions(handle).git : null;
   if (!opts) return;
@@ -365,9 +364,9 @@ export async function checkStartup(
   const root = docsRootOf(handle);
   const run = deps.execFile ?? realExec();
   const git = gitRunner(run, cwd);
-  const commitPending = commitPendingOn(deps.env ?? process.env);
+  const commitPending = commitPendingOn(process.env);
 
-  await (deps.lock ?? lockFor(root)).withLock(async () => {
+  await lockFor(root).withLock(async () => {
     let prefix: string;
     try {
       prefix = await git(['rev-parse', '--show-prefix']);
@@ -433,6 +432,14 @@ async function pushPending(job: PendingJob): Promise<void> {
   if (await git(['ls-files', '--unmerged'])) throw refusal('the pending work could not be pushed: the checkout has unresolved merge conflicts; the checkout is unchanged');
   if (await git(['rev-list', '--merges', `origin/${branch}..HEAD`])) throw refusal('the pending work could not be pushed: the local commits include a merge commit; the checkout is unchanged');
 
+  // merge-tree --write-tree and --merge-base need git 2.40.
+  const version = /(\d+)\.(\d+)/.exec(await git(['version']));
+  if (!version || +version[1] < 2 || (+version[1] === 2 && +version[2] < 40)) throw refusal(`${COMMIT_PENDING} needs git 2.40 or later; the checkout is unchanged`);
+  // A file with a different staged and working-tree version would lose its staged bytes: the working-tree one is committed, so say so instead.
+  const staged = new Set((await git(['diff', '--cached', '--name-only', '-z'])).split('\0').filter(Boolean));
+  const both = (await git(['diff', '--name-only', '-z'])).split('\0').filter((f) => staged.has(f));
+  if (both.length) throw refusal(`the pending work could not be pushed: these files have staged changes that differ from the working tree: ${both.join(', ')}; the checkout is unchanged`);
+
   const head = await git(['rev-parse', 'HEAD']);
   // The commit of the changes, on HEAD, from a private index so the checkout's own is not read or written.
   let pendingCommit: string | null = null;
@@ -442,7 +449,8 @@ async function pushPending(job: PendingJob): Promise<void> {
       const tmp = gitRunner(run, cwd, { GIT_INDEX_FILE: path.join(scratch, 'index') });
       await tmp(['read-tree', 'HEAD']);
       for (const file of changed) {
-        await tmp(fs.existsSync(path.resolve(cwd, file)) ? ['update-index', '--add', '--', file] : ['update-index', '--force-remove', '--', file]);
+        // Git decides: a present file (or symlink) is added, a missing one removed.
+        await tmp(['update-index', '--add', '--remove', '--', file]);
       }
       const tree = await tmp(['write-tree']);
       pendingCommit = await gitRunner(run, cwd, identityEnv(committer.name, committer.email))([
@@ -467,6 +475,11 @@ async function pushPending(job: PendingJob): Promise<void> {
       GIT_COMMITTER_NAME: meta[3], GIT_COMMITTER_EMAIL: meta[4], GIT_COMMITTER_DATE: meta[5],
     })(['commit-tree', tree, '-p', tip, '-m', message]);
   }
+
+  // The move onto the pushed tip overwrites untracked files at paths the tip tracks: refuse before pushing.
+  const inTip = new Set((await git(['ls-tree', '-r', '--name-only', '-z', tip])).split('\0').filter(Boolean));
+  const collide = (await git(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter((f) => f && !changed.includes(f) && inTip.has(f));
+  if (collide.length) throw refusal(`the pending work could not be pushed: untracked files would be overwritten by files on the remote branch: ${collide.join(', ')}; the checkout is unchanged`);
 
   await git([...AUTH, 'push', remote, `${tip}:refs/heads/${branch}`]);
   // Pushed: the remote has everything, so the checkout can move onto it.
