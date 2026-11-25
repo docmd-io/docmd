@@ -5,7 +5,7 @@ import path from 'node:path';
 import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
-import { findCaller } from '../src/plugin/identity.ts';
+import { findCaller, isEmailShaped, resolveCaller } from '../src/plugin/identity.ts';
 import type { Comment, Thread, WhoAmI } from '../src/types.ts';
 
 let project: TempProject;
@@ -37,20 +37,20 @@ test('findCaller under serve: key from the identity, name and avatar from author
   const who = (identity: string | null, threads: unknown = {}, payload: Record<string, unknown> = mallory) =>
     findCaller(makeCtx(project.root, serve(identity, threads)), payload);
 
-  const bare = { key: 'alice@example.com', name: 'alice@example.com', avatarUrl: '', source: 'header', isAdmin: false };
-  assert.deepEqual(await who('alice@example.com'), bare, 'no authors.json: the key names the caller');
-  assert.deepEqual(Object.keys((await who('alice@example.com'))!).sort(), ['avatarUrl', 'isAdmin', 'key', 'name', 'source']);
+  const bare = { key: 'alice', name: 'alice', avatarUrl: '', source: 'header', isAdmin: false };
+  assert.deepEqual(await who('alice'), bare, 'no authors.json: the key names the caller');
+  assert.deepEqual(Object.keys((await who('alice'))!).sort(), ['avatarUrl', 'isAdmin', 'key', 'name', 'source']);
 
-  writeAuthors({ 'alice@example.com': { name: 'Alice A', avatarUrl: 'http://a/a.png' }, 'Jane%20Doe': { name: 'Jane', avatarUrl: '' } });
-  assert.deepEqual(await who('alice@example.com'), { ...bare, name: 'Alice A', avatarUrl: 'http://a/a.png' });
-  assert.equal((await who('  alice@example.com  '))!.key, 'alice@example.com', 'surrounding spaces are trimmed');
+  writeAuthors({ alice: { name: 'Alice A', avatarUrl: 'http://a/a.png' }, 'Jane%20Doe': { name: 'Jane', avatarUrl: '' } });
+  assert.deepEqual(await who('alice'), { ...bare, name: 'Alice A', avatarUrl: 'http://a/a.png' });
+  assert.equal((await who('  alice  '))!.key, 'alice', 'surrounding spaces are trimmed');
   assert.deepEqual([(await who('Jane Doe'))!.key, (await who(' Jane Doe '))!.name], ['Jane%20Doe', 'Jane'], 'inner whitespace is encoded, then looked up');
   assert.equal(await who(null), null);
   assert.equal(await who(''), null);
   assert.equal(await who('   '), null);
 
-  const admins = { permissions: { admins: ['alice@example.com', 'Jane Doe'] } };
-  assert.equal((await who('alice@example.com', admins))!.isAdmin, true);
+  const admins = { permissions: { admins: ['alice', 'Jane Doe'] } };
+  assert.equal((await who('alice', admins))!.isAdmin, true);
   assert.equal((await who('Jane Doe', admins))!.isAdmin, true, 'an admin configured with a space matches the encoded key');
   assert.equal((await who('bob', admins))!.isAdmin, false);
 });
@@ -61,6 +61,32 @@ test('findCaller in dev: the payload names the caller, unenforced; authors.json 
   assert.deepEqual(await findCaller(ctx, { author: 'Kay', authorKey: 'k', avatarUrl: 'u' }), { key: 'k', name: 'Kay', avatarUrl: 'u', source: 'payload', isAdmin: false });
   assert.deepEqual(await findCaller(ctx, { author: 'Kay' }), { key: 'Kay', name: 'Kay', avatarUrl: '', source: 'payload', isAdmin: false });
   assert.equal(await findCaller(ctx, {}), null);
+  // an e-mail-shaped key names the caller Anonymous, never the address; a plain key still names it; dev does not refuse
+  assert.deepEqual(await findCaller(ctx, { authorKey: 'me@example.com' }), { key: 'me@example.com', name: 'Anonymous', avatarUrl: '', source: 'payload', isAdmin: false });
+  assert.equal((await findCaller(ctx, { authorKey: 'me@example.com', author: 'Me' }))!.name, 'Me');
+  assert.equal((await findCaller(ctx, { authorKey: 'me' }))!.name, 'me');
+  assert.equal((await resolveCaller(ctx, { authorKey: 'me@example.com' })).key, 'me@example.com');
+});
+
+test('isEmailShaped: characters on both sides of an @, no whitespace, after trimming', () => {
+  for (const yes of ['ann@example.com', 'a@b', '  ann@x.org  ']) assert.equal(isEmailShaped(yes), true, yes);
+  for (const no of ['ann', '12345', '@ann', 'ann@', 'a b@c', 'f3c1-uuid', 'Jane%20Doe']) assert.equal(isEmailShaped(no), false, no);
+});
+
+test('an e-mail-shaped identity under serve logs one warning per process, without the value', async () => {
+  const lines: string[] = [];
+  const orig = console.warn;
+  console.warn = (...a: unknown[]) => void lines.push(a.join(' '));
+  try {
+    const ctx = makeCtx(project.root, serve('ann@example.com'));
+    assert.equal(await findCaller(ctx, {}), null);
+    await assert.rejects(resolveCaller(ctx, {}), { code: 'email-identity' });
+  } finally {
+    console.warn = orig;
+  }
+  assert.equal(lines.length, 1);
+  assert.ok(!lines[0].includes('ann@example.com'));
+  assert.ok(lines[0].includes('X-Auth-Request-User'));
 });
 
 test('findCaller under serve: a missing authors.json is fine, an unreadable one rejects', async () => {

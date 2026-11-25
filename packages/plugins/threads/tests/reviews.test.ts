@@ -681,19 +681,19 @@ test('serve publishes only for a trusted identity; dev publishes from the payloa
 
   // The payload names someone else: the key and the name come from the identity and authors.json.
   const authorsFile = path.join(docsRoot, '.threads', 'authors.json');
-  const asAlice: Partial<TestCtx> = { mode: 'serve', caller: { identity: 'alice@example.com' } };
+  const asAlice: Partial<TestCtx> = { mode: 'serve', caller: { identity: 'alice' } };
   const mallory = { author: 'Mallory', authorKey: 'mallory', avatarUrl: 'x' };
   await (actions['threads:add-thread'] as (p: unknown, c: TestCtx) => Promise<unknown>)({ file: FILE, ...mallory, body: 'from serve' }, ctx(asAlice));
   assert.equal(fs.existsSync(authorsFile), false, 'a serve add never writes authors.json');
   const served = await publishAction(mallory, asAlice);
-  assert.match(read(FILE), /::: comment c-[0-9a-f]{8} "alice@example\.com" "[0-9-]+" by alice@example\.com review /);
+  assert.match(read(FILE), /::: comment c-[0-9a-f]{8} "alice" "[0-9-]+" by alice review /);
   assert.doesNotMatch(read(FILE), /Mallory|by mallory/);
   assert.ok(fs.existsSync(manifestPath(served.reviewId)));
   fs.mkdirSync(safePath(docsRoot, '.threads'), { recursive: true });
-  fs.writeFileSync(safePath(docsRoot, '.threads/authors.json'), JSON.stringify({ 'alice@example.com': { name: 'Alice A', avatarUrl: '' } }));
-  await fill('alice@example.com', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-s', parentId: null, body: 'serve' }]);
+  fs.writeFileSync(safePath(docsRoot, '.threads/authors.json'), JSON.stringify({ alice: { name: 'Alice A', avatarUrl: '' } }));
+  await fill('alice', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-s', parentId: null, body: 'serve' }]);
   await publishAction(mallory, asAlice);
-  assert.match(read(FILE), /::: comment c-s "Alice A" "[0-9-]+" by alice@example\.com review /);
+  assert.match(read(FILE), /::: comment c-s "Alice A" "[0-9-]+" by alice review /);
   assert.equal(JSON.parse(fs.readFileSync(safePath(path.dirname(authorsFile), 'authors.json'), 'utf8')).mallory, undefined);
 
   await fill('k-dev', [{ kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-d', parentId: null, body: 'dev' }]);

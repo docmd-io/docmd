@@ -20,6 +20,18 @@ const keyOf = (identity: string): string => {
   return /\s/.test(trimmed) ? encodeURIComponent(trimmed) : trimmed;
 };
 
+/** True when a trimmed identity has no whitespace and has characters on both sides of an `@`. */
+export const isEmailShaped = (identity: string): boolean => /^\S+@\S+$/.test(identity.trim());
+
+let warnedEmailIdentity = false;
+
+/** Logs once per process that an e-mail-shaped identity arrived; the line never carries the identity. */
+function warnEmailIdentity(): void {
+  if (warnedEmailIdentity) return;
+  warnedEmailIdentity = true;
+  console.warn('[threads] a request carried an e-mail-shaped identity: writes are refused and it is treated as unidentified for reads. Point serve.actions.identityHeader at the identity provider\'s user id (for oauth2-proxy, X-Auth-Request-User).');
+}
+
 /**
  * Who is calling, or null when the call carries no identity. Throws only when
  * authors.json exists but cannot be read.
@@ -31,6 +43,10 @@ export async function findCaller(ctx: IdentityCtx, payload: Payload): Promise<Ca
   if (ctx.mode === 'serve') {
     const identity = str(ctx.caller?.identity);
     if (!identity) return null;
+    if (isEmailShaped(identity)) {
+      warnEmailIdentity();
+      return null;
+    }
     const key = keyOf(identity);
     const entry = (await readAuthors(ctx))[key];
     return {
@@ -44,11 +60,16 @@ export async function findCaller(ctx: IdentityCtx, payload: Payload): Promise<Ca
   const name = str(payload?.author);
   const key = str(payload?.authorKey) ?? name;
   if (!key) return null;
-  return { key, name: name ?? key, avatarUrl: str(payload?.avatarUrl) ?? '', source: 'payload', isAdmin: false };
+  return { key, name: name ?? (isEmailShaped(key) ? 'Anonymous' : key), avatarUrl: str(payload?.avatarUrl) ?? '', source: 'payload', isAdmin: false };
 }
 
-/** Like findCaller, but a call without identity is an error: `no-identity` under serve, `invalid` in dev. */
+/** Like findCaller, but a call without identity is an error: `no-identity` under serve (`email-identity` for an e-mail-shaped one), `invalid` in dev. */
 export async function resolveCaller(ctx: IdentityCtx, payload: Payload): Promise<Caller> {
+  const trusted = ctx.mode === 'serve' ? str(ctx.caller?.identity) : null;
+  if (trusted && isEmailShaped(trusted)) {
+    warnEmailIdentity();
+    throw new ThreadsError('email-identity', "the trusted identity looks like an e-mail address; the site admin must point the serve identity header at the identity provider's user id (for oauth2-proxy, X-Auth-Request-User)");
+  }
   const caller = await findCaller(ctx, payload);
   if (caller) return caller;
   if (ctx.mode === 'serve') {

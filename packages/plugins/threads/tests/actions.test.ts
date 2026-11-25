@@ -286,17 +286,30 @@ test('serve without a trusted identity refuses every write, with or without auth
     ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],
   ];
   const tree = snapshotTree(docsRoot);
-  for (const [name, payload] of REFUSED) {
-    const bare = name === 'threads:set-mode' ? {} : payload; // no mode: the identity is still checked first
-    for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
-      await assert.rejects(
-        call(name, sent, { mode: 'serve', caller: { identity: null } }),
-        (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /^threads\/no-identity: no trusted identity/.test(e.message),
-        name,
-      );
-      assert.deepEqual(snapshotTree(docsRoot), tree, `${name} changed nothing`);
+  const EMAIL = 'alice@example.com';
+  // No identity, then an e-mail-shaped one: each is refused first, before the payload is read, and nothing is written.
+  for (const [identity, code] of [[null, 'no-identity'], [EMAIL, 'email-identity']] as const) {
+    for (const [name, payload] of REFUSED) {
+      const bare = name === 'threads:set-mode' ? {} : payload; // no mode: the identity is still checked first
+      for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
+        await assert.rejects(
+          call(name, sent, { mode: 'serve', caller: { identity } }),
+          (e: unknown) => e instanceof ThreadsError && e.code === code && e.message.startsWith(`threads/${code}: `)
+            && (identity === null ? /^threads\/no-identity: no trusted identity/.test(e.message) : !e.message.includes(EMAIL) && e.message.includes('X-Auth-Request-User')),
+          `${code} ${name}`,
+        );
+        assert.deepEqual(snapshotTree(docsRoot), tree, `${code} ${name} changed nothing`);
+      }
     }
   }
+  // Reads treat an e-mail-shaped identity as unidentified and never carry the address.
+  const mail = { mode: 'serve', caller: { identity: EMAIL } } as const;
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null });
+  assert.ok(!JSON.stringify((await call('threads:get-authors', {}, mail)).result).includes(EMAIL), 'threads:get-authors');
+  const mailThreads = await getThreads({}, mail);
+  assert.deepEqual(mailThreads.map((t) => t.id), ['t-thread1', 't-thread2', 't-thread3']);
+  assert.ok(!JSON.stringify(mailThreads).includes(EMAIL));
+  assert.deepEqual(snapshotTree(docsRoot), tree, 'e-mail reads changed nothing');
   const none = { mode: 'serve', caller: { identity: null } } as const;
   assert.deepEqual((await call<Record<string, unknown>>('threads:get-authors', {}, none)).result, {});
   assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null });
