@@ -113,6 +113,8 @@ export interface Journal {
     id: string;
     /** ISO time of the last change to the journal: the auto-publish countdown runs from it. */
     updatedAt: string;
+    /** The commenter's name for the review; null means the manifest gets the default title. */
+    title: string | null;
   };
   ops: DraftOp[];
 }
@@ -150,6 +152,17 @@ export interface ReviewManifest {
   skipped: Array<{ opId: string; reason: string }>;
   /** Ops discard could not reverse (target gone since the publish). */
   discardSkipped?: Array<{ opId: string; reason: string }>;
+}
+
+/** One review as `threads:list-reviews` returns it. */
+export interface ReviewSummary {
+  id: string;
+  authorKey: string;
+  authorName: string;
+  title: string;
+  publishedAt: string;
+  state: 'published' | 'discarded';
+  ops: Array<{ file: string; threadId: string; quote: string | null; pageTitle: string | null }>;
 }
 
 export interface PublishResult {

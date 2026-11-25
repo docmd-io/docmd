@@ -7,6 +7,7 @@ import { safePath } from '@docmd/utils';
 import { tempProject, type TempProject } from './helpers.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
+import { cleanTitle } from '../src/plugin/reviews.ts';
 
 let project: TempProject;
 let docsRoot: string;
@@ -39,7 +40,7 @@ test('a write creates <slug>.json holding only version, mode, review and ops, at
   const file = path.join(draftsDir(), 'alice_20smith_2F1.json');
   const journal = JSON.parse(rd(file));
   assert.deepEqual(Object.keys(journal).sort(), ['mode', 'ops', 'review', 'version']);
-  assert.deepEqual(Object.keys(journal.review).sort(), ['id', 'updatedAt']);
+  assert.deepEqual(Object.keys(journal.review).sort(), ['id', 'title', 'updatedAt']);
   assert.equal(journal.review.updatedAt, '2026-03-10T12:00:00.000Z');
   assert.equal(journal.mode, 'collect');
   assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
@@ -110,6 +111,7 @@ for (const [name, content, id] of legacy) {
       assert.deepEqual(first.ops.map((o) => o.opId), ['o-00000001']);
       assert.equal(first.mode, defaultMode);
       assert.match(first.review.id, /^r-[0-9a-f]{8}$/);
+      assert.equal(first.review.title, null);
       if (id) assert.equal(first.review.id, id);
       assert.match(first.review.updatedAt, /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
       assert.equal(second.review.updatedAt, first.review.updatedAt, 'two loads without a write agree');
@@ -139,6 +141,23 @@ test('transact and setMode stamp review.updatedAt from the clock; a throwing tra
   await assert.rejects(s.transact('k', () => { throw new ThreadsError('invalid', 'x'); }), /threads\/invalid: x/);
   assert.equal(JSON.parse(rd(file)).review.updatedAt, '2026-03-10T12:00:05.000Z');
   assert.equal((await s.load('k')).review.updatedAt, '2026-03-10T12:00:05.000Z');
+});
+
+test('setReview stores the title and stamps updatedAt; null clears it; ops and mode are untouched', async () => {
+  const s = store();
+  await append(s, 'k');
+  await s.setMode('k', 'auto');
+  clock += 7000;
+  const named = await s.setReview('k', { title: 'My review' });
+  assert.deepEqual([named.review.title, named.review.updatedAt, named.mode, named.ops.length], ['My review', '2026-03-10T12:00:07.000Z', 'auto', 1]);
+  assert.equal(JSON.parse(rd(path.join(draftsDir(), 'k.json'))).review.title, 'My review');
+  assert.equal((await s.setReview('k', { title: null })).review.title, null);
+});
+
+test('cleanTitle makes one line of at most 120 characters; empty is none', () => {
+  assert.equal(cleanTitle('  My\nreview  '), 'My review');
+  assert.equal(cleanTitle('x'.repeat(200)), 'x'.repeat(120));
+  assert.equal(cleanTitle(' \n '), null);
 });
 
 test('setMode on a missing journal creates it with that mode', async () => {

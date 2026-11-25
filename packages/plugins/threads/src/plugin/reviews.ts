@@ -7,7 +7,7 @@ import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import type { Lock } from './lock.js';
 import type { DraftStore } from './drafts.js';
-import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, Thread } from '../types.js';
+import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
 const TITLE_MAX = 120;
 
@@ -44,6 +44,9 @@ export function pageTitleOf(content: string): string | null {
 }
 
 const oneLine = (s: string, max: number) => s.replace(/[\r\n]+/g, ' ').trim().slice(0, max);
+
+/** A review title from the commenter: one line, at most 120 characters; empty means none. */
+export const cleanTitle = (title: string): string | null => oneLine(title, TITLE_MAX) || null;
 
 /**
  * `Comments by <name>: <N> comment(s) on <first page title>[, +K page(s)]`.
@@ -482,6 +485,32 @@ export async function readManifest(ctx: ActionContext, id: string): Promise<Revi
   }
 }
 
+/** Every readable v1 manifest under the docs root, in no particular order; none when the directory is missing. */
+export async function listManifests(ctx: ActionContext): Promise<ReviewManifest[]> {
+  let names: string[];
+  try {
+    names = await fs.promises.readdir(reviewsDir(ctx));
+  } catch (e) {
+    if (isNotFound(e)) return [];
+    throw e;
+  }
+  const found = await Promise.all(
+    names.filter((n) => n.endsWith('.json')).map((n) => readManifest(ctx, n.slice(0, -'.json'.length))),
+  );
+  return found.filter((m): m is ReviewManifest => m !== null);
+}
+
+/** The listing projection of a manifest. */
+export const summarize = (m: ReviewManifest): ReviewSummary => ({
+  id: m.id,
+  authorKey: m.authorKey,
+  authorName: m.authorName,
+  title: m.title,
+  publishedAt: m.publishedAt,
+  state: m.state,
+  ops: m.ops.map((o) => ({ file: o.file, threadId: o.threadId, quote: o.quote ?? null, pageTitle: o.pageTitle ?? null })),
+});
+
 // ---------------------------------------------------------------------------
 // Publish
 // ---------------------------------------------------------------------------
@@ -612,7 +641,7 @@ export async function publish(
       id: reviewId,
       authorKey: caller.key,
       authorName: caller.name,
-      title: defaultTitle(caller.name, applied.length ? applied : ops, titles),
+      title: journal.review.title || defaultTitle(caller.name, applied.length ? applied : ops, titles),
       state: 'published',
       publishedAt: new Date(now()).toISOString(),
       ops: applied,
@@ -624,6 +653,7 @@ export async function publish(
     await store.transact(caller.key, (j) => {
       j.ops = j.ops.filter((o) => !published.has(o.opId));
       j.review.id = newId('r-');
+      j.review.title = null;
     });
     return { reviewId, skipped };
   });
@@ -650,6 +680,7 @@ export async function finishEarlierPublish(
     if (j.review.id !== manifest.id) return;
     j.ops = j.ops.filter((o) => !done.has(o.opId));
     j.review.id = newId('r-');
+    j.review.title = null;
   });
 }
 

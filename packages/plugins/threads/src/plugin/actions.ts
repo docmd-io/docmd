@@ -6,11 +6,11 @@ import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { lockFor } from './lock.js';
 import { getOptions } from './config.js';
-import { discard, docsRootOf, finishEarlierPublish, publish, readManifest } from './reviews.js';
+import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
-import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor, DraftMode, WhoAmI } from '../types.js';
+import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
 async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
@@ -217,6 +217,22 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
       throw new ThreadsError('invalid', "threads:set-mode: mode must be 'auto' or 'collect'");
     }
     return getStore(ctx).setMode((caller ?? (await resolveCaller(ctx, payload))).key, payload.mode);
+  },
+
+  /** Every published or discarded review, newest first. A read: needs no identity. */
+  'threads:list-reviews': async (_payload, ctx): Promise<ReviewSummary[]> =>
+    (await listManifests(ctx)).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).map(summarize),
+
+  /** Name the caller's open review (`null` clears it); the manifest takes it at publish. */
+  'threads:update-review': async (payload, ctx): Promise<Journal> => {
+    const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
+    const title = payload?.title;
+    if (title !== null && typeof title !== 'string') {
+      throw new ThreadsError('invalid', 'threads:update-review: title must be a string or null');
+    }
+    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, {
+      title: title === null ? null : cleanTitle(title),
+    });
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
