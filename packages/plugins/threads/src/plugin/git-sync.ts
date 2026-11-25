@@ -401,7 +401,7 @@ export async function checkStartup(
     }
 
     try {
-      await pushPending({ run, cwd, git, branch, remote, committer, marker: skipDeployMarker, changed, commits: ahead.length });
+      await pushPending({ run, cwd, git, branch, remote, committer, marker: skipDeployMarker, changed, commits: ahead.length, prefix });
     } catch (e) {
       if (e instanceof ThreadsError) throw e;
       throw refusal(`the pending work could not be pushed: ${await reasonOf(e, git, remote)}; the checkout is unchanged`, e);
@@ -420,6 +420,8 @@ interface PendingJob {
   marker: string;
   changed: string[];
   commits: number;
+  /** Where the project root sits in the repository, with its trailing slash (empty at the top). */
+  prefix: string;
 }
 
 /**
@@ -476,10 +478,20 @@ async function pushPending(job: PendingJob): Promise<void> {
     })(['commit-tree', tree, '-p', tip, '-m', message]);
   }
 
-  // The move onto the pushed tip overwrites untracked files at paths the tip tracks: refuse before pushing.
-  const inTip = new Set((await git(['ls-tree', '-r', '--name-only', '-z', tip])).split('\0').filter(Boolean));
-  const collide = (await git(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter((f) => f && !changed.includes(f) && inTip.has(f));
-  if (collide.length) throw refusal(`the pending work could not be pushed: untracked files would be overwritten by files on the remote branch: ${collide.join(', ')}; the checkout is unchanged`);
+  // The move onto the pushed tip (`reset --hard`) removes any untracked or ignored file that is in its way: a file at a path
+  // the tip tracks, a file where the tip has a folder, or a file inside a folder where the tip has a file. Checked repository-wide
+  // before pushing, so a refusal leaves everything as found.
+  const top = gitRunner(run, await git(['rev-parse', '--show-toplevel']));
+  const own = new Set(changed.map((f) => path.posix.normalize(path.posix.join(job.prefix, f))));
+  const tipFiles = new Set((await top(['ls-tree', '-r', '--name-only', '-z', tip])).split('\0').filter(Boolean));
+  const tipDirs = new Set([...tipFiles].flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
+  const others = [
+    ...(await top(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0'),
+    ...(await top(['ls-files', '--others', '--ignored', '--exclude-standard', '-z'])).split('\0'),
+  ].filter(Boolean);
+  const inTheWay = (f: string) => tipFiles.has(f) || tipDirs.has(f) || f.split('/').slice(0, -1).some((_, i, parts) => tipFiles.has(parts.slice(0, i + 1).join('/')));
+  const collide = [...new Set(others)].filter((f) => !own.has(f) && inTheWay(f));
+  if (collide.length) throw refusal(`the pending work could not be pushed: untracked or ignored files would be overwritten by files on the remote branch: ${collide.join(', ')}; the checkout is unchanged`);
 
   await git([...AUTH, 'push', remote, `${tip}:refs/heads/${branch}`]);
   // Pushed: the remote has everything, so the checkout can move onto it.

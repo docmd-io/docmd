@@ -136,11 +136,34 @@ test('the variable commits exactly the listed paths as one committer commit on t
   dirty();
   const edited = bytes('docs/index.md');
   process.env[VAR] = '1';
+  // First, untracked files the remote branch also tracks (same path, and a folder where the remote has a file) must survive: refused, nothing pushed.
+  fs.writeFileSync(safePath(trio.server, 'docs/data.json'), 'mine\n');
+  fs.mkdirSync(safePath(trio.server, 'docs/nested'), { recursive: true });
+  fs.writeFileSync(safePath(trio.server, 'docs/nested/x.txt'), 'mine too\n');
+  fs.writeFileSync(safePath(trio.server, 'docs/folder'), 'a file where the remote has a folder\n');
+  fs.mkdirSync(safePath(trio.other, 'docs/folder'), { recursive: true });
+  commitOn(trio.other, 'docs/folder/y.txt', 'theirs');
+  commitOn(trio.other, 'docs/data.json', 'theirs');
+  commitOn(trio.other, 'docs/nested', 'theirs');
+  const collided = { status: status(), head: headOf(), remote: log(trio.remote, '%H') };
+  const refused = await captured(() => onServerReady(handle()));
+  assert.ok(refused.error instanceof ThreadsError && refused.error.code === 'config');
+  assert.match((refused.error as Error).message, /would be overwritten by files on the remote branch: .*docs\/data\.json/);
+  assert.match((refused.error as Error).message, /docs\/nested\/x\.txt/);
+  assert.match((refused.error as Error).message, /docs\/folder(,|;)/);
+  assert.deepEqual({ status: status(), head: headOf(), remote: log(trio.remote, '%H') }, collided);
+  assert.equal(bytes('docs/data.json'), 'mine\n');
+  assert.equal(bytes('docs/nested/x.txt'), 'mine too\n');
+  // Out of the way, the run goes through; the remote has moved on by the other clone's two commits.
+  fs.rmSync(safePath(trio.server, 'docs/data.json'));
+  fs.rmSync(safePath(trio.server, 'docs/folder'));
+  fs.rmSync(safePath(trio.server, 'docs/nested'), { recursive: true });
+  const remoteBefore = log(trio.remote, '%H').length;
   const stops: Array<() => void | Promise<void>> = [];
   const { error, lines } = await captured(() => onServerReady(handle(stops)));
   try {
     assert.equal(error, undefined);
-    assert.equal(log(trio.remote, '%H').length, 2, 'the remote gained exactly one commit');
+    assert.equal(log(trio.remote, '%H').length, remoteBefore + 1, 'the remote gained exactly one commit');
     const tip = log(trio.remote, '%H').at(-1)!;
     assert.deepEqual(git(trio.remote, 'diff-tree', '-r', '--no-commit-id', '--name-only', tip).split('\n').filter(Boolean).sort(), ['docs/.threads/reviews/r-1.json', 'docs/index.md']);
     assert.equal(git(trio.remote, 'log', '-1', '--format=%an <%ae>|%cn <%ce>', tip).trim(), 'Threads Bot <bot@fixture.invalid>|Threads Bot <bot@fixture.invalid>');
@@ -173,6 +196,17 @@ test('a conflict with the remote leaves the checkout as found and refuses', asyn
   assert.deepEqual(log(trio.remote, '%H'), remoteBefore, 'the remote holds only the other clone\'s commit');
   assert.equal(remoteBefore.length, 2);
   assert.equal(stops.length, 0);
+
+  // A file whose staged and working-tree versions differ is refused too, not committed half-way.
+  trio.reset();
+  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nstaged edit\n');
+  git(trio.server, 'add', 'docs/index.md');
+  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nunstaged edit\n');
+  const staged = { status: status(), head: headOf(), index: bytes('docs/index.md') };
+  const split = await captured(() => onServerReady(handle()));
+  assert.ok(split.error instanceof ThreadsError && split.error.code === 'config');
+  assert.match((split.error as Error).message, /staged changes that differ from the working tree: docs\/index\.md/);
+  assert.deepEqual({ status: status(), head: headOf(), index: bytes('docs/index.md') }, staged);
 });
 
 test('local commits ahead are refused and listed; the variable pushes them with the pending commit; behind-only starts', async () => {
@@ -217,31 +251,4 @@ test('local commits ahead are refused and listed; the variable pushes them with 
   assert.equal(behind.error, undefined);
   assert.equal(log(trio.remote, '%H').length, remoteCommits);
   await Promise.all(stops.map((stop) => stop()));
-});
-
-test('an untracked file the remote branch also tracks is never overwritten: the run is refused before anything is pushed', async () => {
-  dirty();
-  fs.writeFileSync(safePath(trio.server, 'docs/data.json'), 'mine\n');
-  commitOn(trio.other, 'docs/data.json', 'theirs');
-  const remoteBefore = log(trio.remote, '%H');
-  const before = { status: status(), head: headOf() };
-  process.env[VAR] = '1';
-  const { error } = await captured(() => onServerReady(handle()));
-  assert.ok(error instanceof ThreadsError && error.code === 'config');
-  assert.match((error as Error).message, /untracked files would be overwritten.*docs\/data\.json/);
-  assert.equal(bytes('docs/data.json'), 'mine\n');
-  assert.deepEqual({ status: status(), head: headOf() }, before);
-  assert.deepEqual(log(trio.remote, '%H'), remoteBefore);
-});
-
-test('a file whose staged and working-tree versions differ is refused by the variable, not committed half-way', async () => {
-  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nstaged edit\n');
-  git(trio.server, 'add', 'docs/index.md');
-  fs.appendFileSync(safePath(trio.server, 'docs/index.md'), '\nunstaged edit\n');
-  const before = { status: status(), head: headOf(), index: bytes('docs/index.md') };
-  process.env[VAR] = '1';
-  const { error } = await captured(() => onServerReady(handle()));
-  assert.ok(error instanceof ThreadsError && error.code === 'config');
-  assert.match((error as Error).message, /staged changes that differ from the working tree: docs\/index\.md/);
-  assert.deepEqual({ status: status(), head: headOf(), index: bytes('docs/index.md') }, before);
 });

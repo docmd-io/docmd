@@ -129,6 +129,18 @@ test('onServerReady: serve rejects without the token; dev ignores git with one l
       await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing(verb) }), (e: unknown) =>
         e instanceof ThreadsError && e.code === 'config' && /could not be inspected/.test(e.message) && !e.message.includes(SENTINEL));
     }
+    // Commit-pending on git older than 2.40 is refused as such, before any commit or push.
+    const old: string[][] = [];
+    const git239: ExecFile = async (_f, args) => {
+      old.push(args);
+      if (args[0] === 'status') return { stdout: ' M docs/a.md\0', stderr: '' };
+      return { stdout: args[0] === 'version' ? 'git version 2.39.2' : '', stderr: '' };
+    };
+    process.env.DOCMD_THREADS_GIT_COMMIT_PENDING = '1';
+    await assert.rejects(onServerReady(handle('serve', withGit), { execFile: git239 }), (e: unknown) =>
+      e instanceof ThreadsError && e.code === 'config' && /needs git 2.40 or later/.test(e.message));
+    assert.ok(!old.some((a) => a.includes('commit-tree') || a.includes('push')), 'no commit or push ran');
+    delete process.env.DOCMD_THREADS_GIT_COMMIT_PENDING;
     assert.equal(stops.length, 1 + 2, 'only the starts that were allowed registered a loop');
   } finally {
     await Promise.all(stops.map((stop) => stop()));
