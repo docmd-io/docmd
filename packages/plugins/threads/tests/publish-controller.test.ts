@@ -291,3 +291,75 @@ test('collect-only (no autoPublish): no play/pause, no timer, Publish works', as
   await c.publish();
   assert.deepEqual(s.calls.slice(0, 2), ['whoami', 'publishReview']);
 });
+
+const publishes = () => s.calls.filter((x) => x === 'publishReview').length;
+
+test('discard confirmation open: the deadline passing publishes nothing while it stays open', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 * 3);
+  await settle();
+  assert.equal(publishes(), 0);
+});
+
+test('discard confirmation: Cancel after the deadline publishes once, right after it closes', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  c.release(false);
+  await settle();
+  assert.equal(publishes(), 1);
+  c.release(false);
+  advance(SECONDS * 10_000);
+  await settle();
+  assert.equal(publishes(), 1, 'one publish only');
+});
+
+test('discard confirmation: Cancel before the deadline keeps the original deadline', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  advance(20_000);
+  c.hold();
+  advance(10_000);
+  c.release(false);
+  await settle();
+  assert.equal(publishes(), 0, 'closing early does not publish');
+  advance(SECONDS * 1000 - 30_000 - 1);
+  await settle();
+  assert.equal(publishes(), 0, 'not restarted, not early');
+  advance(1);
+  await settle();
+  assert.equal(publishes(), 1, 'fires at updatedAt + seconds');
+});
+
+test('discard confirmation: Confirm publishes nothing, even when the deadline passed while it was open', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.journal = journal(0, 'auto');
+  c.release(true);
+  await c.refresh();
+  advance(SECONDS * 10_000);
+  await settle();
+  assert.equal(publishes(), 0);
+});
+
+test('discard confirmation: Confirm before the old journal is re-read cannot publish from a stale countdown', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  c.release(true);
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  assert.equal(publishes(), 0);
+});

@@ -46,6 +46,10 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   let remaining: number | null = null;
   let ringKey: string | null = null;
   let ringDelay = 0;
+  /** A confirmation is open on the review: the timer's fire waits instead of publishing. */
+  let held = false;
+  /** The timer fired while held. */
+  let deferred = false;
 
   const mode = (): DraftMode => journal?.mode ?? 'collect';
   const pending = (): number => (known ? (journal?.ops.length ?? 0) : 0);
@@ -134,9 +138,39 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   }
 
   // Publishing re-syncs the timer when it ends, which drops the ring: nothing is scheduled after a fire.
-  timer?.onFire(() => void publish());
+  timer?.onFire(() => {
+  if (held) deferred = true;
+  else void publish();
+});
+
+  /** A confirmation opened: no auto publish starts until `release`. The countdown itself keeps its deadline. */
+  function hold(): void {
+    held = true;
+  }
+
+  /**
+   * The confirmation closed. Kept (`discarded` false): a fire that came due meanwhile publishes now.
+   * Discarded: nothing publishes; the countdown is dropped until the next refresh re-reads the journal.
+   */
+  function release(discarded: boolean): void {
+    if (!held) return;
+    held = false;
+    const due = deferred;
+    deferred = false;
+    if (discarded) {
+      timer?.stop();
+      remaining = null;
+      ringKey = null;
+      onChange();
+    } else if (due) {
+      void publish();
+    }
+  }
 
   return {
+    hold,
+    release,
+    isHeld: (): boolean => held,
     refresh,
     publish,
     toggleMode,

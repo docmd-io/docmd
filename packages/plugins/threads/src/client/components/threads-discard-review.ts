@@ -26,7 +26,8 @@ const CSS = `
 /**
  * A Discard button for one review, behind a confirmation dialog. It knows only the review id and
  * its texts; after a success it dispatches `reviews-changed` (bubbles, composed, cancelable), and
- * a host that refreshes as a result cancels it.
+ * a host that refreshes as a result cancels it. It also dispatches `discard-dialog-change`
+ * (`detail: { open, discarded }`) when the confirmation opens and closes.
  */
 @customElement('threads-discard-review')
 export class ThreadsDiscardReview extends LitElement {
@@ -42,6 +43,9 @@ export class ThreadsDiscardReview extends LitElement {
     api,
     t,
     onChange: () => this.requestUpdate(),
+    onOpenChange: (open, discarded) => {
+      this.dispatchEvent(new CustomEvent('discard-dialog-change', { bubbles: true, composed: true, detail: { open, discarded } }));
+    },
     onDone: () => {
       this.dispatchEvent(new CustomEvent('reviews-changed', { bubbles: true, composed: true, cancelable: true }));
     },

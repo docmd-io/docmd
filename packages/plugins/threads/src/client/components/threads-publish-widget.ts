@@ -123,6 +123,11 @@ export class ThreadsPublishWidget extends LitElement {
     this.controller.stop();
   }
 
+  override updated(): void {
+    // The discard element left (nothing pending any more) while its dialog was open: no close event will come.
+    if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release(true);
+  }
+
   /** Re-read the caller's journal. */
   refresh(): Promise<void> {
     return this.controller.refresh();
@@ -149,7 +154,8 @@ export class ThreadsPublishWidget extends LitElement {
             </button>` : nothing}
           <button class="tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
           ${reviewId && !s.publishDisabled ? html`
-            <threads-discard-review .reviewId=${reviewId} .label=${t('discardDrafts')}
+            <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; discarded: boolean }>) =>
+                e.detail.open ? this.controller.hold() : this.controller.release(e.detail.discarded)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}

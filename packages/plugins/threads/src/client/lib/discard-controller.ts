@@ -14,9 +14,15 @@ export interface DiscardControllerDeps {
   onDone: () => void;
   /** Called after every state change, so the element can re-render. */
   onChange: () => void;
+  /**
+   * Called when the confirmation opens (`open: true`) and when it closes. On close, `discarded` says
+   * whether the review was discarded (confirmed and succeeded) or kept (cancelled, or the call failed).
+   * A host that must not act on the review while the question is open listens to this.
+   */
+  onOpenChange?: (open: boolean, discarded: boolean) => void;
 }
 
-export function createDiscardController({ api, t, onDone, onChange }: DiscardControllerDeps) {
+export function createDiscardController({ api, t, onDone, onChange, onOpenChange }: DiscardControllerDeps) {
   let state: DiscardState = 'closed';
   let reviewId: string | null = null;
   let error: string | null = null;
@@ -35,12 +41,14 @@ export function createDiscardController({ api, t, onDone, onChange }: DiscardCon
       reviewId = id;
       error = null;
       set('confirming');
+      onOpenChange?.(true, false);
     },
     /** Close the confirmation without calling anything. */
     cancel(): void {
       if (state !== 'confirming') return;
       reviewId = null;
       set('closed');
+      onOpenChange?.(false, false);
     },
     /** Discard the asked review: one call, however often it is confirmed. */
     async confirm(): Promise<void> {
@@ -53,11 +61,13 @@ export function createDiscardController({ api, t, onDone, onChange }: DiscardCon
         error = err instanceof ThreadsClientError ? err.text : t('discardFailed');
         reviewId = null;
         set('closed');
+        onOpenChange?.(false, false);
         return;
       }
       reviewId = null;
       set('closed');
       onDone();
+      onOpenChange?.(false, true);
     },
   };
 }
