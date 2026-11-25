@@ -30,7 +30,7 @@ const ALICE_CALLER: Caller = { key: 'k-alice', name: 'Alice', avatarUrl: '', sou
 const op = (threadId: string, extra: Partial<ManifestOp> = {}): ManifestOp =>
   ({ kind: 'add-thread', opId: `o-${threadId}`, at: '2026-03-01T00:00:00.000Z', file: 'docs/index.md', threadId, commentId: `c-${threadId}`, anchor: null, body: 'x', ...extra }) as ManifestOp;
 const manifest = (id: string, publishedAt: string, extra: Partial<ReviewManifest> = {}): ReviewManifest => ({
-  version: 1, id, authorKey: 'k-alice', authorName: 'Alice', title: `Title ${id}`, state: 'published', publishedAt,
+  version: 1, id, authorKey: 'k-alice', authorName: 'Alice', title: `Title ${id}`, summary: null, state: 'published', publishedAt,
   ops: [op(`t-${id}`)], skipped: [], ...extra,
 });
 
@@ -105,6 +105,21 @@ test('update-review names the open review through the handler and returns the jo
   assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: null })).review.title, null);
 });
 
+test('update-review keeps the summary through a title-only call and refuses a bad summary or an empty call, changing nothing', async () => {
+  const saved = await call<Journal>(titling, 'threads:update-review', { ...ALICE, summary: '  line one\nline two  ' });
+  assert.equal(saved.review.summary, 'line one\nline two');
+  assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, title: 'T' })).review.summary, 'line one\nline two');
+  const tree = snapshotTree(root(titling));
+  for (const extra of [{ summary: 5 }, { summary: { a: 1 } }, {}]) {
+    await assert.rejects(
+      call(titling, 'threads:update-review', { ...ALICE, ...extra }),
+      (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
+    );
+  }
+  assert.deepEqual(snapshotTree(root(titling)), tree, 'a refused call changes nothing');
+  assert.equal((await call<Journal>(titling, 'threads:update-review', { ...ALICE, summary: null })).review.summary, null);
+});
+
 test('a published review takes the commenter\'s title; the next review is untitled, also after a finished failed reset', async () => {
   const draft = (who: Record<string, string>) =>
     call(titling, 'threads:add-thread', { file: titling.file, ...who, body: 'a comment' });
@@ -112,20 +127,25 @@ test('a published review takes the commenter\'s title; the next review is untitl
     JSON.parse(fs.readFileSync(safePath(path.join(root(titling), '.threads', 'reviews'), `${r.reviewId}.json`), 'utf8')) as ReviewManifest;
   const whoami = (who: Record<string, string>) => call<WhoAmI>(titling, 'threads:whoami', who);
 
-  await call(titling, 'threads:update-review', { ...ALICE, title: 'My review' });
+  await call(titling, 'threads:update-review', { ...ALICE, title: 'My review', summary: 'Why.' });
   await draft(ALICE);
   const titled = await call<PublishResult>(titling, 'threads:publish-review', ALICE);
   assert.equal(manifestOf(titled).title, 'My review');
+  assert.equal(manifestOf(titled).summary, 'Why.');
   assert.equal((await whoami(ALICE)).journal?.review.title, null);
+  assert.equal((await whoami(ALICE)).journal?.review.summary, null);
+  await draft(ALICE);
+  assert.equal(manifestOf(await call<PublishResult>(titling, 'threads:publish-review', ALICE)).summary, null, 'no summary: null in the manifest');
 
   // The publish wrote its manifest, then the journal reset failed; the next read finishes it.
   const bob = { author: 'Bob', authorKey: 'k-bob' };
-  await call(titling, 'threads:update-review', { ...bob, title: 'Bob titled' });
+  await call(titling, 'threads:update-review', { ...bob, title: 'Bob titled', summary: 'Bob explains' });
   await draft(bob);
   const real = createDraftStore(root(titling));
   const bobCaller: Caller = { ...ALICE_CALLER, key: 'k-bob', name: 'Bob' };
   await assert.rejects(publish(bobCaller, ctxOf(titling) as never, { store: failingReset(real), sync: createNoGitSync(createLock()) }), /journal write failed/);
   const journal = (await whoami(bob)).journal!;
   assert.equal(journal.review.title, null);
+  assert.equal(journal.review.summary, null);
   assert.deepEqual(journal.ops, []);
 });

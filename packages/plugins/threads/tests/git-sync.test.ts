@@ -171,7 +171,7 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
   const ctx = gitCtx();
   await draft(ctx, 'Reword this link text.');
   await draft(ctx, 'And this one.', 'docs/extra.md');
-  await actions['threads:update-review']({ title: 'Link wording' }, ctx);
+  await actions['threads:update-review']({ title: 'Link wording', summary: '  Why the links change.\n\nSecond paragraph.  ' }, ctx);
 
   const recorded: Array<{ args: string[]; env: NodeJS.ProcessEnv }> = [];
   const recording: ExecFile = (file, args, opts) => (recorded.push({ args, env: opts.env }), realExec(file, args, opts));
@@ -192,6 +192,7 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
   assert.equal(commits(trio.remote), 2, 'exactly one new commit');
   const [a, c, subject] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
   assert.deepEqual([a, c, subject], ['Ann Lee <ann@example.com>', 'Threads Bot <bot@fixture.invalid>', 'Link wording [skip ci]']);
+  assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), 'Why the links change.\n\nSecond paragraph.', 'the body is the summary');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.equal(files.length, 3, files.join());
   assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/extra.md', 'docs/index.md']);
@@ -214,7 +215,7 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
 test('discard is one forward commit by the discarding caller; an open review makes none', async () => {
   const ctx = gitCtx();
   await draft(ctx, 'Reword this.');
-  await actions['threads:update-review']({ title: 'Wording' }, ctx);
+  await actions['threads:update-review']({ title: 'Wording', summary: 'Not for the discard commit.' }, ctx);
   // through the handlers, with the real execFile: the remote is a local path
   const { reviewId } = await actions['threads:publish-review']({}, ctx);
   const before = commits(trio.remote);
@@ -223,6 +224,7 @@ test('discard is one forward commit by the discarding caller; an open review mak
   assert.equal(commits(trio.remote), before + 1);
   const [a, c, s] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
   assert.deepEqual([a, c, s], ['Ann Lee <ann@example.com>', 'Threads Bot <bot@fixture.invalid>', 'revert(threads): discard review "Wording" [skip ci]']);
+  assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), '', 'a discard commit has no body');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/index.md']);
   assert.equal(files.length, 2);
@@ -272,6 +274,7 @@ test('a push that loses a race is re-applied on the fresh head; a deleted page i
   await actions['threads:update-review']({ title: 'Raced' }, ctx);
   await pub(ctx, racing);
   assert.deepEqual(log(trio.remote, '%an|%s'), ['seed|base', 'other|other: remove docs/extra.md', 'other|other: OTHER-WAS-HERE', 'Ann Lee|Raced [skip ci]']);
+  assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), '', 'no summary: no body');
   const manifestPath = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').find((f) => f.includes('/reviews/'))!;
   const manifest = JSON.parse(git(trio.remote, 'show', `${BRANCH}:${manifestPath}`));
   assert.deepEqual(manifest.skipped.map((x: { reason: string }) => x.reason), ['file docs/extra.md not readable'], 'the op on the deleted page is skipped');

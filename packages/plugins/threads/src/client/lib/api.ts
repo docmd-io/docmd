@@ -177,7 +177,7 @@ export function listReviews(): Promise<ReviewSummary[]> {
   return call('threads:list-reviews', {});
 }
 
-/** Set the open review's title (`null` for the default one); returns the caller's journal. */
-export function updateReview(patch: { title: string | null }): Promise<Journal> {
+/** Set the open review's title and/or summary (`null` clears; an absent key is kept); returns the caller's journal. */
+export function updateReview(patch: { title?: string | null; summary?: string | null }): Promise<Journal> {
   return call('threads:update-review', { ...getIdentityPayload(), ...patch });
 }

@@ -7,7 +7,7 @@ import { safePath } from '@docmd/utils';
 import { tempProject, type TempProject } from './helpers.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
-import { cleanTitle } from '../src/plugin/reviews.ts';
+import { cleanSummary, cleanTitle, parseReviewFields } from '../src/plugin/reviews.ts';
 
 let project: TempProject;
 let docsRoot: string;
@@ -40,7 +40,7 @@ test('a write creates <slug>.json holding only version, mode, review and ops, at
   const file = path.join(draftsDir(), 'alice_20smith_2F1.json');
   const journal = JSON.parse(rd(file));
   assert.deepEqual(Object.keys(journal).sort(), ['mode', 'ops', 'review', 'version']);
-  assert.deepEqual(Object.keys(journal.review).sort(), ['id', 'title', 'updatedAt']);
+  assert.deepEqual(Object.keys(journal.review).sort(), ['id', 'summary', 'title', 'updatedAt']);
   assert.equal(journal.review.updatedAt, '2026-03-10T12:00:00.000Z');
   assert.equal(journal.mode, 'collect');
   assert.match(journal.review.id, /^r-[0-9a-f]{8}$/);
@@ -112,6 +112,7 @@ for (const [name, content, id] of legacy) {
       assert.equal(first.mode, defaultMode);
       assert.match(first.review.id, /^r-[0-9a-f]{8}$/);
       assert.equal(first.review.title, null);
+      assert.equal(first.review.summary, null);
       if (id) assert.equal(first.review.id, id);
       assert.match(first.review.updatedAt, /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
       assert.equal(second.review.updatedAt, first.review.updatedAt, 'two loads without a write agree');
@@ -152,6 +153,38 @@ test('setReview stores the title and stamps updatedAt; null clears it; ops and m
   assert.deepEqual([named.review.title, named.review.updatedAt, named.mode, named.ops.length], ['My review', '2026-03-10T12:00:07.000Z', 'auto', 1]);
   assert.equal(JSON.parse(rd(path.join(draftsDir(), 'k.json'))).review.title, 'My review');
   assert.equal((await s.setReview('k', { title: null })).review.title, null);
+});
+
+test('setReview changes only the keys it is given: a title alone keeps the summary, a summary alone keeps the title', async () => {
+  const s = store();
+  await append(s, 'k');
+  await s.setReview('k', { title: 'T', summary: 'S' });
+  clock += 3000;
+  const titled = await s.setReview('k', { title: 'T2' });
+  assert.deepEqual([titled.review.title, titled.review.summary, titled.review.updatedAt], ['T2', 'S', '2026-03-10T12:00:03.000Z']);
+  clock += 3000;
+  const summed = await s.setReview('k', { summary: 'S2' });
+  assert.deepEqual([summed.review.title, summed.review.summary, summed.review.updatedAt], ['T2', 'S2', '2026-03-10T12:00:06.000Z']);
+  assert.equal(JSON.parse(rd(path.join(draftsDir(), 'k.json'))).review.summary, 'S2');
+  assert.equal((await s.setReview('k', { summary: null })).review.summary, null);
+});
+
+test('cleanSummary keeps line breaks, trims, cuts at 2000 characters; blank is none', () => {
+  assert.equal(cleanSummary('  line one\nline two  '), 'line one\nline two');
+  assert.equal(cleanSummary('x'.repeat(2100)), 'x'.repeat(2000));
+  assert.equal(cleanSummary('x'.repeat(2000)), 'x'.repeat(2000));
+  assert.equal(cleanSummary(''), null);
+  assert.equal(cleanSummary('  \n '), null);
+});
+
+test('parseReviewFields cleans each given key, leaves absent keys out, and refuses other types and an empty payload', () => {
+  assert.deepEqual(parseReviewFields('a', { title: ' T ', summary: ' S\nS ' }), { title: 'T', summary: 'S\nS' });
+  assert.deepEqual(parseReviewFields('a', { title: 'T' }), { title: 'T' });
+  assert.deepEqual(parseReviewFields('a', { summary: null }), { summary: null });
+  assert.deepEqual(parseReviewFields('a', { summary: '   ' }), { summary: null });
+  for (const bad of [{}, undefined, { summary: 5 }, { summary: { a: 1 } }, { title: 'T', summary: 5 }, { title: undefined, summary: undefined }]) {
+    assert.throws(() => parseReviewFields('a', bad), (e: unknown) => e instanceof ThreadsError && e.code === 'invalid');
+  }
 });
 
 test('cleanTitle makes one line of at most 120 characters; empty is none', () => {

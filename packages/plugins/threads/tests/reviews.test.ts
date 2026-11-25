@@ -378,7 +378,7 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   assert.ok(pageThreads(FILE).some((t) => t.id === added.id && t.comments[0].id === added.comments[0].id), 'drafted ids are kept');
 
   const m = JSON.parse(readAt(manifestPath(result.reviewId)));
-  assert.deepEqual(Object.keys(m).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'skipped', 'state', 'title', 'version']);
+  assert.deepEqual(Object.keys(m).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'skipped', 'state', 'summary', 'title', 'version']);
   assert.deepEqual([m.version, m.id, m.state, m.authorKey, m.authorName], [1, result.reviewId, 'published', 'k-alice', 'Alice']);
   assert.match(m.title, /^Comments by Alice: 3 comments on docmd _playground, \+1 page$/);
   assert.ok(!Number.isNaN(Date.parse(m.publishedAt)));

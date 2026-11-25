@@ -11,6 +11,7 @@ import type { DraftStore } from './drafts.js';
 import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
 const TITLE_MAX = 120;
+const SUMMARY_MAX = 2000;
 
 const day = (iso: string) => iso.slice(0, 10);
 let tmpSeq = 0;
@@ -47,6 +48,26 @@ const oneLine = (s: string, max: number) => s.replace(/[\r\n]+/g, ' ').trim().sl
 
 /** A review title from the commenter: one line, at most 120 characters; empty means none. */
 export const cleanTitle = (title: string): string | null => oneLine(title, TITLE_MAX) || null;
+
+/** A review summary from the commenter: line breaks kept, trimmed, at most 2000 characters; blank means none. */
+export const cleanSummary = (summary: string): string | null => summary.trim().slice(0, SUMMARY_MAX).trim() || null;
+
+/**
+ * The `title` / `summary` keys of an update-review payload, cleaned. A key that is absent stays absent;
+ * `null` or a blank string clears; any other type, or neither key, is `threads/invalid`.
+ */
+export function parseReviewFields(action: string, payload: unknown): { title?: string | null; summary?: string | null } {
+  const input = (payload ?? {}) as Record<string, unknown>;
+  const out: { title?: string | null; summary?: string | null } = {};
+  for (const [field, clean] of [['title', cleanTitle], ['summary', cleanSummary]] as const) {
+    const value = input[field];
+    if (value === undefined) continue;
+    if (value !== null && typeof value !== 'string') throw new ThreadsError('invalid', `${action}: ${field} must be a string or null`);
+    out[field] = value === null ? null : clean(value);
+  }
+  if (!('title' in out) && !('summary' in out)) throw new ThreadsError('invalid', `${action}: title or summary is required`);
+  return out;
+}
 
 /**
  * `Comments by <name>: <N> comment(s) on <first page title>[, +K page(s)]`.
@@ -681,18 +702,20 @@ export async function publish(
 
         // Write everything or nothing: a failure restores the files already written.
         const title = journal.review.title || defaultTitle(caller.name, applied.length ? applied : ops, titles);
+        const summary = journal.review.summary || null;
         await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
           version: 1,
           id: reviewId,
           authorKey: caller.key,
           authorName: caller.name,
           title,
+          summary,
           state: 'published',
           publishedAt: new Date(now()).toISOString(),
           ops: applied,
           skipped,
         }), 'publish');
-        return { title };
+        return { title, summary };
       },
       {
         authorKey: caller.key, authorName: caller.name, kind: 'publish',
@@ -706,6 +729,7 @@ export async function publish(
       j.ops = j.ops.filter((o) => !published.has(o.opId));
       j.review.id = newId('r-');
       j.review.title = null;
+      j.review.summary = null;
     });
     return { reviewId, skipped };
   });
@@ -733,6 +757,7 @@ export async function finishEarlierPublish(
     j.ops = j.ops.filter((o) => !done.has(o.opId));
     j.review.id = newId('r-');
     j.review.title = null;
+    j.review.summary = null;
   });
 }
 

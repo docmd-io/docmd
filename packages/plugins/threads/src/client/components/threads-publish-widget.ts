@@ -50,7 +50,19 @@ const CSS = `
   }
   @keyframes tpw-countdown { to { stroke-dashoffset: 75.4; } }
   .tpw__count { color: var(--sl-color-neutral-700, inherit); }
-  .tpw__title { display: flex; gap: 6px; }
+  .tpw__title { display: flex; flex-direction: column; gap: 6px; }
+  .tpw__title-row { display: flex; gap: 6px; }
+  .tpw__summary-input {
+    resize: vertical;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--tc-input, var(--sl-color-neutral-300, currentColor));
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
   .tpw__title-input {
     flex: 1;
     min-width: 0;
@@ -118,16 +130,17 @@ export class ThreadsPublishWidget extends LitElement {
   @state() private draftTitle = '';
   @state() private savingTitle = false;
   @state() private titleError: string | null = null;
-  private titleSeen: { id: string | null; title: string | null } = { id: null, title: null };
+  @state() private draftSummary = '';
+  private titleSeen: { id: string | null; title: string | null; summary: string | null } = { id: null, title: null, summary: null };
 
-  /** Save the field as the open review's title (empty: the default one). The journal is re-read after, which restarts the countdown. */
+  /** Save the fields as the open review's title (empty: the default one) and summary (empty: none). The journal is re-read after, which restarts the countdown. */
   private async saveTitle(e: Event): Promise<void> {
     e.preventDefault();
     if (this.savingTitle) return;
     this.savingTitle = true;
     this.titleError = null;
     try {
-      await api.updateReview({ title: this.draftTitle.trim() || null });
+      await api.updateReview({ title: this.draftTitle.trim() || null, summary: this.draftSummary.trim() || null });
       await this.controller.refresh();
     } catch (err) {
       this.titleError = err instanceof api.ThreadsClientError ? err.text : t('saveFailed');
@@ -136,22 +149,28 @@ export class ThreadsPublishWidget extends LitElement {
     }
   }
 
-  /** Keep what the user is typing; take the journal's title only when it or the review changed. */
+  /** Keep what the user is typing; take the journal's title and summary only when either or the review changed. */
   override willUpdate(): void {
-    const { reviewId, reviewTitle } = this.controller.view();
-    if (this.titleSeen.id !== reviewId || this.titleSeen.title !== reviewTitle) {
-      this.titleSeen = { id: reviewId, title: reviewTitle };
+    const { reviewId, reviewTitle, reviewSummary } = this.controller.view();
+    if (this.titleSeen.id !== reviewId || this.titleSeen.title !== reviewTitle || this.titleSeen.summary !== reviewSummary) {
+      this.titleSeen = { id: reviewId, title: reviewTitle, summary: reviewSummary };
       this.draftTitle = reviewTitle ?? '';
+      this.draftSummary = reviewSummary ?? '';
     }
   }
 
   private renderTitle() {
     return html`
       <form class="tpw__title" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
-        <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
-          aria-label=${t('reviewTitle')} .value=${this.draftTitle}
-          @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
-        <button class="tc-btn" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+        <div class="tpw__title-row">
+          <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
+            aria-label=${t('reviewTitle')} .value=${this.draftTitle}
+            @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
+          <button class="tc-btn" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+        </div>
+        <textarea class="tpw__summary-input" data-testid="tpw-summary" rows="3" placeholder=${t('reviewSummary')}
+          aria-label=${t('reviewSummary')} .value=${this.draftSummary}
+          @input=${(e: Event) => { this.draftSummary = (e.target as HTMLTextAreaElement).value; }}></textarea>
       </form>
       ${this.titleError ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
   }

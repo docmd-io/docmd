@@ -17,7 +17,7 @@ const SECONDS = 60;
 const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(T0).toISOString()): Journal => ({
   version: 1,
   mode,
-  review: { id: 'r-1', updatedAt },
+  review: { id: 'r-1', updatedAt, title: null, summary: null },
   ops: Array.from({ length: ops }, (_, i) => ({ kind: 'delete-thread', opId: `o-${i}`, at: updatedAt, file: 'a.md', threadId: 't-1' })),
 });
 
@@ -117,6 +117,20 @@ test('view.reviewId and pendingCount follow the journal after a refresh, and are
   s.whoamiError = new Error('socket closed');
   await c.refresh();
   assert.deepEqual([c.view().reviewId, c.view().pendingCount], [null, 0]);
+});
+
+test('view.reviewSummary is the journal\'s summary, and null before a refresh, with none, and after a failed one', async () => {
+  const { c } = build();
+  assert.equal(c.view().reviewSummary, null);
+  s.journal = journal(1);
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, null);
+  s.journal = { ...journal(1), review: { ...journal(1).review, summary: 'Why it changes.' } };
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, 'Why it changes.');
+  s.whoamiError = new Error('socket closed');
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, null);
 });
 
 test('view.orphanedMine follows the latest whoami, and is 0 before one and after a failed one', async () => {

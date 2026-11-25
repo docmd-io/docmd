@@ -271,7 +271,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   const REFUSED: Array<[string, Record<string, unknown>]> = [
     ...MUTATIONS,
     ['threads:set-mode', { mode: 'collect' }],
-    ['threads:update-review', { title: 'x' }],
+    ['threads:update-review', { title: 'x', summary: 'y' }],
     ['threads:publish-review', {}],
     ['threads:discard-review', { reviewId: 'r-none' }],
     ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],

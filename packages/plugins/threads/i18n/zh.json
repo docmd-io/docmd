@@ -66,5 +66,6 @@
   "published": "已发布",
   "noReviews": "暂无评审。",
   "reviewTitle": "评审标题",
+  "reviewSummary": "摘要",
   "saveFailed": "无法保存评审"
 }

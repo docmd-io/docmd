@@ -37,6 +37,8 @@ export interface PublishMeta {
 /** What `apply` reports once it has written the files: the commit subject is built from it. */
 export interface Applied {
   title: string;
+  /** The review's summary: the body of a publish commit (a discard commit has none). */
+  summary?: string | null;
 }
 
 /**

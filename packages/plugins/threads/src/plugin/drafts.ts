@@ -17,7 +17,7 @@ export interface DraftStore {
   /** Change the caller's mode (also stamps `review.updatedAt`). */
   setMode(key: string, mode: DraftMode): Promise<Journal>;
   /** Change the caller's open review (also stamps `review.updatedAt`). */
-  setReview(key: string, fields: { title: string | null }): Promise<Journal>;
+  setReview(key: string, fields: { title?: string | null; summary?: string | null }): Promise<Journal>;
 }
 
 export interface DraftStoreOptions {
@@ -57,7 +57,7 @@ export function createDraftStore(
   const fresh = (): Journal => ({
     version: 1,
     mode: modeByDefault(),
-    review: { id: 'r-' + crypto.randomBytes(4).toString('hex'), updatedAt: iso(), title: null },
+    review: { id: 'r-' + crypto.randomBytes(4).toString('hex'), updatedAt: iso(), title: null, summary: null },
     ops: [],
   });
 
@@ -87,7 +87,8 @@ export function createDraftStore(
             ? j.review.updatedAt
             : new Date((await fs.promises.stat(file)).mtimeMs).toISOString();
         const title = typeof j.review?.title === 'string' ? j.review.title : null;
-        return { version: 1, mode, review: { id, updatedAt, title }, ops: j.ops };
+        const summary = typeof j.review?.summary === 'string' ? j.review.summary : null;
+        return { version: 1, mode, review: { id, updatedAt, title, summary }, ops: j.ops };
       }
     } catch {
       // fall through: corrupt
@@ -132,9 +133,10 @@ export function createDraftStore(
       mutate(key, (j) => {
         j.mode = mode;
       }),
-    setReview: (key, { title }) =>
+    setReview: (key, { title, summary }) =>
       mutate(key, (j) => {
-        j.review.title = title;
+        if (title !== undefined) j.review.title = title;
+        if (summary !== undefined) j.review.summary = summary;
       }),
   };
 }

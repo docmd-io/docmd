@@ -132,9 +132,11 @@ test('listReviews sends {} and updateReview the identity plus the title; a forbi
   await api.listReviews();
   await api.updateReview({ title: 'x' });
   await api.updateReview({ title: null });
+  await api.updateReview({ title: 'x', summary: 'why' });
   assert.deepEqual(calls[0], { action: 'threads:list-reviews', payload: {} });
   assert.deepEqual(calls[1], { action: 'threads:update-review', payload: { ...stored, title: 'x' } });
   assert.deepEqual(calls[2], { action: 'threads:update-review', payload: { ...stored, title: null } });
+  assert.deepEqual(calls[3], { action: 'threads:update-review', payload: { ...stored, title: 'x', summary: 'why' } });
   reject = new Error('threads/forbidden: not yours');
   await assert.rejects(api.updateReview({ title: 'y' }), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden' && e.text === 'not yours');
   await assert.rejects(api.listReviews(), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden');

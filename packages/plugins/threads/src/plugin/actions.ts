@@ -7,7 +7,7 @@ import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { getSync } from './git-sync.js';
 import { getOptions } from './config.js';
-import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, publish, readManifest, summarize } from './reviews.js';
+import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
@@ -231,16 +231,11 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
       .sort(newestFirst)
       .map(summarize),
 
-  /** Name the caller's open review (`null` clears it); the manifest takes it at publish. */
+  /** Name and/or summarize the caller's open review (`null` clears a field, an absent key keeps it); the manifest takes them at publish. */
   'threads:update-review': async (payload, ctx): Promise<Journal> => {
     const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
-    const title = payload?.title;
-    if (title !== null && typeof title !== 'string') {
-      throw new ThreadsError('invalid', 'threads:update-review: title must be a string or null');
-    }
-    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, {
-      title: title === null ? null : cleanTitle(title),
-    });
+    const fields = parseReviewFields('threads:update-review', payload);
+    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, fields);
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {

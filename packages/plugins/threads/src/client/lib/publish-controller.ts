@@ -31,6 +31,8 @@ export interface PublishView {
   reviewId: string | null;
   /** The open review's title as the journal has it; null for the default title or while unknown. */
   reviewTitle: string | null;
+  /** The open review's summary as the journal has it; null for none or while unknown. */
+  reviewSummary: string | null;
   /** Unpublished operations in the open review; 0 while unknown. */
   pendingCount: number;
   /** The caller's published threads that lost their anchor, from the latest `whoami`; 0 before the first answer and after a failed one. */
@@ -223,6 +225,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
         orphanedMine,
         reviewId: known ? (journal?.review.id ?? null) : null,
         reviewTitle: known ? (journal?.review.title ?? null) : null,
+        reviewSummary: known ? (journal?.review.summary ?? null) : null,
         ring: timer && remaining !== null && ringKey ? { key: ringKey, delayMs: ringDelay, totalMs: timer.totalMs() } : null,
       };
     },

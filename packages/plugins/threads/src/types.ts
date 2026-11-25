@@ -117,6 +117,8 @@ export interface Journal {
     updatedAt: string;
     /** The commenter's name for the review; null means the manifest gets the default title. */
     title: string | null;
+    /** Longer text for the review: the manifest records it and, with git sync, it is the commit body. */
+    summary: string | null;
   };
   ops: DraftOp[];
 }
@@ -148,6 +150,8 @@ export interface ReviewManifest {
   authorKey: string;
   authorName: string;
   title: string;
+  /** The commenter's summary of the review, null when none. */
+  summary: string | null;
   state: 'published' | 'discarded';
   publishedAt: string;
   discardedAt?: string;
