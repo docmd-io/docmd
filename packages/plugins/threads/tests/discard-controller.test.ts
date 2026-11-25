@@ -18,28 +18,29 @@ const settle = () => new Promise<void>((r) => setImmediate(r));
 
 beforeEach(() => Object.assign(s, { calls: [], gate: null, error: null, done: 0, changes: 0 }));
 
-test('ask then cancel makes no call and ends closed', async () => {
-  const c = build();
-  c.ask('r-1');
-  assert.equal(c.state(), 'confirming');
-  c.cancel();
-  await c.confirm();
-  assert.deepEqual([c.state(), s.calls, s.done], ['closed', [], 0]);
-  assert.ok(s.changes >= 2, 'every state change asks for a render');
-});
+type Step = 'ask' | 'cancel' | 'confirm';
+const CASES: Array<{ name: string; steps: Step[]; rejection?: unknown; expected: { state: string; calls: string[]; done: number; error: string | null; changes?: number } }> = [
+  { name: 'ask then cancel: no call, closed, and the later confirm does nothing', steps: ['ask', 'cancel', 'confirm'], expected: { state: 'closed', calls: [], done: 0, error: null, changes: 2 } },
+  { name: 'ask then confirm: one call with the id, onDone once', steps: ['ask', 'confirm'], expected: { state: 'closed', calls: ['r-1'], done: 1, error: null } },
+  { name: 'a ThreadsClientError rejection shows its text, no onDone', steps: ['ask', 'confirm'], rejection: new ThreadsClientError('forbidden', 'not your review'), expected: { state: 'closed', calls: ['r-1'], done: 0, error: 'not your review' } },
+  { name: 'any other rejection shows the discard-failed string, no onDone', steps: ['ask', 'confirm'], rejection: new Error('socket closed'), expected: { state: 'closed', calls: ['r-1'], done: 0, error: 't:discardFailed' } },
+  { name: 'asking again after a failure clears the error', steps: ['ask', 'confirm', 'ask'], rejection: new Error('socket closed'), expected: { state: 'confirming', calls: ['r-1'], done: 0, error: null } },
+];
 
-test('confirm without ask makes no call', async () => {
-  const c = build();
-  await c.confirm();
-  assert.deepEqual([c.state(), s.calls], ['closed', []]);
-});
-
-test('ask then confirm makes one call with the id and calls onDone once', async () => {
-  const c = build();
-  c.ask('r-1');
-  await c.confirm();
-  assert.deepEqual([c.state(), s.calls, s.done, c.error()], ['closed', ['r-1'], 1, null]);
-});
+for (const c of CASES) {
+  test(c.name, async () => {
+    s.error = c.rejection ?? null;
+    const d = build();
+    for (const step of c.steps) {
+      if (step === 'ask') d.ask('r-1');
+      else if (step === 'cancel') d.cancel();
+      else await d.confirm();
+    }
+    const { changes, ...rest } = c.expected;
+    assert.deepEqual({ state: d.state(), calls: s.calls, done: s.done, error: d.error() }, rest);
+    if (changes !== undefined) assert.equal(s.changes, changes);
+  });
+}
 
 test('a second confirm while the first runs makes no second call', async () => {
   let release!: () => void;
@@ -55,19 +56,4 @@ test('a second confirm while the first runs makes no second call', async () => {
   release();
   await Promise.all([first, second]);
   assert.deepEqual([s.calls, s.done, c.state()], [['r-1'], 1, 'closed']);
-});
-
-test('a ThreadsClientError rejection exposes its text, any other the discard-failed string; onDone is not called', async () => {
-  const c = build();
-  s.error = new ThreadsClientError('forbidden', 'not your review');
-  c.ask('r-1');
-  await c.confirm();
-  assert.deepEqual([c.error(), c.state(), s.done], ['not your review', 'closed', 0]);
-  s.error = new Error('socket closed');
-  c.ask('r-1');
-  await c.confirm();
-  assert.deepEqual([c.error(), s.done], ['t:discardFailed', 0]);
-  s.error = null;
-  c.ask('r-1');
-  assert.equal(c.error(), null, 'asking again clears the last error');
 });

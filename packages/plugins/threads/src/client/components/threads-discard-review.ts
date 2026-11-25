@@ -20,7 +20,6 @@ const CSS = `
     cursor: pointer;
     font: inherit;
   }
-  .tdr__btn:disabled { opacity: 0.5; cursor: default; }
   .tdr__error { color: var(--sl-color-danger-700, inherit); font-size: 12px; }
 `;
 

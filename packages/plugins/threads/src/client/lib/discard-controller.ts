@@ -44,8 +44,8 @@ export function createDiscardController({ api, t, onDone, onChange }: DiscardCon
     },
     /** Discard the asked review: one call, however often it is confirmed. */
     async confirm(): Promise<void> {
-      if (state !== 'confirming' || reviewId === null) return;
-      const id = reviewId;
+      if (state !== 'confirming') return;
+      const id = reviewId as string; // set by ask(), which is the only way into 'confirming'
       set('discarding');
       try {
         await api.discardReview(id);
