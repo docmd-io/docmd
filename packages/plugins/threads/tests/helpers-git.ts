@@ -53,7 +53,7 @@ export function makeRepoTrio(): RepoTrio {
   fs.copyFileSync(FIXTURE, path.join(seed, 'docs', 'extra.md'));
   fs.writeFileSync(
     safePath(seed, 'docs/.threads/authors.json'),
-    JSON.stringify({ 'ann@example.com': { name: 'Ann Lee', avatarUrl: '' } }, null, 2) + '\n',
+    JSON.stringify({ ann: { name: 'Ann Lee', avatarUrl: '' } }, null, 2) + '\n',
   );
   // Drafts are per-server state, never committed.
   fs.writeFileSync(safePath(seed, '.gitignore'), 'docs/.threads/drafts/\n');

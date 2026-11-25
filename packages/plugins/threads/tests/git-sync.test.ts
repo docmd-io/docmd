@@ -43,7 +43,7 @@ beforeEach(() => trio.reset());
 /** Context for the server clone: serve mode with a trusted identity, git on (the remote may be replaced). */
 const ctxIn = (root: string, identity: string, git: unknown, mode: 'serve' | 'dev' = 'serve'): ActionContext =>
   makeCtx(root, { mode, config: { src: 'docs', plugins: { threads: git ? { git } : {} } }, caller: { identity } }) as unknown as ActionContext;
-const gitCtx = (remote?: string) => ctxIn(trio.server, 'ann@example.com', remote ? { ...GIT, remote } : GIT);
+const gitCtx = (remote?: string) => ctxIn(trio.server, 'ann', remote ? { ...GIT, remote } : GIT);
 const draft = (ctx: ActionContext, body: string, file = 'docs/index.md') =>
   actions['threads:add-thread']({ file, body, anchor: ANCHOR }, ctx);
 const storeOf = () => createDraftStore(path.join(trio.server, 'docs'), { now: Date.now, defaultMode: () => 'collect' });
@@ -56,7 +56,7 @@ const allFiles = (dir: string): string[] =>
   fs.readdirSync(safePath(dir, '.'), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? allFiles(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 
 /** Publish and discard through a git sync built on `execFile` (the actions build their own, with the real one). */
-const ANN = { key: 'ann@example.com', name: 'Ann Lee', avatarUrl: '', source: 'header' as const, isAdmin: false };
+const ANN = { key: 'ann', name: 'Ann Lee', avatarUrl: '', source: 'header' as const, isAdmin: false };
 const pub = (ctx: ActionContext, execFile: ExecFile) => publish(ANN, ctx, { store: storeOf(), sync: getSync(ctx, { execFile }) });
 const dis = (ctx: ActionContext, reviewId: string, execFile: ExecFile) => discard(ANN, ctx, reviewId, { store: storeOf(), sync: getSync(ctx, { execFile }) });
 
@@ -104,15 +104,15 @@ test('onServerReady: serve rejects without the token; dev ignores git with one l
 
 test('no git process runs without git under serve, nor under dev whatever git says', async () => {
   const rows: Array<[string, ActionContext]> = [
-    ['serve, no git', ctxIn(trio.server, 'ann@example.com', null)],
-    ['dev, full git', ctxIn(trio.server, 'ann@example.com', GIT, 'dev')],
+    ['serve, no git', ctxIn(trio.server, 'ann', null)],
+    ['dev, full git', ctxIn(trio.server, 'ann', GIT, 'dev')],
   ];
   for (const [name, ctx] of rows) {
     const calls: unknown[] = [];
     const spy: ExecFile = async (...a) => (calls.push(a), OK);
     const headBefore = git(trio.server, 'rev-parse', 'HEAD');
     // dev takes the caller from the payload, serve from the identity
-    const payload = ctx.mode === 'dev' ? { author: 'Ann Lee', authorKey: 'ann@example.com' } : {};
+    const payload = ctx.mode === 'dev' ? { author: 'Ann Lee', authorKey: 'ann' } : {};
     await actions['threads:add-thread']({ file: 'docs/index.md', body: `via ${name}`, anchor: ANCHOR, ...payload }, ctx);
     const { reviewId } = await publish(ANN, ctx, { store: storeOf(), sync: getSync(ctx, { execFile: spy }) });
     assert.equal(manifestFiles().length, 1, `${name}: the manifest is written`);
@@ -145,9 +145,9 @@ test('two concurrent publishes commit in call order through the shared docs-root
     const people = [['ann', 'Ann'], ['bob', 'Bob']] as const;
     const jobs = [];
     for (const [key, name] of people) {
-      const ctx = ctxIn(project.root, `${key}@x.io`, GIT);
+      const ctx = ctxIn(project.root, key, GIT);
       await actions['threads:add-thread']({ file: project.file, body: `by ${key}`, anchor: ANCHOR }, ctx);
-      const caller = { key: `${key}@x.io`, name, avatarUrl: '', source: 'header' as const, isAdmin: false };
+      const caller = { key, name, avatarUrl: '', source: 'header' as const, isAdmin: false };
       const real = createDraftStore(path.join(project.root, 'docs'), { now: Date.now, defaultMode: () => 'collect' });
       // bob's first store read is the first thing his publish does under the lock
       const store = key === 'bob' ? { ...real, load: (k: string) => ((bobLoaded = true), real.load(k)) } : real;
@@ -194,7 +194,7 @@ test('publish makes one commit authored by the commenter; the token leaks nowher
 
   assert.equal(commits(trio.remote), 2, 'exactly one new commit');
   const [a, c, subject] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
-  assert.deepEqual([a, c, subject], ['Ann Lee <ann@example.com>', 'Threads Bot <bot@fixture.invalid>', 'Link wording [skip ci]']);
+  assert.deepEqual([a, c, subject], ['Ann Lee <ann@threads.invalid>', 'Threads Bot <bot@fixture.invalid>', 'Link wording [skip ci]']);
   assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), 'Why the links change.\n\nSecond paragraph.', 'the body is the summary');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.equal(files.length, 3, files.join());
@@ -230,7 +230,7 @@ test('a pending profile is committed with the review: pages, manifest and author
   const files = changedFiles();
   assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/.threads/authors.json', 'docs/index.md']);
   assert.equal(files.filter((f) => f.includes('/reviews/')).length, 1);
-  assert.deepEqual(remoteAuthors(), { 'ann@example.com': { name: 'Ann L.', avatarUrl: 'http://a/ann.png' } });
+  assert.deepEqual(remoteAuthors(), { ann: { name: 'Ann L.', avatarUrl: 'http://a/ann.png' } });
   assert.equal(git(trio.server, 'status', '--porcelain').trim(), '');
   const journal = await storeOf().load(ANN.key);
   assert.deepEqual([journal.ops, journal.profile], [[], undefined]);
@@ -245,7 +245,7 @@ test('a profile alone is one commit of authors.json named for the new name; an e
   assert.equal(commits(trio.remote), 2);
   assert.equal(log(trio.remote, '%s').pop(), 'Ann Lee-Smith updated their profile [skip ci]');
   assert.deepEqual(changedFiles(), ['docs/.threads/authors.json'], 'no manifest');
-  assert.deepEqual(remoteAuthors(), { 'ann@example.com': { name: 'Ann Lee-Smith', avatarUrl: '' } });
+  assert.deepEqual(remoteAuthors(), { ann: { name: 'Ann Lee-Smith', avatarUrl: '' } });
   assert.deepEqual(manifestFiles(), []);
   const journal = await storeOf().load(ANN.key);
   assert.deepEqual([journal.review.id, journal.profile], [open, undefined]);
@@ -271,7 +271,7 @@ test('discard is one forward commit by the discarding caller; an open review mak
 
   assert.equal(commits(trio.remote), before + 1);
   const [a, c, s] = log(trio.remote, '%an <%ae>%n%cn <%ce>%n%s').slice(-3);
-  assert.deepEqual([a, c, s], ['Ann Lee <ann@example.com>', 'Threads Bot <bot@fixture.invalid>', 'revert(threads): discard review "Wording" [skip ci]']);
+  assert.deepEqual([a, c, s], ['Ann Lee <ann@threads.invalid>', 'Threads Bot <bot@fixture.invalid>', 'revert(threads): discard review "Wording" [skip ci]']);
   assert.equal(git(trio.remote, 'log', '-1', '--format=%b', BRANCH).trim(), '', 'a discard commit has no body');
   const files = git(trio.remote, 'show', '--name-only', '--format=', BRANCH).split('\n').filter(Boolean).sort();
   assert.deepEqual(files.filter((f) => !f.includes('/reviews/')), ['docs/index.md']);

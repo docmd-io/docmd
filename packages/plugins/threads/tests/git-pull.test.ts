@@ -128,7 +128,7 @@ test('anything but a page edit rebuilds the whole site; an unmoved remote runs t
 });
 
 test('pages a publish brought in with its reset are rebuilt by the next pull', async () => {
-  const ctx = makeCtx(trio.server, { mode: 'serve', config: { src: 'docs', plugins: { threads: { git: GIT } } }, caller: { identity: 'ann@example.com' } }) as unknown as ActionContext;
+  const ctx = makeCtx(trio.server, { mode: 'serve', config: { src: 'docs', plugins: { threads: { git: GIT } } }, caller: { identity: 'ann' } }) as unknown as ActionContext;
   await actions['threads:add-thread']({ file: 'docs/index.md', body: 'Reword.', anchor: ANCHOR }, ctx);
   await actions['threads:update-review']({ title: 'Wording' }, ctx);
   commitOn(trio.other, 'docs/extra.md', 'page B moved');
