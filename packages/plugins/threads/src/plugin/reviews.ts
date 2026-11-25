@@ -6,7 +6,7 @@ import { safePath } from '@docmd/utils';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import { markPattern, splitPage } from './marks.js';
-import type { Lock } from './lock.js';
+import type { Sync } from './lock.js';
 import type { DraftStore } from './drafts.js';
 import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
@@ -75,6 +75,8 @@ export interface ApplyOptions {
   authorKey: string;
   authorName: string;
   reviewId: string;
+  /** Desired end state per opId for resolve-thread (resolved) and toggle-reaction (present); see deriveTargets. */
+  targets?: Record<string, boolean>;
   /** Skip a delete of a thread's opening comment while others' replies exist, and a `delete-thread` that missed comments (set for serve callers). */
   enforce?: boolean;
 }
@@ -133,11 +135,41 @@ function wrapQuote(content: string, quote: string, threadId: string): string {
 const unwrapThread = (content: string, threadId: string) => content.replace(markPattern(threadId, 'g'), '$1');
 
 /**
+ * Turn the toggle ops of one file into desired end states, from the file as first read:
+ * resolve-thread -> resolved, toggle-reaction -> the author is present. Ops are walked in
+ * order, so a second toggle of the same target flips the first one's result. Passing the
+ * result to applyOps makes a re-run a no-op.
+ */
+export function deriveTargets(content: string, ops: DraftOp[], authorName: string): Record<string, boolean> {
+  const threads = parser.parseThreadsFromContent(content);
+  const resolved = new Map(threads.map((t) => [t.id, t.resolved]));
+  const present = new Map<string, boolean>();
+  for (const t of threads) {
+    for (const c of t.comments) {
+      for (const r of c.reactions ?? []) present.set(`${t.id}\0${c.id}\0${r.emoji}`, r.authors.includes(authorName));
+    }
+  }
+  const targets: Record<string, boolean> = {};
+  for (const op of ops) {
+    if (op.kind === 'resolve-thread') {
+      targets[op.opId] = !(resolved.get(op.threadId) ?? false);
+      resolved.set(op.threadId, targets[op.opId]);
+    } else if (op.kind === 'toggle-reaction') {
+      const key = `${op.threadId}\0${op.commentId}\0${op.emoji}`;
+      targets[op.opId] = !(present.get(key) ?? false);
+      present.set(key, targets[op.opId]);
+    }
+  }
+  return targets;
+}
+
+/**
  * Apply one file's ops (in order) to its markdown. Ops whose target is gone are
  * skipped with a reason. `applied` carries `before` (the state an op replaced),
  * `quote` (add-thread) and `pageTitle`. Replaying is safe for adds, edits and
  * deletes: an add whose id already carries this review's id counts as applied,
- * any other existing id is skipped. Resolve and reaction ops toggle.
+ * any other existing id is skipped. Resolve and reaction ops set the state in
+ * `opts.targets` (see deriveTargets), or toggle when there is none.
  */
 export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): ApplyResult {
   const threads: Thread[] = parser.parseThreadsFromContent(content);
@@ -255,16 +287,18 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
           break;
         }
         const before = { resolved: thread.resolved, resolved_by: thread.resolved_by, resolved_at: thread.resolved_at };
-        if (thread.resolved) {
-          thread.resolved = false;
-          thread.resolved_by = null;
-          thread.resolved_at = null;
-        } else {
+        const want = opts.targets?.[op.opId] ?? !thread.resolved;
+        if (want && !thread.resolved) {
           thread.resolved = true;
           thread.resolved_by = opts.authorName;
           thread.resolved_at = day(op.at);
+          changed = true;
+        } else if (!want && thread.resolved) {
+          thread.resolved = false;
+          thread.resolved_by = null;
+          thread.resolved_at = null;
+          changed = true;
         }
-        changed = true;
         done(op, { before });
         break;
       }
@@ -277,13 +311,16 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
         c.reactions ??= [];
         const r = c.reactions.find((x) => x.emoji === op.emoji);
         const present = !!r && r.authors.includes(opts.authorName);
-        if (!r) c.reactions.push({ emoji: op.emoji, authors: [opts.authorName] });
-        else if (!present) r.authors.push(opts.authorName);
-        else {
+        const want = opts.targets?.[op.opId] ?? !present;
+        if (want && !present) {
+          if (r) r.authors.push(opts.authorName);
+          else c.reactions.push({ emoji: op.emoji, authors: [opts.authorName] });
+          changed = true;
+        } else if (!want && present && r) {
           r.authors = r.authors.filter((a) => a !== opts.authorName);
           if (!r.authors.length) c.reactions = c.reactions.filter((x) => x !== r);
+          changed = true;
         }
-        changed = true;
         done(op, { before: { present } });
         break;
       }
@@ -550,8 +587,8 @@ async function writeAllOrNothing(
 
 export interface PublishDeps {
   store: DraftStore;
-  /** One lock per docs root: publishes of different callers never interleave. */
-  lock: Lock;
+  /** Locks the docs root (publishes of different callers never interleave) and, with git on, commits and pushes. */
+  sync: Sync;
   now?: () => number;
   newId?: (prefix: string) => string;
 }
@@ -567,18 +604,22 @@ function assertWritable({ key, name }: Caller): void {
   }
 }
 
+/** A path as the sync is told about it: relative to the project root, like a target file. */
+const manifestFileOf = (ctx: ActionContext, id: string): string => path.relative(ctx.projectRoot, safePath(reviewsDir(ctx), `${id}.json`));
+
 /**
  * Write the caller's journal into the markdown files it targets, record the
  * review manifest, and drop the published ops from the journal. All touched
- * pages and the manifest are written under one lock, or none are.
+ * pages and the manifest are written under one lock, or none are. The write runs
+ * inside `sync.publishWithRetry`: with git it may run again on a fresh checkout.
  */
 export async function publish(
   caller: Caller,
   ctx: ActionContext,
-  { store, lock, now = Date.now, newId = (prefix) => prefix + crypto.randomBytes(4).toString('hex') }: PublishDeps,
+  { store, sync, now = Date.now, newId = (prefix) => prefix + crypto.randomBytes(4).toString('hex') }: PublishDeps,
 ): Promise<PublishResult> {
   assertWritable(caller);
-  return lock.withLock(async () => {
+  return sync.withLock(async () => {
     // The journal's review was published, then discarded, but its reset never finished: finish it
     // now so only ops drafted since are published (under the new id), never the discarded ones.
     let journal = await store.load(caller.key);
@@ -609,39 +650,55 @@ export async function publish(
       await store.transact(caller.key, (j) => void (j.review.id = reviewId));
     }
 
-    const applied: ManifestOp[] = [];
-    const skipped: PublishResult['skipped'] = [];
-    const titles: Record<string, string | null> = {};
-    const results: Array<{ file: string; original: string; next: string }> = [];
-    for (const file of files) {
-      const fileOps = ops.filter((o) => o.file === file);
-      let content: string;
-      try {
-        content = await ctx.readFile(file);
-      } catch {
-        for (const o of fileOps) skipped.push({ opId: o.opId, reason: `file ${file} not readable` });
-        continue;
-      }
-      titles[file] = pageTitleOf(content);
-      const result = applyOps(content, fileOps, { authorKey: caller.key, authorName: caller.name, reviewId, enforce: caller.source === 'header' });
-      applied.push(...result.applied);
-      skipped.push(...result.skipped);
-      results.push({ file, original: content, next: result.content });
-    }
-    applied.sort((a, b) => (order.get(a.opId) ?? 0) - (order.get(b.opId) ?? 0));
+    let skipped: PublishResult['skipped'] = [];
+    // Toggle targets come from the first read of each file and are reused by any retry of apply.
+    const targetsByFile = new Map<string, Record<string, boolean>>();
+    await sync.publishWithRetry(
+      async () => {
+        const applied: ManifestOp[] = [];
+        skipped = [];
+        const titles: Record<string, string | null> = {};
+        const results: Array<{ file: string; original: string; next: string }> = [];
+        for (const file of files) {
+          const fileOps = ops.filter((o) => o.file === file);
+          let content: string;
+          try {
+            content = await ctx.readFile(file);
+          } catch {
+            for (const o of fileOps) skipped.push({ opId: o.opId, reason: `file ${file} not readable` });
+            continue;
+          }
+          titles[file] = pageTitleOf(content);
+          if (!targetsByFile.has(file)) targetsByFile.set(file, deriveTargets(content, fileOps, caller.name));
+          const result = applyOps(content, fileOps, {
+            authorKey: caller.key, authorName: caller.name, reviewId, targets: targetsByFile.get(file), enforce: caller.source === 'header',
+          });
+          applied.push(...result.applied);
+          skipped.push(...result.skipped);
+          results.push({ file, original: content, next: result.content });
+        }
+        applied.sort((a, b) => (order.get(a.opId) ?? 0) - (order.get(b.opId) ?? 0));
 
-    // Write everything or nothing: a failure restores the files already written.
-    await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
-      version: 1,
-      id: reviewId,
-      authorKey: caller.key,
-      authorName: caller.name,
-      title: journal.review.title || defaultTitle(caller.name, applied.length ? applied : ops, titles),
-      state: 'published',
-      publishedAt: new Date(now()).toISOString(),
-      ops: applied,
-      skipped,
-    }), 'publish');
+        // Write everything or nothing: a failure restores the files already written.
+        const title = journal.review.title || defaultTitle(caller.name, applied.length ? applied : ops, titles);
+        await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
+          version: 1,
+          id: reviewId,
+          authorKey: caller.key,
+          authorName: caller.name,
+          title,
+          state: 'published',
+          publishedAt: new Date(now()).toISOString(),
+          ops: applied,
+          skipped,
+        }), 'publish');
+        return { title };
+      },
+      {
+        reviewId, authorKey: caller.key, authorName: caller.name, kind: 'publish',
+        files, manifest: manifestFileOf(ctx, reviewId),
+      },
+    );
 
     // Drop what was published (ops drafted meanwhile stay) and start a fresh review.
     const published = new Set(ops.map((o) => o.opId));
@@ -685,23 +742,24 @@ export async function finishEarlierPublish(
 
 export interface DiscardDeps {
   store: DraftStore;
-  /** The same per-docs-root lock `publish` uses. */
-  lock: Lock;
+  /** The same sync `publish` uses, so both share one lock. */
+  sync: Sync;
   now?: () => number;
 }
 
 /**
  * Take a review back. A published review is reversed from its manifest as a forward change
  * (files first, all or nothing, then the manifest is marked `discarded`); the caller's own
- * open review is only emptied. Runs under the same lock as `publish`.
+ * open review is only emptied. Runs under the same lock as `publish`, the file work inside
+ * `sync.publishWithRetry` (with git, one forward commit).
  */
 export async function discard(
   caller: Caller,
   ctx: ActionContext,
   reviewId: string,
-  { store, lock, now = Date.now }: DiscardDeps,
+  { store, sync, now = Date.now }: DiscardDeps,
 ): Promise<{ discarded: true }> {
-  return lock.withLock(async () => {
+  return sync.withLock(async () => {
     const manifest = await readManifest(ctx, reviewId);
     if (!manifest) {
       const journal = await store.load(caller.key);
@@ -714,29 +772,35 @@ export async function discard(
     if (manifest.state === 'discarded') throw new ThreadsError('invalid', `review ${reviewId} is already discarded`);
 
     const files = [...new Set(manifest.ops.map((o) => o.file))];
-    const discardSkipped: Array<{ opId: string; reason: string }> = [];
-    const results: Array<{ file: string; original: string; next: string }> = [];
-    for (const file of files) {
-      const fileOps = manifest.ops.filter((o) => o.file === file);
-      let content: string;
-      try {
-        content = await ctx.readFile(file);
-      } catch {
-        for (const o of fileOps) discardSkipped.push({ opId: o.opId, reason: `file ${file} not readable` });
-        continue;
-      }
-      const result = reverseOps(content, fileOps, { authorName: manifest.authorName });
-      discardSkipped.push(...result.skipped);
-      results.push({ file, original: content, next: result.content });
-    }
+    await sync.publishWithRetry(
+      async () => {
+        const discardSkipped: Array<{ opId: string; reason: string }> = [];
+        const results: Array<{ file: string; original: string; next: string }> = [];
+        for (const file of files) {
+          const fileOps = manifest.ops.filter((o) => o.file === file);
+          let content: string;
+          try {
+            content = await ctx.readFile(file);
+          } catch {
+            for (const o of fileOps) discardSkipped.push({ opId: o.opId, reason: `file ${file} not readable` });
+            continue;
+          }
+          const result = reverseOps(content, fileOps, { authorName: manifest.authorName });
+          discardSkipped.push(...result.skipped);
+          results.push({ file, original: content, next: result.content });
+        }
 
-    await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
-      ...manifest,
-      state: 'discarded',
-      discardedAt: new Date(now()).toISOString(),
-      discardedBy: caller.key,
-      discardSkipped,
-    }), 'discard');
+        await writeAllOrNothing(ctx, results, () => writeManifest(ctx, {
+          ...manifest,
+          state: 'discarded',
+          discardedAt: new Date(now()).toISOString(),
+          discardedBy: caller.key,
+          discardSkipped,
+        }), 'discard');
+        return { title: manifest.title };
+      },
+      { reviewId, authorKey: caller.key, authorName: caller.name, kind: 'discard', files, manifest: manifestFileOf(ctx, reviewId) },
+    );
     return { discarded: true } as const;
   });
 }

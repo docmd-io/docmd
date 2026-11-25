@@ -225,7 +225,8 @@
       "body",
       "assets",
       "actions",
-      "translations"
+      "translations",
+      "server"
     ],
     "requiresLiveServer": true
   },

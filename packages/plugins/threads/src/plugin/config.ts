@@ -6,6 +6,15 @@ export interface ThreadsOptions {
   autoPublish: false | { seconds: number; startOn: boolean };
   /** Who may change what under `docmd serve`: `admins` may do everything; `resolve` says who may resolve a thread. */
   permissions: { admins: string[]; resolve: 'anyone' | 'author' };
+  /** Git sync of published reviews; used under `docmd serve` only. `null` is off. */
+  git: null | {
+    branch: string;
+    remote: string;
+    /** Appended to every commit subject so the host's CI skips the deploy. */
+    skipDeployMarker: string;
+    /** Who commits; the commenter is the author. */
+    committer: { name: string; email: string };
+  };
 }
 
 const bad = (key: string, why: string): never => {
@@ -28,6 +37,12 @@ function positiveNumber(obj: Record<string, unknown>, path: string, key: string,
   const v = obj[key] ?? def;
   if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) bad(`${path}.${key}`, 'must be a positive number');
   return v as number;
+}
+
+function nonEmptyString(obj: Record<string, unknown>, path: string, key: string, def?: string): string {
+  const v = obj[key] ?? def;
+  if (typeof v !== 'string' || !v.trim()) bad(`${path}.${key}`, 'must be a non-empty string');
+  return v as string;
 }
 
 function optionalBoolean(obj: Record<string, unknown>, key: string, def: boolean): boolean {
@@ -64,11 +79,37 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
   const resolve = perms.resolve ?? 'anyone';
   if (resolve !== 'anyone' && resolve !== 'author') bad('permissions.resolve', "must be 'anyone' or 'author'");
 
+  let git: ThreadsOptions['git'] = null;
+  if (raw.git !== undefined && raw.git !== null) {
+    const g = section(raw, 'git');
+    const c = g.committer === undefined ? {} : isObject(g.committer) ? g.committer : bad('git.committer', 'must be an object');
+    git = {
+      branch: nonEmptyString(g, 'git', 'branch'),
+      remote: nonEmptyString(g, 'git', 'remote', 'origin'),
+      skipDeployMarker: nonEmptyString(g, 'git', 'skipDeployMarker', '[skip ci]'),
+      committer: {
+        name: nonEmptyString(c, 'git.committer', 'name', 'docmd threads'),
+        email: nonEmptyString(c, 'git.committer', 'email', 'threads@docmd.invalid'),
+      },
+    };
+  }
+
   return {
     sidebar: optionalBoolean(raw, 'sidebar', false),
     autoPublish,
     permissions: { admins: [...(admins as string[])], resolve: resolve as 'anyone' | 'author' },
+    git,
   };
+}
+
+/**
+ * Checks that need the process environment, run when the server starts: with git
+ * sync on, the push credential must be set (there is no default).
+ */
+export function assertRuntime(opts: ThreadsOptions, env: NodeJS.ProcessEnv): void {
+  if (opts.git && !env.DOCMD_THREADS_GIT_TOKEN) {
+    throw new ThreadsError('config', 'DOCMD_THREADS_GIT_TOKEN is required when plugins.threads.git is set');
+  }
 }
 
 /** The normalized plugin options for the project an action call belongs to. */

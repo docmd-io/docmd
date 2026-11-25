@@ -4,14 +4,14 @@ import { fileURLToPath } from 'url';
 import { setup as setupContainers } from './plugin/containers.js';
 import { setup as setupHighlightRule } from './plugin/highlight-rule.js';
 import { actions } from './plugin/actions.js';
-import { normalizeOptions, type ThreadsOptions } from './plugin/config.js';
+import { assertRuntime, normalizeOptions, type ThreadsOptions } from './plugin/config.js';
 import { scriptLiteral } from '@docmd/utils';
-import type { PluginDescriptor } from '@docmd/api';
+import type { PluginDescriptor, ServerHandle } from '@docmd/api';
 
 export const plugin: PluginDescriptor = {
   name: 'threads',
   version: '0.10.2',
-  capabilities: ['markdown', 'body', 'assets', 'actions', 'translations'],
+  capabilities: ['markdown', 'body', 'assets', 'actions', 'translations', 'server'],
   requiresLiveServer: true
 };
 
@@ -121,6 +121,20 @@ export function getAssets(_options?: any): any[] {
       location: 'head'
     }
   ];
+}
+
+/**
+ * Fails the start of `docmd serve` when git sync is on without its push credential.
+ * Under `docmd dev` the `git` option is ignored: one line says so, nothing else runs.
+ */
+export async function onServerReady(handle: ServerHandle): Promise<void> {
+  const opts = normalizeOptions(handle.config?.plugins?.threads);
+  if (!opts.git) return;
+  if (handle.mode === 'dev') {
+    console.log('[threads] plugins.threads.git is ignored under docmd dev; git sync runs under docmd serve only');
+    return;
+  }
+  assertRuntime(opts, process.env);
 }
 
 export { actions };

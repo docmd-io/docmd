@@ -5,7 +5,7 @@ import { ThreadsError } from './errors.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
-import { lockFor } from './lock.js';
+import { getSync } from './git-sync.js';
 import { getOptions } from './config.js';
 import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
@@ -356,7 +356,7 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
 
   /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
   'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
-    publish(await resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
+    publish(await resolveCaller(ctx, payload), ctx, { store: getStore(ctx), sync: getSync(ctx) }),
 
   /** Take a review back: reverse a published one from its manifest, or empty the caller's open one. */
   'threads:discard-review': async (payload, ctx): Promise<{ discarded: true }> => {
@@ -364,6 +364,6 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
     if (typeof payload.reviewId !== 'string') throw new ThreadsError('invalid', 'threads:discard-review: reviewId must be a string');
     const manifest = await readManifest(ctx, payload.reviewId);
     assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
-    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) });
+    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx) });
   },
 };
