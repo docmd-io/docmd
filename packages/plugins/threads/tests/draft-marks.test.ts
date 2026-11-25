@@ -17,7 +17,7 @@ const CASES: Array<{ name: string; threads: Thread[]; marks: Array<{ id: string;
   { name: 'markup mark of a thread no longer loaded: kept', threads: [], marks: [{ id: 'gone', client: false }], add: [], remove: [] },
   { name: 'published now in the markup, client mark left over: remove the client one', threads: [thread('p2')], marks: [{ id: 'p2', client: true }, { id: 'p2', client: false }], add: [], remove: ['p2'] },
   { name: 'published but the markup is not refreshed yet: keep the client mark', threads: [thread('p3')], marks: [{ id: 'p3', client: true }], add: [], remove: [] },
-  { name: 'mixed: add one, remove one, keep the rest', threads: [drafted('a'), drafted('b'), thread('p')], marks: [{ id: 'b', client: true }, { id: 'old', client: true }, { id: 'p', client: false }], add: ['a'], remove: ['old'] },
+  { name: 'drafted with both a client and a markup mark: nothing removed', threads: [drafted('d4')], marks: [{ id: 'd4', client: true }, { id: 'd4', client: false }], add: [], remove: [] },
 ];
 
 for (const c of CASES) {

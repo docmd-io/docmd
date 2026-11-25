@@ -21,8 +21,8 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 
-/** Text under these is never a highlight target: thread cards, the panel and existing highlights. */
-const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, mark.threads-highlight, script, style';
+/** Text under these is never a target when highlighting drafts after a load: thread cards, the panel, scripts. */
+const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, script, style';
 
 @customElement('threads-app')
 export class ThreadsApp extends LitElement {
@@ -305,16 +305,17 @@ export class ThreadsApp extends LitElement {
     this.inlineEditorEl = editor;
   }
 
-  /** Wrap the first occurrence of `quote` under `root` in a highlight; true when it was wrapped. */
-  private wrapAnchorInMark(root: HTMLElement, quote: string, threadId: string): boolean {
+  /** Wrap the first occurrence of `quote` under `root` in a highlight. Text under `skip` is not searched. */
+  private wrapAnchorInMark(root: HTMLElement, quote: string, threadId: string, skip?: string): void {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.parentElement?.closest(SKIP_WRAP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      acceptNode: (n) => (skip && n.parentElement?.closest(skip) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     let textNode: Node | null;
     while ((textNode = walker.nextNode())) {
       const val = textNode.nodeValue || '';
       const idx = val.indexOf(quote);
       if (idx >= 0) {
+        // The range lies inside one text node, so wrapping it cannot cross an element boundary.
         const range = document.createRange();
         range.setStart(textNode, idx);
         range.setEnd(textNode, idx + quote.length);
@@ -322,15 +323,10 @@ export class ThreadsApp extends LitElement {
         mark.className = 'threads-highlight';
         mark.dataset.threadId = threadId;
         mark.dataset.threadsClientMark = '';
-        try {
-          range.surroundContents(mark);
-          return true;
-        } catch {
-          return false; // the quote crosses an element boundary
-        }
+        range.surroundContents(mark);
+        return;
       }
     }
-    return false;
   }
 
   /**
@@ -344,15 +340,16 @@ export class ThreadsApp extends LitElement {
 
     for (const id of remove) {
       for (const mark of document.querySelectorAll<HTMLElement>(`mark.threads-highlight[data-threads-client-mark][data-thread-id="${CSS.escape(id)}"]`)) {
+        const parent = mark.parentNode;
         mark.replaceWith(...mark.childNodes);
-        mark.parentNode?.normalize?.();
+        parent?.normalize(); // join the text the mark had split, so a later quote spanning it is found
       }
       // In inline mode the highlight had put the thread's card after its block: it goes with the highlight.
       document.querySelectorAll(`.threads-thread--inline[data-thread-id="${CSS.escape(id)}"]`).forEach((el) => el.remove());
     }
     const root = this.getContentArea() as HTMLElement | null;
     if (!root) return;
-    for (const thread of add) this.wrapAnchorInMark(root, thread.anchor!.quote, thread.id);
+    for (const thread of add) this.wrapAnchorInMark(root, thread.anchor!.quote, thread.id, SKIP_WRAP);
   }
 
   // ─── Page lifecycle ───────────────────────────────────────────────

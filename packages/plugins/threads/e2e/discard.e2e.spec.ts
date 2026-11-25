@@ -42,8 +42,8 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   const manifestsBefore = manifestNames();
   const drafted = page.getByText("to be discarded");
 
-  const quote = await page.evaluate(() =>
-    (document.querySelector("main p, .content p, article p") as HTMLElement).textContent!.trim().split(" ").slice(0, 3).join(" "));
+  const para = page.locator("main p, .content p, article p").first();
+  const quote = (await para.textContent())!.trim().split(" ").slice(0, 3).join(" ");
   const threadId = await page.evaluate(
     async ({ quote }) =>
       (await docmd.call("threads:add-thread", {
@@ -82,7 +82,7 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   await expect(count).toHaveText("0 unpublished comments");
   await expect(drafted).toHaveCount(0);
   await expect(mark).toHaveCount(0);
-  expect(await page.evaluate(() => document.body.textContent)).toContain(quote);
+  await expect(para).toContainText(quote);
   await expect(open).toHaveCount(0);
 
   expect(fs.readFileSync(index).equals(before)).toBe(true);
