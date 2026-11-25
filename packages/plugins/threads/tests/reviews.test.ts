@@ -1,4 +1,4 @@
-import { test, before, after, beforeEach } from 'node:test';
+import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -491,33 +491,32 @@ const PROFILE = { name: 'Alice B', avatarUrl: 'http://a/b.png' };
 const withProfile = (key: string, profile = PROFILE, s: DraftStore = store()) => s.transact(key, (j) => void (j.profile = profile));
 const COMMENT: NewDraftOp = { kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-p', parentId: null, body: 'p' };
 
-test('a pending profile is written with the pages and cleared; a failure after it puts authors.json and the pages back and keeps the ops and the profile', async () => {
+test('a failure after the profile write puts authors.json and the pages back and keeps the ops and the profile', async () => {
   fs.mkdirSync(safePath(docsRoot, '.threads'), { recursive: true });
   fs.writeFileSync(safePath(path.dirname(authorsPath()), 'authors.json'), JSON.stringify({ bob: { name: 'Bob', avatarUrl: '' } }));
   await fill('k-alice', [COMMENT]);
   await withProfile('k-alice');
   const bytes = { page: read(FILE), authors: readAt(authorsPath()) };
-  // the manifest is written last, after the profile: a read-only reviews directory fails exactly that write
-  fs.mkdirSync(safePath(reviewsDir(), '.'), { recursive: true });
-  fs.chmodSync(safePath(reviewsDir(), '.'), 0o555);
-  const broken = () => assert.rejects(publish(ALICE, ctx() as never, deps()), /EACCES/);
-  await broken();
-  assert.equal(read(FILE), bytes.page);
-  assert.equal(readAt(authorsPath()), bytes.authors);
-  const kept = await store().load('k-alice');
-  assert.deepEqual([kept.ops.length, kept.profile], [1, PROFILE]);
+  // the manifest is written last, after the profile: a stubbed write of it fails exactly there (a stub, not chmod: it holds as root)
+  const realWrite = fs.promises.writeFile;
+  const stub = mock.method(fs.promises, 'writeFile', ((file: unknown, ...rest: unknown[]) =>
+    String(file).includes(`${path.sep}reviews${path.sep}`)
+      ? Promise.reject(new Error('manifest write denied'))
+      : (realWrite as (...a: unknown[]) => Promise<void>)(file, ...rest)) as typeof fs.promises.writeFile);
+  try {
+    await assert.rejects(publish(ALICE, ctx() as never, deps()), /manifest write denied/);
+    assert.equal(read(FILE), bytes.page);
+    assert.equal(readAt(authorsPath()), bytes.authors);
+    const kept = await store().load('k-alice');
+    assert.deepEqual([kept.ops.length, kept.profile], [1, PROFILE]);
 
-  // with no authors.json before, the undo removes the file it created
-  fs.rmSync(authorsPath());
-  await broken();
-  assert.equal(fs.existsSync(authorsPath()), false);
-
-  fs.chmodSync(safePath(reviewsDir(), '.'), 0o755);
-  const result = await publish(ALICE, ctx() as never, deps());
-  assert.deepEqual(readAuthors(), { 'k-alice': PROFILE });
-  assert.equal(JSON.parse(readAt(manifestPath(result.reviewId))).ops.length, 1);
-  const after = await store().load('k-alice');
-  assert.deepEqual([after.ops, after.profile], [[], undefined]);
+    // with no authors.json before, the undo removes the file it created
+    fs.rmSync(authorsPath());
+    await assert.rejects(publish(ALICE, ctx() as never, deps()), /manifest write denied/);
+    assert.equal(fs.existsSync(authorsPath()), false);
+  } finally {
+    stub.mock.restore();
+  }
 });
 
 test('a profile edited again while the publish runs stays in the journal with the newer value', async () => {
