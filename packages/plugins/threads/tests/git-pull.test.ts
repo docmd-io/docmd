@@ -293,7 +293,7 @@ test('the loop: one unref-ed interval of pullSeconds, stop clears it; nothing st
     await pullOnce(handle, { execFile: async (...a) => (execs.push(a), { stdout: '', stderr: '' }) });
     const globalSet = mock.method(globalThis, 'setInterval', () => ({ unref() {} }) as never);
     try {
-      await onServerReady(handle);
+      await onServerReady(handle, { execFile: async () => ({ stdout: '', stderr: '' }) }); // a clean, level checkout
     } finally {
       assert.equal(globalSet.mock.callCount(), starts ? 1 : 0, `${name}: onServerReady timer`);
       globalSet.mock.restore();

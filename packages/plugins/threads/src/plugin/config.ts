@@ -120,6 +120,10 @@ export function assertRuntime(opts: ThreadsOptions, env: NodeJS.ProcessEnv): voi
   if (opts.git && !env.DOCMD_THREADS_GIT_TOKEN) {
     throw new ThreadsError('config', 'DOCMD_THREADS_GIT_TOKEN is required when plugins.threads.git is set');
   }
+  const pending = env.DOCMD_THREADS_GIT_COMMIT_PENDING;
+  if (opts.git && pending && pending !== '1' && pending !== 'true') {
+    throw new ThreadsError('config', 'DOCMD_THREADS_GIT_COMMIT_PENDING must be 1 or true, or unset');
+  }
 }
 
 /** The normalized plugin options for the project an action call belongs to. */

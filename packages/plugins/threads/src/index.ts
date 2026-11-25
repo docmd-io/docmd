@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { setup as setupContainers } from './plugin/containers.js';
 import { setup as setupHighlightRule } from './plugin/highlight-rule.js';
 import { actions } from './plugin/actions.js';
-import { startPullLoop } from './plugin/git-sync.js';
+import { checkStartup, startPullLoop, type ExecFile } from './plugin/git-sync.js';
 import { assertRuntime, normalizeOptions, type ThreadsOptions } from './plugin/config.js';
 import { scriptLiteral } from '@docmd/utils';
 import type { PluginDescriptor, ServerHandle } from '@docmd/api';
@@ -125,10 +125,11 @@ export function getAssets(_options?: any): any[] {
 }
 
 /**
- * Fails the start of `docmd serve` when git sync is on without its push credential, then starts the pull loop.
+ * Fails the start of `docmd serve` when git sync is on without its push credential or on a checkout
+ * holding work the remote branch lacks (see `checkStartup`), then starts the pull loop.
  * Under `docmd dev` the `git` option is ignored: one line says so, nothing else runs.
  */
-export async function onServerReady(handle: ServerHandle): Promise<void> {
+export async function onServerReady(handle: ServerHandle, deps: { execFile?: ExecFile } = {}): Promise<void> {
   const opts = normalizeOptions(handle.config?.plugins?.threads);
   if (!opts.git) return;
   if (handle.mode === 'dev') {
@@ -136,7 +137,8 @@ export async function onServerReady(handle: ServerHandle): Promise<void> {
     return;
   }
   assertRuntime(opts, process.env);
-  handle.onShutdown(startPullLoop(handle));
+  await checkStartup(handle, deps);
+  handle.onShutdown(startPullLoop(handle, undefined, deps));
 }
 
 export { actions };

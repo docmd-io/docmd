@@ -93,11 +93,45 @@ test('onServerReady: serve rejects without the token; dev ignores git with one l
     assert.match(lines[0], /ignored under docmd dev/);
     assert.ok(!/secret-branch|h\.invalid|TOKEN/.test(lines[0]), 'the line names no remote, branch or variable');
     process.env.DOCMD_THREADS_GIT_TOKEN = SENTINEL;
-    await onServerReady(handle('serve', withGit));
+    // A runner that reports a clean, level checkout (empty status and log) and records what it was asked.
+    const seen: string[][] = [];
+    const clean: ExecFile = async (_f, args) => (seen.push(args), OK);
+    await onServerReady(handle('serve', withGit), { execFile: clean });
     assert.equal(lines.length, 1, 'serve with the token logs nothing');
+    assert.equal(stops.length, 1, 'a clean checkout starts the pull loop');
+    for (const value of ['1', 'true']) {
+      process.env.DOCMD_THREADS_GIT_COMMIT_PENDING = value;
+      seen.length = 0;
+      await onServerReady(handle('serve', withGit), { execFile: clean });
+      assert.ok(!seen.some((a) => ['commit-tree', 'push', 'reset'].some((v) => a.includes(v))), `clean checkout, variable ${value}: no commit, push or reset`);
+    }
+    process.env.DOCMD_THREADS_GIT_COMMIT_PENDING = 'yes';
+    seen.length = 0;
+    await assert.rejects(onServerReady(handle('serve', withGit), { execFile: clean }), /^ThreadsError: threads\/config: .*DOCMD_THREADS_GIT_COMMIT_PENDING must be 1 or true/);
+    assert.deepEqual(seen, [], 'a bad value is refused before git runs');
+    // Dev never reads the variable and runs no git.
+    const before = lines.length;
+    await onServerReady(handle('dev', withGit), { execFile: clean });
+    assert.deepEqual(seen, [], 'dev runs no git process');
+    assert.equal(lines.length, before + 1);
+    delete process.env.DOCMD_THREADS_GIT_COMMIT_PENDING;
+
+    // A failing fetch is refused with the reason on one line and no remote address or credential.
+    const failing = (verb: string): ExecFile => async (_f, args) => {
+      if (args.includes('get-url')) return { stdout: `https://u:${SENTINEL}@h.invalid/r.git\n`, stderr: '' };
+      if (args.includes(verb)) throw Object.assign(new Error('Command failed'), { stderr: `fatal: unable to access 'https://u:${SENTINEL}@h.invalid/r.git/': Could not resolve host\nhint: more` });
+      return OK;
+    };
+    await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing('fetch') }), (e: unknown) =>
+      e instanceof ThreadsError && e.code === 'config' && /could not fetch/.test(e.message) && !/\n/.test(e.message) && !e.message.includes(SENTINEL) && !e.message.includes('h.invalid'));
+    // Not a working tree: the status read fails.
+    await assert.rejects(onServerReady(handle('serve', withGit), { execFile: failing('status') }), (e: unknown) =>
+      e instanceof ThreadsError && e.code === 'config' && /could not be inspected/.test(e.message) && !e.message.includes(SENTINEL));
+    assert.equal(stops.length, 1 + 2, 'only the starts that were allowed registered a loop');
   } finally {
     await Promise.all(stops.map((stop) => stop()));
     spy.mock.restore();
+    delete process.env.DOCMD_THREADS_GIT_COMMIT_PENDING;
     process.env.DOCMD_THREADS_GIT_TOKEN = SENTINEL;
   }
 });
