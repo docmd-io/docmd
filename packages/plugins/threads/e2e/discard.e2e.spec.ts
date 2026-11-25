@@ -44,15 +44,15 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
 
   const quote = await page.evaluate(() =>
     (document.querySelector("main p, .content p, article p") as HTMLElement).textContent!.trim().split(" ").slice(0, 3).join(" "));
-  await page.evaluate(
-    ({ quote }) =>
-      docmd.call("threads:add-thread", {
+  const threadId = await page.evaluate(
+    async ({ quote }) =>
+      (await docmd.call("threads:add-thread", {
         file: document.body.dataset["sourceFile"],
         anchor: { quote, prefix: null, suffix: null, selector: null, offset: null, blockText: null },
         author: "TestUser",
         authorKey: "testuser",
         body: "to be discarded",
-      }),
+      })).id as string,
     { quote },
   );
   await page.reload();
@@ -61,7 +61,10 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   const count = page.getByTestId("tpw-count");
   const open = page.getByTestId("discard-open");
   await expect(count).toHaveText("1 unpublished comment");
-  // A draft has no highlight in the served markdown: it shows as a card in the sidebar panel.
+  // The draft is not in the served markdown: the client highlights its quote after the load, and its card is in the panel.
+  const mark = page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`);
+  await expect(mark).toHaveCount(1);
+  await expect(mark).toContainText(quote);
   await page.locator(".threads-fab").click();
   await expect(drafted.first()).toBeVisible();
 
@@ -78,6 +81,8 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   await page.getByTestId("discard-confirm").click();
   await expect(count).toHaveText("0 unpublished comments");
   await expect(drafted).toHaveCount(0);
+  await expect(mark).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.textContent)).toContain(quote);
   await expect(open).toHaveCount(0);
 
   expect(fs.readFileSync(index).equals(before)).toBe(true);

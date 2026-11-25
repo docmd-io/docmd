@@ -9,6 +9,7 @@ import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
 import { createSvgElement, getThreadSvg } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
+import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 
 import './threads-popover';
 import './threads-inline-editor';
@@ -19,6 +20,9 @@ import type { ThreadsPublishWidget } from './threads-publish-widget';
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
+
+/** Text under these is never a highlight target: thread cards, the panel and existing highlights. */
+const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, mark.threads-highlight, script, style';
 
 @customElement('threads-app')
 export class ThreadsApp extends LitElement {
@@ -301,8 +305,11 @@ export class ThreadsApp extends LitElement {
     this.inlineEditorEl = editor;
   }
 
-  private wrapAnchorInMark(blockEl: HTMLElement, quote: string, threadId: string): void {
-    const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+  /** Wrap the first occurrence of `quote` under `root` in a highlight; true when it was wrapped. */
+  private wrapAnchorInMark(root: HTMLElement, quote: string, threadId: string): boolean {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement?.closest(SKIP_WRAP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
     let textNode: Node | null;
     while ((textNode = walker.nextNode())) {
       const val = textNode.nodeValue || '';
@@ -314,14 +321,38 @@ export class ThreadsApp extends LitElement {
         const mark = document.createElement('mark');
         mark.className = 'threads-highlight';
         mark.dataset.threadId = threadId;
+        mark.dataset.threadsClientMark = '';
         try {
           range.surroundContents(mark);
+          return true;
         } catch {
-          // Ignore if boundary cross
+          return false; // the quote crosses an element boundary
         }
-        break;
       }
     }
+    return false;
+  }
+
+  /**
+   * After a threads load: highlight the caller's drafted threads (the page's markup has none) and take back
+   * client highlights whose draft is gone. A quote that is not in the page is skipped; the card stays in the panel.
+   */
+  private syncDraftMarks(): void {
+    const marks: PageMark[] = [...document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]')]
+      .map((m) => ({ id: m.dataset.threadId!, client: m.hasAttribute('data-threads-client-mark') }));
+    const { add, remove } = planDraftMarks(this.threads, marks);
+
+    for (const id of remove) {
+      for (const mark of document.querySelectorAll<HTMLElement>(`mark.threads-highlight[data-threads-client-mark][data-thread-id="${CSS.escape(id)}"]`)) {
+        mark.replaceWith(...mark.childNodes);
+        mark.parentNode?.normalize?.();
+      }
+      // In inline mode the highlight had put the thread's card after its block: it goes with the highlight.
+      document.querySelectorAll(`.threads-thread--inline[data-thread-id="${CSS.escape(id)}"]`).forEach((el) => el.remove());
+    }
+    const root = this.getContentArea() as HTMLElement | null;
+    if (!root) return;
+    for (const thread of add) this.wrapAnchorInMark(root, thread.anchor!.quote, thread.id);
   }
 
   // ─── Page lifecycle ───────────────────────────────────────────────
@@ -356,6 +387,7 @@ export class ThreadsApp extends LitElement {
     } catch (err) {
       console.error('[threads] Failed to load threads:', err);
     }
+    this.syncDraftMarks();
     this.scanRenderedHighlights();
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
