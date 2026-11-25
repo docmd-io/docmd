@@ -49,7 +49,7 @@ before(async () => {
   const dir = path.join(root(listing), '.threads', 'reviews');
   fs.writeFileSync(safePath(dir, 'bad.json'), '{ not json');
   fs.writeFileSync(safePath(dir, 'v2.json'), JSON.stringify({ version: 2, id: 'v2', ops: [] }));
-  fs.writeFileSync(safePath(dir, 'r-stray.json.txt'), JSON.stringify(manifest('r-stray', '2026-03-09T00:00:00.000Z')));
+  fs.writeFileSync(safePath(dir, 'r-newest.back'), JSON.stringify(manifest('r-stray', '2026-03-09T00:00:00.000Z')));
 });
 after(() => {
   listing.cleanup();
