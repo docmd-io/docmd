@@ -9,6 +9,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
+import { safePath } from "@docmd/utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -237,4 +238,42 @@ export async function waitForClientProcessing(page: Page): Promise<void> {
     // No highlights on page, just wait a moment for client JS to initialize
     await page.waitForTimeout(500);
   }
+}
+const SITE_ROOT: string = site;
+const THREADS_DIR = safePath(SITE_ROOT, "docs/.threads");
+const AUTHORS_FILE = safePath(SITE_ROOT, "docs/.threads/authors.json");
+const TEST_IDENTITY = { author: "TestUser", authorKey: "testuser" };
+
+/**
+ * The dev server reloads the page when the author profile file changes, which the first draft of a server's life
+ * does (it creates the file). Create it up front and wait for that rebuild, so no reload lands in the middle of a
+ * test. Returns whether this call created it: the caller removes it again with `removeAuthorProfile`.
+ */
+export async function ensureAuthorProfile(page: Page): Promise<boolean> {
+  if (fs.existsSync(AUTHORS_FILE)) return false;
+  const before = await (await page.request.get("/")).text();
+  fs.mkdirSync(THREADS_DIR, { recursive: true });
+  fs.writeFileSync(AUTHORS_FILE, JSON.stringify({ testuser: { name: "TestUser", avatarUrl: "" } }, null, 2) + "\n");
+  await expect.poll(async () => (await page.request.get("/")).text(), { message: "dev server rebuild after the profile file" }).not.toBe(before);
+  return true;
+}
+
+/** Remove the profile file `ensureAuthorProfile` created. */
+export function removeAuthorProfile(): void {
+  fs.rmSync(AUTHORS_FILE, { force: true });
+}
+
+/**
+ * Empty the caller's open review, so a test starts from (and leaves) a journal with no ops. A dev-server reload can
+ * tear the page down mid-call: retried until the journal is empty.
+ */
+export async function emptyOpenReview(page: Page): Promise<void> {
+  await expect(async () => {
+    const left = await page.evaluate(async (id) => {
+      const { journal } = await docmd.call("threads:whoami", id);
+      if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
+      return (await docmd.call("threads:whoami", id)).journal?.ops.length ?? 0;
+    }, TEST_IDENTITY);
+    expect(left).toBe(0);
+  }).toPass({ timeout: 10_000 });
 }

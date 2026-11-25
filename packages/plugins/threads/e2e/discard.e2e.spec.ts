@@ -6,41 +6,23 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, setAuthor } from "./helpers.ts";
-import type { Page } from "@playwright/test";
+import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
 
 const site = process.env["THREADS_E2E_SITE"]!;
 const index = safePath(site, "docs/index.md");
 const manifests = safePath(site, "docs/.threads/reviews");
 const identity = { author: "TestUser", authorKey: "testuser" };
 
-/**
- * The dev server reloads the page when the author profile file changes, which the first draft of a server's life
- * does (it creates the file). Create it up front and wait for that rebuild, so no reload lands in the middle of a test.
- */
-async function ensureAuthorProfile(page: Page): Promise<void> {
-  const file = safePath(site, "docs/.threads/authors.json");
-  if (fs.existsSync(file)) return;
-  const before = await (await page.request.get("/")).text();
-  fs.mkdirSync(safePath(site, "docs/.threads"), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ testuser: { name: "TestUser", avatarUrl: "" } }, null, 2) + "\n");
-  await expect.poll(async () => (await page.request.get("/")).text(), { message: "dev server rebuild after the profile file" }).not.toBe(before);
-}
-
-/** Empty the caller's open review, so the spec starts from (and leaves behind) a journal with no ops. */
-async function emptyOpenReview(page: Page): Promise<number> {
-  return page.evaluate(async (id) => {
-    const { journal } = await docmd.call("threads:whoami", id);
-    if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
-    return (await docmd.call("threads:whoami", id)).journal?.ops.length ?? 0;
-  }, identity);
-}
+/** Whether this spec created the author profile file, and so removes it again. */
+let createdProfile = false;
 
 const manifestNames = (): string[] => (fs.existsSync(manifests) ? fs.readdirSync(manifests).sort() : []);
 
 test.afterEach(async ({ page }) => {
   if (page.url() === "about:blank") return; // the test failed before the page loaded: nothing was drafted
-  expect(await emptyOpenReview(page)).toBe(0);
+  await emptyOpenReview(page);
+  if (createdProfile) removeAuthorProfile();
+  createdProfile = false;
 });
 
 test("Discard asks first, then drops the drafts and leaves the markdown and manifests alone", async ({ page }) => {
@@ -48,8 +30,8 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
   await setAuthor(page, "TestUser");
   await cleanThreads(page);
-  await ensureAuthorProfile(page);
-  expect(await emptyOpenReview(page)).toBe(0);
+  createdProfile = await ensureAuthorProfile(page);
+  await emptyOpenReview(page);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
   const before = fs.readFileSync(index);

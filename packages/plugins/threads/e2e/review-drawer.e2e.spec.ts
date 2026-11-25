@@ -7,7 +7,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, mainOf, setAuthor } from "./helpers.ts";
+import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, mainOf, setAuthor } from "./helpers.ts";
 import type { Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -16,39 +16,16 @@ const manifests = safePath(site, "docs/.threads/reviews");
 const identity = { author: "TestUser", authorKey: "testuser" };
 
 const manifestNames = (): string[] => (fs.existsSync(manifests) ? fs.readdirSync(manifests).sort() : []);
+/** Whether this spec created the author profile file, and so removes it again. */
+let createdProfile = false;
 let manifestsBefore: string[] = [];
-
-/**
- * The dev server reloads the page when the author profile file changes, which the first draft of a server's life
- * does (it creates the file). Create it up front and wait for that rebuild, so no reload lands in the middle of a test.
- */
-async function ensureAuthorProfile(page: Page): Promise<void> {
-  const file = safePath(site, "docs/.threads/authors.json");
-  if (fs.existsSync(file)) return;
-  const before = await (await page.request.get("/")).text();
-  fs.mkdirSync(safePath(site, "docs/.threads"), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ testuser: { name: "TestUser", avatarUrl: "" } }, null, 2) + "\n");
-  await expect.poll(async () => (await page.request.get("/")).text(), { message: "dev server rebuild after the profile file" }).not.toBe(before);
-}
-
-/** Empty the caller's open review, so a test starts from a journal with no ops whatever ran before it. A dev-server reload can tear the page down mid-call: retried until the journal is empty. */
-async function emptyOpenReview(page: Page): Promise<void> {
-  await expect(async () => {
-    const left = await page.evaluate(async (id) => {
-      const { journal } = await docmd.call("threads:whoami", id);
-      if (journal && journal.ops.length > 0) await docmd.call("threads:discard-review", { ...id, reviewId: journal.review.id });
-      return (await docmd.call("threads:whoami", id)).journal?.ops.length ?? 0;
-    }, identity);
-    expect(left).toBe(0);
-  }).toPass({ timeout: 10_000 });
-}
 
 async function load(page: Page): Promise<void> {
   await page.goto("/");
   await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
   await setAuthor(page, "TestUser");
   await cleanThreads(page);
-  await ensureAuthorProfile(page);
+  createdProfile = (await ensureAuthorProfile(page)) || createdProfile;
   await emptyOpenReview(page);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
@@ -119,6 +96,8 @@ test.afterEach(async ({ page }) => {
   if (page.url() === "about:blank") return;
   // Leave the site as found: no open review, no manifest of ours, the page markdown restored.
   await emptyOpenReview(page);
+  if (createdProfile) removeAuthorProfile();
+  createdProfile = false;
   for (const name of manifestNames()) if (!manifestsBefore.includes(name)) fs.rmSync(safePath(manifests, name), { force: true });
   await cleanThreads(page);
 });
