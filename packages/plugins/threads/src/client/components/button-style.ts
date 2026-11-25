@@ -7,9 +7,11 @@
 
 const STYLE_ID = 'tc-button-styles';
 
+const HEIGHT = '28px';
+
 const BASE = `
   box-sizing: border-box;
-  height: 28px;
+  height: ${HEIGHT};
   min-height: 0;
   padding: 0 12px;
   font-family: var(--tc-font, var(--docmd-font-family, inherit));
@@ -40,7 +42,7 @@ const CSS = `
     color: var(--sl-color-danger-600, inherit);
   }
   /* icon-only: keeps the height, font size and radius; width and padding are its own */
-  .tc-btn.tc-btn--icon { width: 28px; padding: 0; border: none; }
+  .tc-btn.tc-btn--icon { width: ${HEIGHT}; padding: 0; border: none; }
   threads-discard-review sl-button::part(base) {
     ${BASE}
   }

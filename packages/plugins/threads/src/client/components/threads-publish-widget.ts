@@ -151,7 +151,7 @@ export class ThreadsPublishWidget extends LitElement {
         <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
           aria-label=${t('reviewTitle')} .value=${this.draftTitle}
           @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
-        <button class="tc-btn tpw__title-save" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+        <button class="tc-btn" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
       </form>
       ${this.titleError ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
   }

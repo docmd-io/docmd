@@ -173,19 +173,27 @@ test("Discard on a published review in the Reviews tab is on the same base and d
   await inDrawer(page, async () => {
     await expect(reference).toBeVisible({ timeout: 1_000 });
   });
-  const base = await lookOf(reference);
 
-  await page.getByTestId("tpw-publish").click();
-  await page.getByTestId("tab-reviews").click();
-  const discard = page.locator('[data-testid="review"]').first().getByTestId("discard-open");
-  await expect(discard).toBeVisible();
-
-  expectSameBase(await lookOf(discard), base);
-  expect(await colorsOf(discard)).toContain(await tokenColor(page, "--sl-color-danger-600"));
-
-  // Leave nothing published: confirm the discard.
+  await reference.click();
+  // The dev server reloads the page a moment after the write and a reload closes the drawer: open the Reviews tab,
+  // read the trigger and compare it as one retried block.
   const entry = page.locator('[data-testid="review"]').first();
-  await discard.click();
-  await entry.getByTestId("discard-confirm").click();
-  await expect(entry).toHaveAttribute("data-state", "discarded");
+  const discard = entry.getByTestId("discard-open");
+  const danger = await tokenColor(page, "--sl-color-danger-600");
+  await expect(async () => {
+    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
+    await expect(discard).toBeVisible({ timeout: 1_000 });
+    expectSameBase(await lookOf(discard), await lookOf(page.getByTestId("tpw-publish")));
+    expect(await colorsOf(discard)).toContain(danger);
+  }).toPass({ timeout: 15_000 });
+
+  // Leave nothing published: confirm the discard, retried the same way.
+  await expect(async () => {
+    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
+    if (!(await entry.getByTestId("discard-dialog").isVisible())) await discard.click({ timeout: 1_000 });
+    await entry.getByTestId("discard-confirm").click({ timeout: 1_000 });
+    await expect(entry).toHaveAttribute("data-state", "discarded", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
 });
