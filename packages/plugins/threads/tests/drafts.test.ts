@@ -253,4 +253,6 @@ test('a malformed pending profile is dropped on load; a valid one is kept', asyn
   assert.deepEqual((await s.load('bob')).profile, profile);
   wr(file, JSON.stringify({ ...base, profile: { name: 7 } }));
   assert.equal((await s.load('bob')).profile, undefined);
+  wr(file, JSON.stringify({ ...base, profile: { name: 'Bob B' } }));
+  assert.equal((await s.load('bob')).profile, undefined, 'a profile with no avatar is malformed too');
 });

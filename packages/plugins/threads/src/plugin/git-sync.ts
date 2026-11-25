@@ -100,7 +100,7 @@ export function createGitSync(opts: NonNullable<ThreadsOptions['git']>, deps: Gi
   };
 
   /** Whether staging left anything to commit (a change that matches the head stages nothing). */
-  const hasStaged = async () => (await git(['diff', '--cached', '--name-only'])).stdout.trim() !== '';
+  const hasStaged = async () => (await git(['diff', '--cached', '--name-only'])) !== '';
 
   const commit = async (meta: PublishMeta, applied: Applied) => {
     const subject = meta.kind === 'discard'
