@@ -37,7 +37,7 @@ async function expectRejected(page: Page, text: string, opsBefore: unknown[]): P
   const submit = editor.locator("sl-button[variant='primary']");
   await submit.click();
 
-  await expect(editor.getByText(TOO_LONG)).toBeVisible({ timeout: 10_000 });
+  await expect(editor.getByTestId("editor-message")).toHaveText(TOO_LONG, { timeout: 10_000 });
   await expect(editor).toHaveCount(1);
   await expect(textarea).toHaveValue(text);
   await expect(submit).not.toHaveAttribute("disabled", /.*/);
@@ -91,7 +91,7 @@ test("a body over the character limit leaves each box open with a message and th
 
   // New Comment on that thread
   const opsWithThread = await journalOps(page);
-  await thread.locator(".threads-comment-reply-btn").first().click();
+  await thread.locator(".threads-new-comment-btn").first().click();
   await expectRejected(page, long, opsWithThread);
 
   await page.locator("threads-inline-editor").locator("sl-button[variant='neutral']").click();
