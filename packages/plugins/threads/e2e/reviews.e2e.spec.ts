@@ -111,10 +111,20 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   // The title field belongs to the open review: Save puts the title in the journal.
   await page.locator(".threads-fab").click();
   await page.getByTestId("tpw-title").fill("My review");
+  await page.getByTestId("tpw-summary").fill("Why these comments.\nSecond line.");
   await page.getByTestId("tpw-title-save").click();
   await expect
     .poll(() => page.evaluate(async (id) => (await docmd.call("threads:whoami", id)).journal.review.title, identity))
     .toBe("My review");
+  await expect
+    .poll(() => page.evaluate(async (id) => (await docmd.call("threads:whoami", id)).journal.review.summary, identity))
+    .toBe("Why these comments.\nSecond line.");
+
+  // The drawer shows the saved summary again after a reload.
+  await page.reload();
+  await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
+  await page.locator(".threads-fab").click();
+  await expect(page.getByTestId("tpw-summary")).toHaveValue("Why these comments.\nSecond line.");
 
   // Publishing from the review section lists the new review in the open Reviews tab, titled as saved.
   const entry = page.locator('[data-testid="review"]', { hasText: "My review" });
@@ -123,6 +133,7 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   await page.getByTestId("tpw-publish").click();
   await expect(entry).toBeVisible();
   await expect.poll(() => draftedIds(page), { message: "the journal after publishing" }).toEqual([]);
+  expect(await page.evaluate(async (id) => (await docmd.call("threads:whoami", id)).journal.review.summary, identity)).toBeNull();
   await served(page, "/", `data-thread-id="${threadId}"`);
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
