@@ -5,6 +5,7 @@ import * as api from '../lib/api';
 import { t } from '../lib/i18n';
 import { createPublishTimer } from '../lib/mode';
 import { createPublishController } from '../lib/publish-controller';
+import { ensureButtonStyles } from './button-style';
 import './threads-discard-review';
 import type { DiscardOutcome } from '../lib/discard-controller';
 
@@ -36,30 +37,8 @@ const CSS = `
     font-size: 12px;
   }
   .tpw__pill--auto { background: var(--sl-color-primary-100, transparent); color: var(--sl-color-primary-700, inherit); }
-  .tpw__btn {
-    margin-left: auto;
-    border: 1px solid var(--sl-color-primary-600, currentColor);
-    background: var(--sl-color-primary-600, transparent);
-    color: var(--sl-color-neutral-0, inherit);
-    border-radius: 6px;
-    padding: 4px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
-  .tpw__btn:disabled { opacity: 0.5; cursor: default; }
-  .tpw__pp {
-    position: relative;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+  .tpw__btn { margin-left: auto; }
+  .tpw__pp { position: relative; flex: none; }
   .tpw__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
   .tpw__ring circle { fill: none; stroke-width: 2; }
   .tpw__ring-track { stroke: var(--sl-color-neutral-200, currentColor); }
@@ -83,16 +62,6 @@ const CSS = `
     border-radius: 6px;
     padding: 4px 8px;
   }
-  .tpw__title-save {
-    border: 1px solid var(--sl-color-neutral-300, currentColor);
-    background: transparent;
-    color: inherit;
-    border-radius: 6px;
-    padding: 4px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
-  .tpw__title-save:disabled { opacity: 0.5; cursor: default; }
   .tpw__line { color: var(--sl-color-warning-700, inherit); font-size: 12px; }
   .tpw__line--error { color: var(--sl-color-danger-700, inherit); }
   .tpw__line--orphan { color: var(--tc-muted-fg, inherit); }
@@ -130,6 +99,7 @@ export class ThreadsPublishWidget extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    ensureButtonStyles();
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -181,7 +151,7 @@ export class ThreadsPublishWidget extends LitElement {
         <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
           aria-label=${t('reviewTitle')} .value=${this.draftTitle}
           @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
-        <button class="tpw__title-save" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+        <button class="tc-btn tpw__title-save" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
       </form>
       ${this.titleError ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
   }
@@ -215,7 +185,7 @@ export class ThreadsPublishWidget extends LitElement {
           ${auto ? html`<span class="tpw__pill tpw__pill--auto">${t('autoPublishing')}</span>` : nothing}
           <span class="tpw__count" data-testid="tpw-count">${s.label}</span>
           ${s.showPlayPause ? html`
-            <button class="tpw__pp" data-testid="tpw-playpause" data-mode=${mode} title=${t(s.playPauseAction)}
+            <button class="tc-btn tc-btn--icon tpw__pp" data-testid="tpw-playpause" data-mode=${mode} title=${t(s.playPauseAction)}
               aria-label=${t(s.playPauseAction)} @click=${() => void this.controller.toggleMode()}>
               <svg class="tpw__ring" viewBox="0 0 28 28" aria-hidden="true">
                 <circle class="tpw__ring-track" cx="14" cy="14" r="12"></circle>
@@ -225,7 +195,7 @@ export class ThreadsPublishWidget extends LitElement {
               </svg>
               <span aria-hidden="true">${s.playPauseAction === 'pause' ? '⏸' : '▶'}</span>
             </button>` : nothing}
-          <button class="tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
+          <button class="tc-btn tc-btn--primary tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
           ${reviewId && !s.publishDisabled ? html`
             <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; outcome: DiscardOutcome }>) =>
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}

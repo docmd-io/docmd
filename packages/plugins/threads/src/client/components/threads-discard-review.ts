@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import * as api from '../lib/api';
 import { createDiscardController } from '../lib/discard-controller';
 import { t } from '../lib/i18n';
+import { ensureButtonStyles } from './button-style';
 
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
@@ -11,15 +12,6 @@ const STYLE_ID = 'tc-discard-review-styles';
 
 const CSS = `
   threads-discard-review { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .tdr__btn {
-    border: 1px solid var(--sl-color-neutral-300, currentColor);
-    background: transparent;
-    color: inherit;
-    border-radius: 6px;
-    padding: 4px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
   .tdr__error { color: var(--sl-color-danger-700, inherit); font-size: 12px; }
 `;
 
@@ -53,6 +45,7 @@ export class ThreadsDiscardReview extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    ensureButtonStyles();
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -65,7 +58,7 @@ export class ThreadsDiscardReview extends LitElement {
     const state = this.controller.state();
     const error = this.controller.error();
     return html`
-      <button class="tdr__btn" data-testid="discard-open" @click=${() => this.controller.ask(this.reviewId)}>${this.label}</button>
+      <button class="tc-btn tc-btn--danger" data-testid="discard-open" @click=${() => this.controller.ask(this.reviewId)}>${this.label}</button>
       ${error ? html`<div class="tdr__error" data-testid="discard-error">${error}</div>` : nothing}
       <sl-dialog data-testid="discard-dialog" label=${this.label} ?open=${state !== 'closed'}
         @sl-request-close=${(e: Event) => { if (e.target === e.currentTarget) { e.preventDefault(); this.controller.cancel(); } }}>
