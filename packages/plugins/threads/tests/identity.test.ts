@@ -74,13 +74,15 @@ test('isEmailShaped: characters on both sides of an @, no whitespace, after trim
 });
 
 test('an e-mail-shaped identity under serve logs one warning per process, without the value', async () => {
+  // A private copy of the module, so its once-per-process latch starts unset whatever ran before.
+  const { findCaller: fc, resolveCaller: rc } = (await import('../src/plugin/identity.ts?warn-once')) as typeof import('../src/plugin/identity.ts');
   const lines: string[] = [];
   const orig = console.warn;
   console.warn = (...a: unknown[]) => void lines.push(a.join(' '));
   try {
     const ctx = makeCtx(project.root, serve('ann@example.com'));
-    assert.equal(await findCaller(ctx, {}), null);
-    await assert.rejects(resolveCaller(ctx, {}), { code: 'email-identity' });
+    assert.equal(await fc(ctx, {}), null);
+    await assert.rejects(rc(ctx, {}), { code: 'email-identity' });
   } finally {
     console.warn = orig;
   }

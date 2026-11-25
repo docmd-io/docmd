@@ -287,6 +287,8 @@ test('serve without a trusted identity refuses every write, with or without auth
   ];
   const tree = snapshotTree(docsRoot);
   const EMAIL = 'alice@example.com';
+  const warn = console.warn; // the refusals log the once-per-process warning; keep it out of the test output
+  console.warn = () => {};
   // No identity, then an e-mail-shaped one: each is refused first, before the payload is read, and nothing is written.
   for (const [identity, code] of [[null, 'no-identity'], [EMAIL, 'email-identity']] as const) {
     for (const [name, payload] of REFUSED) {
@@ -302,6 +304,7 @@ test('serve without a trusted identity refuses every write, with or without auth
       }
     }
   }
+  console.warn = warn;
   // Reads treat an e-mail-shaped identity as unidentified and never carry the address.
   const mail = { mode: 'serve', caller: { identity: EMAIL } } as const;
   assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null });
