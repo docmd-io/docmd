@@ -492,8 +492,8 @@ const withProfile = (key: string, profile = PROFILE, s: DraftStore = store()) =>
 const COMMENT: NewDraftOp = { kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-p', parentId: null, body: 'p' };
 
 test('a pending profile is written with the pages and cleared; a failure after it puts authors.json and the pages back and keeps the ops and the profile', async () => {
-  fs.mkdirSync(path.dirname(authorsPath()), { recursive: true });
-  fs.writeFileSync(authorsPath(), JSON.stringify({ bob: { name: 'Bob', avatarUrl: '' } }));
+  fs.mkdirSync(safePath(docsRoot, '.threads'), { recursive: true });
+  fs.writeFileSync(safePath(path.dirname(authorsPath()), 'authors.json'), JSON.stringify({ bob: { name: 'Bob', avatarUrl: '' } }));
   await fill('k-alice', [COMMENT]);
   await withProfile('k-alice');
   const bytes = { page: read(FILE), authors: readAt(authorsPath()) };
