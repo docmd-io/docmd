@@ -144,7 +144,7 @@ test('pages a publish brought in with its reset are rebuilt by the next pull', a
   assert.equal(calls.length, 1, 'nothing is pending after the rebuild');
 });
 
-test('a tick during a running pull is skipped; the next one after it runs', async () => {
+test('a tick during a running pull is skipped; the next one after it runs', { timeout: 5000 }, async () => {
   const ticks: Array<() => void> = [];
   const timers = { setInterval: (fn: () => void) => (ticks.push(fn), { unref() {} }) as never, clearInterval: () => undefined };
   let release!: () => void;
@@ -174,7 +174,7 @@ test('a tick during a running pull is skipped; the next one after it runs', asyn
   stop();
 });
 
-test('a failing pull logs one redacted line per tick and the loop keeps ticking', async () => {
+test('a failing pull logs one redacted line per tick and the loop keeps ticking', { timeout: 5000 }, async () => {
   const broken = `${trio.remote}-missing`;
   git(trio.server, 'remote', 'set-url', 'origin', broken);
   const lines: string[] = [];
@@ -202,7 +202,7 @@ test('a failing pull logs one redacted line per tick and the loop keeps ticking'
   }
 });
 
-test('a credential in the git error is redacted even when it is not the configured remote', async () => {
+test('a credential in the git error is redacted even when it is not the configured remote', { timeout: 5000 }, async () => {
   const lines: string[] = [];
   const spy = mock.method(console, 'error', (...a: unknown[]) => void lines.push(a.join(' ')));
   const ticks: Array<() => void> = [];

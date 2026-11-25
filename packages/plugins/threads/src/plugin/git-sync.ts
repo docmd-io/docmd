@@ -263,8 +263,7 @@ export function startPullLoop(
           : String(err?.message ?? e).split('\n').filter((l) => !l.startsWith('Command failed:')).join('\n');
         let line = firstLine(text) ?? 'git failed';
         // What the remote name points at (a URL or path, maybe with credentials) is kept out of the log.
-        const url = await (deps.execFile ?? realExec())('git', ['remote', 'get-url', opts.remote], { cwd: handle.projectRoot, env: process.env })
-          .then((r) => r.stdout.trim(), () => '');
+        const url = await gitRunner(deps.execFile ?? realExec(), handle.projectRoot)(['remote', 'get-url', opts.remote]).catch(() => '');
         for (const secret of [url, opts.remote]) if (secret) line = line.split(secret).join('<remote>');
         console.error(`[threads] git pull failed: ${line.replace(/\/\/[^@/\s]*@/g, '//***@')}`);
       })
