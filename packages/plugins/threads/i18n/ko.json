@@ -55,5 +55,8 @@
   "draft": "초안",
   "discardDrafts": "폐기",
   "discardDraftsConfirm": "게시되지 않은 댓글({n})을 폐기할까요? 되돌릴 수 없습니다.",
-  "discardFailed": "폐기할 수 없습니다"
+  "discardFailed": "폐기할 수 없습니다",
+  "orphaned": "고아 스레드",
+  "lostAnchor": "내 댓글 {n}개가 앵커를 잃었습니다",
+  "lostAnchorPlural": "내 댓글 {n}개가 앵커를 잃었습니다"
 }

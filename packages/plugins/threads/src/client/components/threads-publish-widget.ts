@@ -12,26 +12,22 @@ const STYLE_ID = 'tc-publish-widget-styles';
 
 const CSS = `
   threads-publish-widget {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 2200;
-    font-family: var(--docmd-font-family, inherit);
+    display: block;
+    flex: none;
+    font-family: var(--tc-font, var(--docmd-font-family, inherit));
     font-size: 13px;
   }
   .tpw {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    align-items: flex-end;
-    padding: 8px 10px;
-    border: 1px solid var(--sl-color-neutral-200, var(--docmd-border-color, currentColor));
-    border-radius: 10px;
-    background: var(--sl-color-neutral-0, var(--docmd-bg, canvas));
-    color: var(--sl-color-neutral-900, var(--docmd-text, canvastext));
-    box-shadow: var(--sl-shadow-large, none);
+    align-items: stretch;
+    padding: 10px 16px;
+    border-top: 1px solid var(--tc-border, var(--sl-color-neutral-200, currentColor));
+    background: var(--tc-bg, var(--sl-color-neutral-0, canvas));
+    color: var(--tc-fg, var(--sl-color-neutral-900, canvastext));
   }
-  .tpw__row { display: flex; align-items: center; gap: 8px; }
+  .tpw__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .tpw__pill {
     padding: 2px 8px;
     border-radius: 999px;
@@ -41,6 +37,7 @@ const CSS = `
   }
   .tpw__pill--auto { background: var(--sl-color-primary-100, transparent); color: var(--sl-color-primary-700, inherit); }
   .tpw__btn {
+    margin-left: auto;
     border: 1px solid var(--sl-color-primary-600, currentColor);
     background: var(--sl-color-primary-600, transparent);
     color: var(--sl-color-neutral-0, inherit);
@@ -76,6 +73,7 @@ const CSS = `
   .tpw__count { color: var(--sl-color-neutral-700, inherit); }
   .tpw__line { color: var(--sl-color-warning-700, inherit); font-size: 12px; }
   .tpw__line--error { color: var(--sl-color-danger-700, inherit); }
+  .tpw__line--orphan { color: var(--tc-muted-fg, inherit); }
 `;
 
 @customElement('threads-publish-widget')
@@ -124,7 +122,16 @@ export class ThreadsPublishWidget extends LitElement {
     this.controller.stop();
   }
 
+  /** The unpublished count last announced to the page. */
+  private announced: number | null = null;
+
   override updated(): void {
+    // The drawer's FAB and toggle strip show this count while the drawer is closed.
+    const count = this.controller.view().pendingCount;
+    if (count !== this.announced) {
+      this.announced = count;
+      this.dispatchEvent(new CustomEvent<{ count: number }>('unpublished-count-change', { bubbles: true, detail: { count } }));
+    }
     // The discard element left while its dialog was open (e.g. a failed refresh): no close event will come.
     // That is not a discard; the controller decides that from the journal itself.
     if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release('kept');
@@ -160,6 +167,7 @@ export class ThreadsPublishWidget extends LitElement {
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
+        ${s.orphanLine ? html`<div class="tpw__line tpw__line--orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>
     `;

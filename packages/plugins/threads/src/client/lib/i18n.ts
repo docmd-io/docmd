@@ -62,6 +62,9 @@ const defaults: Record<string, string> = {
   discardDrafts: 'Discard',
   discardDraftsConfirm: 'Discard your unpublished comments ({n})? This cannot be undone.',
   discardFailed: 'Could not discard',
+  orphaned: 'Orphaned',
+  lostAnchor: '{n} of your comments lost its anchor',
+  lostAnchorPlural: '{n} of your comments lost their anchor',
 };
 
 /**

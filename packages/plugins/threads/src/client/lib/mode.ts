@@ -77,6 +77,8 @@ export interface WidgetStateInput {
   mode: DraftMode;
   /** `null` while the count is unknown (the last `whoami` failed); no journal is a count of 0. */
   pendingCount: number | null;
+  /** Published threads of the caller whose anchor text is gone; 0 while unknown. */
+  orphanedMine?: number;
   publishing: boolean;
   /** The timer has a fire scheduled (`remainingMs() !== null`). */
   armed: boolean;
@@ -92,6 +94,8 @@ export interface WidgetState {
   ringRunning: boolean;
   label: string;
   errorLine: string | null;
+  /** How many of the caller's threads lost their anchor, or `null` when none did. */
+  orphanLine: string | null;
   /** What the play/pause button does when clicked. */
   playPauseAction: 'pause' | 'play';
 }
@@ -99,12 +103,15 @@ export interface WidgetState {
 const FALLBACK: Record<string, string> = {
   unpublishedCount: '{n} unpublished comments',
   unpublishedCountOne: '{n} unpublished comment',
+  lostAnchor: '{n} of your comments lost its anchor',
+  lostAnchorPlural: '{n} of your comments lost their anchor',
 };
 
 export function widgetState(input: WidgetStateInput): WidgetState {
   const tr = input.t ?? ((k: string) => FALLBACK[k] ?? k);
   const known = input.pendingCount !== null;
   const pendingCount = input.pendingCount ?? 0;
+  const orphaned = input.orphanedMine ?? 0;
   const variant: WidgetState['variant'] = input.publishing
     ? 'publishing'
     : !input.autoPublish
@@ -117,6 +124,7 @@ export function widgetState(input: WidgetStateInput): WidgetState {
     ringRunning: input.autoPublish && input.mode === 'auto' && input.armed && !input.publishing && pendingCount >= 1,
     label: !known ? '…' : tr(pendingCount === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(pendingCount)),
     errorLine: input.error || null,
+    orphanLine: orphaned < 1 ? null : tr(orphaned === 1 ? 'lostAnchor' : 'lostAnchorPlural').replace('{n}', String(orphaned)),
     playPauseAction: input.mode === 'auto' ? 'pause' : 'play',
   };
 }

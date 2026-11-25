@@ -47,7 +47,8 @@ export class ThreadsApp extends LitElement {
     isConnected: () => this.isConnected,
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
-      document.body.appendChild(el);
+      // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
+      document.querySelector('.tc-panel')!.appendChild(el);
       void el.refresh();
       return el;
     },
@@ -65,6 +66,7 @@ export class ThreadsApp extends LitElement {
     document.removeEventListener('mousedown', this.handleOutsidePopoverClick);
     document.removeEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
     document.removeEventListener('reviews-changed', this.handleReviewsChanged);
+    document.removeEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
     this.publishMount.stop();
   }
 
@@ -75,6 +77,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
     document.addEventListener('reviews-changed', this.handleReviewsChanged);
+    document.addEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
 
     // Always initialize sidebar column so the panel is available for FAB toggle
     this.initSidebarColumn();
@@ -389,6 +392,23 @@ export class ThreadsApp extends LitElement {
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
   }
+
+  /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
+  private handleUnpublishedCount = (e: CustomEvent<{ count: number }>): void => {
+    const count = e.detail.count;
+    const label = t(count === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(count));
+    for (const host of document.querySelectorAll<HTMLElement>('.threads-fab, .tc-sidebar-toggle')) {
+      host.querySelector('.tc-unpublished-marker')?.remove();
+      if (count < 1) continue;
+      const marker = document.createElement('span');
+      marker.className = 'tc-unpublished-marker';
+      marker.dataset.testid = 'unpublished-marker';
+      marker.textContent = String(count);
+      marker.title = label;
+      marker.setAttribute('aria-label', label);
+      host.appendChild(marker);
+    }
+  };
 
   /** The publish widget exists only against a live server. */
   private mountPublishWidget(): void {
@@ -871,6 +891,9 @@ export class ThreadsApp extends LitElement {
     // Clear existing panel threads
     panelBody.textContent = '';
 
+    const normal = this.threads.filter(th => !th.orphaned);
+    const orphaned = this.threads.filter(th => th.orphaned);
+
     if (this.threads.length === 0) {
       const emptyState = document.createElement('div');
       emptyState.className = 'tc-panel__empty';
@@ -883,8 +906,19 @@ export class ThreadsApp extends LitElement {
       `;
       panelBody.appendChild(emptyState);
     } else {
-      for (const thread of this.threads) {
+      for (const thread of normal) {
         panelBody.appendChild(this.renderThreadCard(thread, true));
+      }
+      if (orphaned.length > 0) {
+        const group = document.createElement('div');
+        group.className = 'tc-panel__group';
+        group.dataset.testid = 'orphaned-group';
+        const heading = document.createElement('div');
+        heading.className = 'tc-panel__group-title';
+        heading.textContent = t('orphaned');
+        group.appendChild(heading);
+        for (const thread of orphaned) group.appendChild(this.renderThreadCard(thread, true));
+        panelBody.appendChild(group);
       }
     }
 
@@ -906,7 +940,8 @@ export class ThreadsApp extends LitElement {
 
     // Anchor quote badge for both sidebar and inline preview
     const mark = document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${thread.id}"]`);
-    const quoteText = mark?.textContent?.trim() || '';
+    // An orphaned thread has no mark in the page: its stored quote is all that is left of the anchor.
+    const quoteText = mark?.textContent?.trim() || (thread.orphaned ? thread.anchor?.quote ?? '' : '');
     if (quoteText) {
       const quoteHeader = document.createElement('div');
       quoteHeader.className = 'threads-thread__quote-badge';

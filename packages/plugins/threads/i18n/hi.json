@@ -55,5 +55,8 @@
   "draft": "ड्राफ़्ट",
   "discardDrafts": "त्यागें",
   "discardDraftsConfirm": "अपनी अप्रकाशित टिप्पणियाँ ({n}) त्यागें? इसे वापस नहीं किया जा सकता।",
-  "discardFailed": "त्यागा नहीं जा सका"
+  "discardFailed": "त्यागा नहीं जा सका",
+  "orphaned": "अनाथ",
+  "lostAnchor": "आपकी {n} टिप्पणी का एंकर खो गया",
+  "lostAnchorPlural": "आपकी {n} टिप्पणियों का एंकर खो गया"
 }

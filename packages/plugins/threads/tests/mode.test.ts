@@ -22,6 +22,9 @@ const table: Array<[string, Partial<Input>, Partial<WidgetState>]> = [
     { label: '…', publishDisabled: true, ringRunning: false }],
   ['error line echoes the error', { error: 'boom' }, { errorLine: 'boom' }],
   ['no error, no line', {}, { errorLine: null }],
+  ['no orphaned threads: no line', { orphanedMine: 0 }, { orphanLine: null }],
+  ['one orphaned thread: singular line', { orphanedMine: 1 }, { orphanLine: '1 of your comments lost its anchor' }],
+  ['three orphaned threads: plural line', { orphanedMine: 3 }, { orphanLine: '3 of your comments lost their anchor' }],
   ['auto offers pause', { mode: 'auto' }, { playPauseAction: 'pause' }],
   ['collect offers play', { mode: 'collect' }, { playPauseAction: 'play' }],
 ];

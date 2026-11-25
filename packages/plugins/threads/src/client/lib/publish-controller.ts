@@ -31,6 +31,8 @@ export interface PublishView {
   reviewId: string | null;
   /** Unpublished operations in the open review; 0 while unknown. */
   pendingCount: number;
+  /** The caller's published threads that lost their anchor, from the latest `whoami`; 0 before the first answer and after a failed one. */
+  orphanedMine: number;
   /** The countdown ring, while one is running: re-created per `updatedAt`, started `delayMs` into the countdown. */
   ring: { key: string; delayMs: number; totalMs: number } | null;
 }
@@ -39,6 +41,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   let journal: Journal | null = null;
   /** False when the last `whoami` failed: the count is unknown, not 0. */
   let known = false;
+  let orphanedMine = 0;
   let publishing = false;
   let toggling = false;
   /** Only the latest whoami answer counts: an older one resolving late would bring back a stale count. */
@@ -82,11 +85,13 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
       const me = await api.whoami();
       if (seq !== refreshSeq) return;
       journal = me.journal;
+      orphanedMine = me.orphanedMine;
       known = true;
       error = null;
     } catch (err) {
       if (seq !== refreshSeq) return;
       known = false;
+      orphanedMine = 0;
       error = reason(err, 'loadFailed');
       timer?.stop();
       remaining = null;
@@ -205,6 +210,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
           autoPublish: timer !== null,
           mode: mode(),
           pendingCount: known ? pending() : null,
+          orphanedMine,
           publishing,
           armed: remaining !== null,
           error,
@@ -212,6 +218,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
         }),
         mode: mode(),
         pendingCount: pending(),
+        orphanedMine,
         reviewId: known ? (journal?.review.id ?? null) : null,
         ring: timer && remaining !== null && ringKey ? { key: ringKey, delayMs: ringDelay, totalMs: timer.totalMs() } : null,
       };

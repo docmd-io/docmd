@@ -127,6 +127,7 @@ export function injectComponentStyles(): void {
     /* ========= Panel ========= */
     .tc-panel {
       flex: 1;
+      min-height: 0;
       width: 380px;
       background: var(--tc-bg);
       border-left: 1px solid var(--tc-border);
@@ -167,9 +168,41 @@ export function injectComponentStyles(): void {
     }
     .tc-panel__body {
       flex: 1;
+      min-height: 0; /* scroll inside the panel so the review section stays pinned below the list */
       overflow-y: auto;
       padding: 8px 0;
     }
+
+    .tc-panel__group-title {
+      padding: 12px 16px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--tc-muted-fg);
+    }
+
+    /* Unpublished-comment count on the FAB and the toggle strip, apart from the open-threads badge. */
+    .tc-unpublished-marker {
+      position: absolute;
+      bottom: -6px;
+      left: -6px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      border: 1px solid var(--tc-bg);
+      background: var(--tc-fg);
+      color: var(--tc-bg);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+      font-family: var(--tc-font);
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    .tc-sidebar-toggle .tc-unpublished-marker { bottom: auto; top: 44px; left: 4px; }
 
     /* ========= Empty state ========= */
     .tc-empty {

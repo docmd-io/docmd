@@ -55,5 +55,8 @@
   "draft": "草稿",
   "discardDrafts": "丢弃",
   "discardDraftsConfirm": "丢弃你的未发布评论（{n}）？此操作无法撤销。",
-  "discardFailed": "无法丢弃"
+  "discardFailed": "无法丢弃",
+  "orphaned": "失去锚点",
+  "lostAnchor": "你的 {n} 条评论失去了锚点",
+  "lostAnchorPlural": "你的 {n} 条评论失去了锚点"
 }

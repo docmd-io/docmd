@@ -37,14 +37,15 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   await cleanThreads(page);
   expect(await emptyOpenReview(page)).toBe(0);
   await page.reload();
-  await page.waitForSelector("threads-publish-widget", { timeout: 10_000 });
+  await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
   const before = fs.readFileSync(index);
   const manifestsBefore = manifestNames();
   const drafted = page.getByText("to be discarded");
 
   const para = page.locator("main p, .content p, article p").first();
   const quote = (await para.textContent())!.trim().split(" ").slice(0, 3).join(" ");
-  const threadId = await page.evaluate(
+  // The dev server reloads the page once the draft is written: wait for that load, so it cannot close the drawer later.
+  const [, threadId] = await Promise.all([page.waitForEvent("load"), page.evaluate(
     async ({ quote }) =>
       (await docmd.call("threads:add-thread", {
         file: document.body.dataset["sourceFile"],
@@ -54,10 +55,11 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
         body: "to be discarded",
       })).id as string,
     { quote },
-  );
-  await page.reload();
-  await page.waitForSelector("threads-publish-widget", { timeout: 10_000 });
+  )]);
+  await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 
+  // The review section lives in the drawer: open it first.
+  await page.locator(".threads-fab").click();
   const count = page.getByTestId("tpw-count");
   const open = page.getByTestId("discard-open");
   await expect(count).toHaveText("1 unpublished comment");
@@ -65,8 +67,7 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   const mark = page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`);
   await expect(mark).toHaveCount(1);
   await expect(mark).toContainText(quote);
-  await page.locator(".threads-fab").click();
-  await expect(drafted.first()).toBeVisible();
+  await expect(page.locator(".tc-panel__body").getByText("to be discarded")).toBeVisible();
 
   // Cancel closes the dialog and changes nothing.
   await open.click();
