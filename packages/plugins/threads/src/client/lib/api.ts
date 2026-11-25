@@ -1,5 +1,5 @@
 import { getIdentityPayload, getStoredIdentity } from './identity';
-import type { Thread, Comment, Reaction, AuthorsMap, DraftMode, Journal, PublishResult, WhoAmI } from '../../types';
+import type { Thread, Comment, Reaction, AuthorsMap, DraftMode, Journal, PublishResult, ReviewSummary, WhoAmI } from '../../types';
 
 declare global {
   var docmd: {
@@ -170,4 +170,14 @@ export function publishReview(): Promise<PublishResult> {
 /** Take a review back: reverse a published one, or empty the caller's open one. */
 export async function discardReview(reviewId: string): Promise<void> {
   await call('threads:discard-review', { ...getIdentityPayload(), reviewId });
+}
+
+/** Every review, newest first (the server orders them). */
+export function listReviews(): Promise<ReviewSummary[]> {
+  return call('threads:list-reviews', {});
+}
+
+/** Set the open review's title (`null` for the default one); returns the caller's journal. */
+export function updateReview(patch: { title: string | null }): Promise<Journal> {
+  return call('threads:update-review', { ...getIdentityPayload(), ...patch });
 }

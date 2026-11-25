@@ -58,5 +58,13 @@
   "discardFailed": "无法丢弃",
   "orphaned": "失去锚点",
   "lostAnchor": "你的 {n} 条评论失去了锚点",
-  "lostAnchorPlural": "你的 {n} 条评论失去了锚点"
+  "lostAnchorPlural": "你的 {n} 条评论失去了锚点",
+  "reviews": "评审",
+  "discard": "丢弃",
+  "discardConfirm": "丢弃此评审？其评论将从页面中移除。",
+  "discarded": "已丢弃",
+  "published": "已发布",
+  "noReviews": "暂无评审。",
+  "reviewTitle": "评审标题",
+  "saveFailed": "无法保存评审"
 }

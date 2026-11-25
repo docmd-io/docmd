@@ -127,6 +127,19 @@ test('discardReview sends the identity and the review id and turns a forbidden r
   await assert.rejects(api.discardReview('r-1'), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden' && e.text === 'not your review');
 });
 
+test('listReviews sends {} and updateReview the identity plus the title; a forbidden rejection becomes a ThreadsClientError', async () => {
+  identify();
+  await api.listReviews();
+  await api.updateReview({ title: 'x' });
+  await api.updateReview({ title: null });
+  assert.deepEqual(calls[0], { action: 'threads:list-reviews', payload: {} });
+  assert.deepEqual(calls[1], { action: 'threads:update-review', payload: { ...stored, title: 'x' } });
+  assert.deepEqual(calls[2], { action: 'threads:update-review', payload: { ...stored, title: null } });
+  reject = new Error('threads/forbidden: not yours');
+  await assert.rejects(api.updateReview({ title: 'y' }), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden' && e.text === 'not yours');
+  await assert.rejects(api.listReviews(), (e: unknown) => e instanceof api.ThreadsClientError && e.code === 'forbidden');
+});
+
 test('a threads/<code>: <text> rejection becomes a ThreadsClientError; any other rejection passes through', async () => {
   reject = new Error('threads/invalid: first line\nsecond line');
   await assert.rejects(api.publishReview(), (e: unknown) => {

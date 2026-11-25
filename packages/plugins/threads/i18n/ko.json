@@ -58,5 +58,13 @@
   "discardFailed": "폐기할 수 없습니다",
   "orphaned": "고아 스레드",
   "lostAnchor": "내 댓글 {n}개가 앵커를 잃었습니다",
-  "lostAnchorPlural": "내 댓글 {n}개가 앵커를 잃었습니다"
+  "lostAnchorPlural": "내 댓글 {n}개가 앵커를 잃었습니다",
+  "reviews": "리뷰",
+  "discard": "폐기",
+  "discardConfirm": "이 리뷰를 폐기할까요? 리뷰의 댓글이 페이지에서 제거됩니다.",
+  "discarded": "폐기됨",
+  "published": "게시됨",
+  "noReviews": "아직 리뷰가 없습니다.",
+  "reviewTitle": "리뷰 제목",
+  "saveFailed": "리뷰를 저장할 수 없습니다"
 }
