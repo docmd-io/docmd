@@ -40,6 +40,15 @@ test.describe("threads plugin - basic UI", () => {
     await expect(user.page.locator(".threads-new-thread-btn").first()).toHaveText("New Thread");
   });
 
+  test("the focus-mode title is a copy of the page title and gets no New Thread button", async () => {
+    await user.perform(NavigateTo.path("/"));
+    await expect(newThreadButton(user.page)).toBeVisible({ timeout: 5_000 });
+    const copies = user.page.locator(".docmd-focus-title");
+    expect(await copies.count()).toBeGreaterThan(0);
+    await expect(user.page.locator(".docmd-focus-title .threads-new-thread-btn")).toHaveCount(0);
+    await expect(user.page.locator(".docmd-focus-title.threads-heading-wrap")).toHaveCount(0);
+  });
+
   test("threads from the markdown appear as cards with their comments", async () => {
     // The playground index.md has pre-existing threads in the ::: threads block
     await user.perform(NavigateTo.path("/"));

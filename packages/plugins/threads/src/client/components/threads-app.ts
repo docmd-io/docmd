@@ -216,7 +216,9 @@ export class ThreadsApp extends LitElement {
 
     const HEADING_TAGS = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
     // Only target direct children of the content area - avoids TOC, sidebar headings, etc.
-    const headings = Array.from(contentArea.children).filter(el => HEADING_TAGS.has(el.tagName));
+    // The focus-mode title is a second copy of the page's h1: a button on both would show twice.
+    const headings = Array.from(contentArea.children)
+      .filter(el => HEADING_TAGS.has(el.tagName) && !el.classList.contains('docmd-focus-title'));
 
     for (const heading of headings) {
       // Only target direct-ish headings inside the content area
