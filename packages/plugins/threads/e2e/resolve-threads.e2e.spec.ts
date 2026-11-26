@@ -4,7 +4,8 @@
  *
  * Changes from old plugin:
  * - No sidebar panel with visual resolve/unresolve buttons on server-rendered cards
- * - Resolve functionality exists at API level (threads:resolve-thread)
+ * - Resolve functionality exists at API level (threads:resolve-thread); it drafts the
+ *   toggle in the caller's journal until threads:publish-review writes it
  * - Resolved threads get .threads-thread--resolved class (opacity: 0.55)
  * - The Lit-rendered threads-thread component has Resolve/Unresolve buttons,
  *   but the current inline mode uses server-rendered HTML
@@ -38,6 +39,7 @@ test.describe("resolve thread API", () => {
         return docmd.call("threads:resolve-thread", {
           file,
           threadId,
+          author: "TestUser",
           resolved_by: "TestUser",
         });
       },
@@ -52,7 +54,7 @@ test.describe("resolve thread API", () => {
     // Verify via re-fetch
     const threads = await user.page.evaluate(async () => {
       const file = document.body.dataset["sourceFile"];
-      return docmd.call("threads:get-threads", { file });
+      return docmd.call("threads:get-threads", { file, author: "TestUser" });
     });
 
     const thread = threads.find((t: any) => t.id === threadId);
@@ -73,6 +75,7 @@ test.describe("resolve thread API", () => {
         return docmd.call("threads:resolve-thread", {
           file,
           threadId,
+          author: "TestUser",
           resolved_by: "TestUser",
         });
       },

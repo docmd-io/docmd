@@ -6,7 +6,7 @@ import { docsRootOf } from './reviews.js';
 import { lockFor } from './lock.js';
 import type { AuthorsMap } from '../types.js';
 
-type RootCtx = Pick<ActionContext, 'projectRoot' | 'config'>;
+type RootCtx = Pick<ActionContext, 'projectRoot' | 'config' | 'docsRootOf'>;
 
 const threadsDir = (ctx: RootCtx) => safePath(docsRootOf(ctx), '.threads');
 

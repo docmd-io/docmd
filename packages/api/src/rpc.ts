@@ -60,6 +60,12 @@ interface DispatcherOptions {
    * whose `identity` is null are refused. Ignored in dev.
    */
   identityHeader?: string | null;
+  /**
+   * Workspace dev: absolute subproject directory → absolute docs source
+   * directory (that subproject's own `src`). Read on every call, so the host
+   * can update it when a subproject's config changes.
+   */
+  workspaceDocsRoots?: ReadonlyMap<string, string>;
 }
 
 const rpcWrittenFiles = new Map<string, number>();
@@ -95,7 +101,7 @@ export function wasWrittenByRpc(filePath: string): boolean {
  * @returns `{ handleCall, handleEvent }`
  */
 export function createActionDispatcher(hooks: DispatcherHooks, options: DispatcherOptions) {
-  const { projectRoot, config, broadcast, getWorkerPool, requestRebuild } = options;
+  const { projectRoot, config, broadcast, getWorkerPool, requestRebuild, workspaceDocsRoots } = options;
   const mode: 'dev' | 'serve' = options.mode ?? 'dev';
   const identityHeader = options.identityHeader || null;
 
@@ -128,6 +134,21 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
       }
     }
     return direct;
+  };
+
+  /** The docs root of the (sub)project that holds `relativePath`; see `ActionContext.docsRootOf`. */
+  const docsRootOf = (relativePath?: string): string => {
+    const ws = config?.workspace;
+    if (relativePath && workspaceDocsRoots && ws && Array.isArray(ws.projects)) {
+      const file = resolveProjectFile(relativePath);
+      for (const p of ws.projects) {
+        if (!p.src) continue;
+        const projectDir = safePath(projectRoot, p.src);
+        const docsRoot = workspaceDocsRoots.get(projectDir);
+        if (docsRoot && file.startsWith(projectDir + path.sep)) return docsRoot;
+      }
+    }
+    return safePath(projectRoot, config?.src || '.');
   };
 
   /** Build a fresh per-call context plus the state the call mutates. */
@@ -170,6 +191,7 @@ export function createActionDispatcher(hooks: DispatcherHooks, options: Dispatch
       async readFile(relativePath: string): Promise<string> {
         return fs.promises.readFile(resolveProjectFile(relativePath), 'utf8');
       },
+      docsRootOf,
       async writeFile(relativePath: string, content: string): Promise<void> {
         assertCanWrite(callerOrLocal);
         const resolved = resolveProjectFile(relativePath);

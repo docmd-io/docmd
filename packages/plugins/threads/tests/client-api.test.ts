@@ -94,29 +94,51 @@ test('a mutation without a stored identity prompts once and sends the prompted i
   assert.equal(calls[1].payload.authorKey, 'prompted');
 });
 
-test('whoami sends exactly the stored identity, or {} without prompting', async () => {
+const page = { file: 'docs/index.md' };
+
+test('whoami sends the page and exactly the stored identity, or no identity without prompting', async () => {
   identify();
   await api.whoami();
-  assert.deepEqual(calls[0], { action: 'threads:whoami', payload: stored });
+  assert.deepEqual(calls[0], { action: 'threads:whoami', payload: { ...page, ...stored } });
   storage.clear();
   await api.whoami();
-  assert.deepEqual(calls[1], { action: 'threads:whoami', payload: {} });
+  assert.deepEqual(calls[1], { action: 'threads:whoami', payload: page });
   assert.equal(prompts, 0);
 });
 
 test('upsertAuthor sends no authorKey when given null, the key otherwise', async () => {
   await api.upsertAuthor(null, 'Ann', 'u');
   await api.upsertAuthor('ann', 'Ann', 'u');
-  assert.deepEqual(calls[0], { action: 'threads:upsert-author', payload: { name: 'Ann', avatarUrl: 'u' } });
-  assert.deepEqual(calls[1], { action: 'threads:upsert-author', payload: { authorKey: 'ann', name: 'Ann', avatarUrl: 'u' } });
+  assert.deepEqual(calls[0], { action: 'threads:upsert-author', payload: { ...page, name: 'Ann', avatarUrl: 'u' } });
+  assert.deepEqual(calls[1], { action: 'threads:upsert-author', payload: { ...page, authorKey: 'ann', name: 'Ann', avatarUrl: 'u' } });
 });
 
-test('setMode and publishReview send the identity, setMode with the mode', async () => {
+test('setMode and publishReview send the page and the identity, setMode with the mode', async () => {
   identify();
   await api.setMode('auto');
   await api.publishReview();
-  assert.deepEqual(calls[0], { action: 'threads:set-mode', payload: { ...stored, mode: 'auto' } });
-  assert.deepEqual(calls[1], { action: 'threads:publish-review', payload: stored });
+  assert.deepEqual(calls[0], { action: 'threads:set-mode', payload: { ...page, ...stored, mode: 'auto' } });
+  assert.deepEqual(calls[1], { action: 'threads:publish-review', payload: { ...page, ...stored } });
+});
+
+test('author calls send the page, and leave it out on a page with no source file', async () => {
+  await api.fetchAuthors();
+  await api.upsertAuthor('alice', 'Alice', '');
+  assert.deepEqual(calls[0], { action: 'threads:get-authors', payload: page });
+  assert.deepEqual(calls[1], { action: 'threads:upsert-author', payload: { ...page, authorKey: 'alice', name: 'Alice', avatarUrl: '' } });
+  const body = (g.document as { body: { dataset: Record<string, string> } }).body;
+  const saved = body.dataset;
+  body.dataset = {};
+  try {
+    await api.fetchAuthors();
+    await api.whoami();
+  } finally {
+    body.dataset = saved;
+  }
+  assert.deepEqual(calls.slice(2), [
+    { action: 'threads:get-authors', payload: {} },
+    { action: 'threads:whoami', payload: {} },
+  ]);
 });
 
 test('discardReview sends the identity and the review id and turns a forbidden rejection into a ThreadsClientError', async () => {
