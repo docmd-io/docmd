@@ -3,6 +3,7 @@ import { state } from 'lit/decorators.js';
 import { defineOnce } from './define';
 import { repeat } from 'lit/directives/repeat.js';
 import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
+import { whenLive } from '../lib/when-live';
 import * as api from '../lib/api';
 import { initIdentity, getIdentityPayload, getIdentityMode, getViewer, canShowFor, PROFILE_SAVED_EVENT } from '../lib/identity';
 import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent, pathHasThreadsElement } from '../lib/selection';
@@ -141,6 +142,8 @@ export class ThreadsApp extends LitElement {
     document.removeEventListener(PROFILE_SAVED_EVENT, this.handleProfileSaved);
     document.removeEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
     this.publishMount.stop();
+    this.cancelLiveWatch?.();
+    this.cancelLiveWatch = null;
   }
 
   override connectedCallback(): void {
@@ -155,6 +158,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
 
     this.initPanel();
+    this.watchLive();
 
     // Who the caller is decides which buttons render and whether a name is ever asked: learn it first.
     this.identityReady = initIdentity(api.whoami).then(() => { this.identityKnown = true; });
@@ -523,6 +527,19 @@ export class ThreadsApp extends LitElement {
     if (this.panelEl) this.panelEl.unpublished = count;
   };
 
+  /** Reacting and replying need a live server and a known caller; the cards offer neither without them. */
+  private canWrite(): boolean {
+    const live = typeof docmd !== 'undefined' && !!docmd.isLive?.();
+    return live && getViewer().key !== null;
+  }
+
+  /** The socket may open after the first render: draw the cards again once it is live. */
+  private cancelLiveWatch: (() => void) | null = null;
+  private watchLive(): void {
+    if (typeof docmd === 'undefined' || !docmd.isLive || this.cancelLiveWatch) return;
+    this.cancelLiveWatch = whenLive(() => docmd.isLive!(), () => { if (this.hydrated) this.renderCards(); });
+  }
+
   /** The publish widget exists only against a live server. */
   private mountPublishWidget(): void {
     if (typeof docmd === 'undefined' || !docmd.isLive) return;
@@ -610,6 +627,8 @@ export class ThreadsApp extends LitElement {
       profileUrl: this.profileUrl,
       reactionOptions: this.reactionOptions(),
       canShow: canShowFor,
+      canReact: this.canWrite(),
+      canReply: this.canWrite(),
       localMode: getIdentityMode().mode === 'local',
       color: this.colors.get(thread.id) ?? ('neutral' as CardColor),
       quote: this.quoteFor(thread),
