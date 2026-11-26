@@ -41,7 +41,16 @@ export interface Comment {
 
 export interface Reaction {
   emoji: string;
-  authors: string[];
+  reactors: Reactor[];
+}
+
+/**
+ * One person who reacted. `key` is their identity key; `null` for an entry stored by name only
+ * (written before keys were recorded).
+ */
+export interface Reactor {
+  key: string | null;
+  name: string;
 }
 
 export interface Anchor {

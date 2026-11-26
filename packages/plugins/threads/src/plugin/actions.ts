@@ -14,6 +14,8 @@ import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, 
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
+import { hasCaller } from './reactors.js';
+import { isSingleEmoji } from '../shared/emoji.js';
 import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
@@ -367,12 +369,20 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
   'threads:toggle-reaction': async (payload, ctx): Promise<Reaction[]> => {
     const caller = await begin(ctx, payload, 'threads:toggle-reaction', ['file', 'threadId', 'commentId', 'emoji']);
     const { threadId, commentId, emoji } = payload;
+    // One emoji only: anything else would reach the markdown line (commas, line breaks).
+    if (!isSingleEmoji(emoji)) throw new ThreadsError('invalid', 'threads:toggle-reaction: emoji must be a single emoji');
+    const { reactions: allowed } = getOptions(ctx);
     const view = await transact(ctx, caller, payload, (tx) => {
-      findComment(findThread(tx.view, threadId), commentId);
+      const target = findComment(findThread(tx.view, threadId), commentId);
       // On a drafted comment a second toggle of the same emoji cancels the first.
       const pending = draftedCommentOp(tx, commentId)
         ? opsOnComment(tx, commentId).find((o) => o.kind === 'toggle-reaction' && o.emoji === emoji)
         : undefined;
+      // A restricted site refuses new reactions outside its list, but never traps an old one: taking
+      // back the caller's own reaction (published, or drafted and now cancelled) is always allowed.
+      if (allowed.restricted && !allowed.emoji.includes(emoji) && !pending && !hasCaller(target.reactions.find((r) => r.emoji === emoji), caller)) {
+        throw new ThreadsError('reaction-not-allowed', `threads:toggle-reaction: ${emoji} is not one of the allowed reactions`);
+      }
       if (pending) drop(tx, [pending]);
       else push(tx, { kind: 'toggle-reaction', file: tx.file, threadId, commentId, emoji });
     });

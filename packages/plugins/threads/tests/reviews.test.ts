@@ -79,7 +79,7 @@ test('applyOps writes each op kind with its tokens, mark and anchor, and records
   assert.deepEqual([added.comments[0].authorKey, added.comments[0].reviewId, added.comments[0].body], ['k-alice', 'r-00000001', 'New thread']);
   const t1 = threads.find((t) => t.id === 't-1')!;
   assert.deepEqual(t1.comments.map((c) => [c.id, c.body, c.edited_at]), [['c-2', 'Second, edited.', '2026-03-10']]);
-  assert.deepEqual(t1.comments[0].reactions, [{ emoji: '🎉', authors: ['Alice'] }]);
+  assert.deepEqual(t1.comments[0].reactions, [{ emoji: '🎉', reactors: [{ key: 'k-alice', name: 'Alice' }] }]);
   assert.deepEqual(threads.find((t) => t.id === 't-2')!.resolved_by, 'Alice');
 
   assert.equal(by(applied, 'add-thread').quote, 'plain target text');
@@ -278,6 +278,27 @@ test('applying twice gives the same page for add, edit and delete ops; a foreign
   assert.match(foreign.skipped[0].reason, /already exists/);
 });
 
+test('deriveTargets matches the caller by key, and by name only for a key-less entry', () => {
+  const page = PAGE.replace('- 👍 Bob', '- 👍 Bob {k-bob}, Alice, Twin {k-twin}');
+  const op = mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' });
+  const targetFor = (caller: { key: string; name: string }) => deriveTargets(page, [op], caller)[op.opId];
+  assert.equal(targetFor({ key: 'k-bob', name: 'Renamed Bob' }), false, 'same key, other name: present, so the toggle removes');
+  assert.equal(targetFor({ key: 'k-alice', name: 'Alice' }), false, 'a key-less entry with the caller\'s name is theirs');
+  assert.equal(targetFor({ key: 'k-twin', name: 'Twin' }), false);
+  assert.equal(targetFor({ key: 'k-other', name: 'Twin' }), true, 'same name as a keyed entry, other key: not present, so the toggle adds');
+  assert.equal(targetFor({ key: 'k-new', name: 'Newcomer' }), true);
+});
+
+test('applyOps writes a new reactor as name {key} and removes only the caller\'s own entry', () => {
+  const add = mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' });
+  const added = applyOps(PAGE, [add], OPTS);
+  assert.match(added.content, /- 👍 Bob, Alice \{k-alice\}/);
+  const twin = applyOps(added.content.replace('Alice {k-alice}', 'Alice {k-twin}'), [add], OPTS);
+  assert.match(twin.content, /- 👍 Bob, Alice \{k-twin\}, Alice \{k-alice\}/, 'a different person named Alice does not count as the caller');
+  const removed = applyOps(added.content, [add], OPTS);
+  assert.match(removed.content, /- 👍 Bob\n/);
+});
+
 test('toggle ops set the state deriveTargets computed from the first read, so a re-run changes nothing', () => {
   const ops = [
     mk({ kind: 'resolve-thread', file: FILE, threadId: 't-1' }),
@@ -285,7 +306,7 @@ test('toggle ops set the state deriveTargets computed from the first read, so a 
     mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' }),
     mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-2', emoji: '🎉' }),
   ];
-  const targets = deriveTargets(PAGE, ops, OPTS.authorName);
+  const targets = deriveTargets(PAGE, ops, { key: OPTS.authorKey, name: OPTS.authorName });
   assert.deepEqual(targets, {
     [ops[0].opId]: true, // t-1 is open in PAGE, so resolving it targets resolved
     [ops[1].opId]: true,
@@ -392,7 +413,7 @@ test('a retried apply reuses the first read\'s toggle targets', async () => {
   const after = pageThreads(FILE).find((t) => t.id === 't-thread2')!;
   assert.equal(after.resolved, !once.resolved, 'resolved by the first attempt, still resolved after the second');
   const reactions = after.comments.find((c) => c.id === 'c2-1')!.reactions ?? [];
-  assert.equal(reactions.some((r) => r.emoji === '🎉' && r.authors.includes('Alice')), true);
+  assert.equal(reactions.some((r) => r.emoji === '🎉' && r.reactors.some((p) => p.name === 'Alice' && p.key === 'k-alice')), true);
 });
 
 test('publish-review writes two pages and a manifest; the journal is emptied; get-threads is unchanged by it', async () => {
@@ -698,7 +719,7 @@ test('in the failed-reset window edits and deletes of the published comments rea
   const view = await getThreads(FILE);
   const t2 = view.find((t) => t.id === 't-thread2')!;
   assert.equal(t2.resolved, true, 'a resolve the review published is not flipped back');
-  assert.deepEqual(t2.comments[0].reactions, [{ emoji: '🎉', authors: ['Alice'] }]);
+  assert.deepEqual(t2.comments[0].reactions, [{ emoji: '🎉', reactors: [{ key: 'k-alice', name: 'Alice' }] }]);
   assert.deepEqual((await real.load('k-alice')).ops, [], 'get-threads finished the earlier publish');
 
   await call('threads:edit-comment', { file: FILE, threadId: 't-thread2', commentId: 'c-rep', body: 'edited', ...who });

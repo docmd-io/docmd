@@ -1,5 +1,6 @@
 // Import createDepthTrackingContainer from the parser package
 import { createDepthTrackingContainer } from '@docmd/parser';
+import { parseReactions } from './parser.js';
 
 interface ThreadInfo {
   id: string;
@@ -181,6 +182,37 @@ function setupAnchorContainer(md: AnchorMarkdown): void {
 }
 
 /**
+ * `::: reactions` - the reactions of one comment. Not a generic container: its lines carry
+ * identity keys (`- 👍 Alice {alice}`), which must never reach the page, and a Markdown list
+ * would print them. The raw lines go through `parseReactions` and come out as
+ * `<div class="threads-reactions"><ul><li>👍 Alice, Bob</li></ul></div>`: names only, escaped.
+ */
+function setupReactionsContainer(md: AnchorMarkdown): void {
+  md.block.ruler.before('fence', 'custom_reactions', (state, startLine, endLine, silent) => {
+    const start = state.bMarks[startLine] + state.tShift[startLine];
+    if (!/^:::\s*reactions$/.test(state.src.slice(start, state.eMarks[startLine]).trim())) return false;
+
+    let nextLine = startLine + 1;
+    while (nextLine < endLine) {
+      const s = state.bMarks[nextLine] + state.tShift[nextLine];
+      if (state.src.slice(s, state.eMarks[nextLine]).trim() === ':::') break;
+      nextLine++;
+    }
+    if (nextLine >= endLine) return false;
+    if (silent) return true;
+
+    const lines: string[] = [];
+    for (let i = startLine + 1; i < nextLine; i++) lines.push(state.src.slice(state.bMarks[i], state.eMarks[i]));
+    const esc = md.utils.escapeHtml;
+    const items = parseReactions(lines).map((r) => `<li>${esc(r.emoji)} ${r.reactors.map((p) => esc(p.name)).join(', ')}</li>`);
+    const token = state.push('html_block', '', 0);
+    token.content = `<div class="threads-reactions"><ul>${items.join('')}</ul></div>\n`;
+    state.line = nextLine + 1;
+    return true;
+  }, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
+}
+
+/**
  * Parse a thread info string.
  * Format: `<id> [resolved "<by>" "<date>"]`
  */
@@ -316,12 +348,6 @@ export function setup(md: any): void {
   };
   md.renderer.rules.custom_comment_close = () => '</div></div>\n';
 
-  // 4. reactions - reactions container
-  createDepthTrackingContainer(
-    md,
-    'reactions',
-    () => '<div class="threads-reactions">\n',
-    () => '</div>\n'
-  );
-
+  // 4. reactions - names only, never keys
+  setupReactionsContainer(md);
 }

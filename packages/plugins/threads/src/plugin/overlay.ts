@@ -1,13 +1,14 @@
 import type { Thread, Comment, DraftOp } from '../types.js';
+import { addCaller, hasCaller, removeCaller, type ReactionCaller } from './reactors.js';
 
 const day = (iso: string) => iso.slice(0, 10);
 
 /**
  * Apply a journal's ops for one file onto the published threads. Pure: the
  * input is not modified. Ops whose target is gone are ignored. `who` is the
- * journal owner (reactions and resolves are recorded under their name).
+ * journal owner (reactions are recorded under their key and name, resolves under their name).
  */
-export function overlay(threads: Thread[], ops: DraftOp[], file: string, who: { name: string }): Thread[] {
+export function overlay(threads: Thread[], ops: DraftOp[], file: string, who: ReactionCaller): Thread[] {
   const out: Thread[] = structuredClone(threads);
   const thread = (id: string) => out.find((t) => t.id === id);
 
@@ -71,15 +72,8 @@ export function overlay(threads: Thread[], ops: DraftOp[], file: string, who: { 
         const c = thread(op.threadId)?.comments.find((x) => x.id === op.commentId);
         if (!c) break;
         c.reactions ??= [];
-        const r = c.reactions.find((x) => x.emoji === op.emoji);
-        if (!r) {
-          c.reactions.push({ emoji: op.emoji, authors: [who.name] });
-        } else if (r.authors.includes(who.name)) {
-          r.authors = r.authors.filter((a) => a !== who.name);
-          if (!r.authors.length) c.reactions = c.reactions.filter((x) => x !== r);
-        } else {
-          r.authors.push(who.name);
-        }
+        if (hasCaller(c.reactions.find((x) => x.emoji === op.emoji), who)) c.reactions = removeCaller(c.reactions, op.emoji, who);
+        else addCaller(c.reactions, op.emoji, who);
         break;
       }
     }

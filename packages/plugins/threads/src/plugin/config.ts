@@ -1,4 +1,5 @@
 import { ThreadsError } from './errors.js';
+import { DEFAULT_REACTION_EMOJI, isSingleEmoji } from '../shared/emoji.js';
 
 export interface ThreadsOptions {
   sidebar: boolean;
@@ -8,6 +9,8 @@ export interface ThreadsOptions {
   permissions: { admins: string[]; resolve: 'anyone' | 'author' };
   /** Guards against a runaway agent: the longest comment body (code points) and the most new threads plus comments per author key per minute. */
   limits: { maxCommentChars: number; commentsPerMinute: number };
+  /** The emoji offered on every comment, and whether others are refused. */
+  reactions: { emoji: string[]; restricted: boolean };
   /** Git sync of published reviews; used under `docmd serve` only. `null` is off. */
   git: null | {
     branch: string;
@@ -125,6 +128,17 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
     };
   }
 
+  const rx = section(raw, 'reactions');
+  const emoji = rx.emoji ?? [...DEFAULT_REACTION_EMOJI];
+  if (!Array.isArray(emoji) || !emoji.length || emoji.length > 20) bad('reactions.emoji', 'must be an array of 1 to 20 emoji');
+  const list = emoji as unknown[];
+  list.forEach((e, i) => {
+    if (!isSingleEmoji(e)) bad('reactions.emoji', `entry ${i} must be a single emoji`);
+  });
+  if (new Set(list).size !== list.length) bad('reactions.emoji', 'must not repeat an emoji');
+  const restricted = rx.restricted ?? false;
+  if (typeof restricted !== 'boolean') bad('reactions.restricted', 'must be a boolean');
+
   return {
     sidebar: optionalBoolean(raw, 'sidebar', false),
     autoPublish,
@@ -133,6 +147,7 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
       maxCommentChars: positiveInteger(lim, 'limits', 'maxCommentChars', 5000),
       commentsPerMinute: positiveInteger(lim, 'limits', 'commentsPerMinute', 10),
     },
+    reactions: { emoji: [...(list as string[])], restricted: restricted as boolean },
     git,
   };
 }

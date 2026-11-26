@@ -107,7 +107,39 @@ test('reactions container', () => {
 `;
 
   const html6 = md.render(reactionsInput);
-  has(html6, 'class="threads-reactions"');
+  has(html6, '<div class="threads-reactions"><ul><li>👍 alice, bob</li><li>🎉 charlie</li></ul></div>');
+});
+
+const reactionsPage = (lines: string) => `::: threads
+  ::: thread t-r002
+    ::: comment c-r002 "frank" "2026-07-01"
+      Body
+
+      ::: reactions
+${lines}
+      :::
+    :::
+  :::
+:::
+`;
+
+test('reactions block shows names only: identity keys never reach the page', () => {
+  const html = md.render(reactionsPage('        - 👍 Alice Smith {alice-key}, Bob {8812031}\n        - 🎉 Old Name'));
+  has(html, '<div class="threads-reactions"><ul><li>👍 Alice Smith, Bob</li><li>🎉 Old Name</li></ul></div>');
+  for (const secret of ['alice-key', '8812031', '{', '}']) lacks(html, secret);
+});
+
+test('reactions block: escaped separators in names, two people with one name, HTML escaped', () => {
+  const html = md.render(reactionsPage('        - 👍 Smith\\, Anna {a\\,b}, Twin {t1}, Twin {t2}, <b>Eve</b> {e&k}, "Q" {q}'));
+  has(html, '<li>👍 Smith, Anna, Twin, Twin, &lt;b&gt;Eve&lt;/b&gt;, &quot;Q&quot;</li>');
+  lacks(html, '<b>Eve</b>');
+  for (const secret of ['a,b', 't1', 'e&amp;k', 'e&k']) lacks(html, secret);
+});
+
+test('reactions block: the comment body around it still renders and a block with no entries is an empty list', () => {
+  const html = md.render(reactionsPage('        not a reaction line'));
+  has(html, '<div class="threads-reactions"><ul></ul></div>');
+  has(html, 'Body');
 });
 
 test('multiple threads', () => {

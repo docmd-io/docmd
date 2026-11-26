@@ -90,12 +90,32 @@ for (const row of rows) {
     const author = row.author ?? 'Alice';
     const done = appliedRows.get(row.name)!;
     assert.match(done.content, row.changes, 'the op changed the page');
-    const back = reverseOps(done.content, done.applied, { authorName: author });
+    const back = reverseOps(done.content, done.applied, { authorKey: `k-${author}`, authorName: author });
     assert.deepEqual(back.skipped, []);
-    assert.deepEqual(parser.parseThreadsFromContent(back.content), parser.parseThreadsFromContent(NORMAL));
-    assert.equal(back.content, NORMAL);
+    // Putting a taken-back old name-only reaction back writes it with its key: the same reaction, now with an id.
+    const expected = row.name === 'toggle-reaction (remove)' ? NORMAL.replace('👍 Bob', '👍 Bob {k-Bob}') : NORMAL;
+    assert.deepEqual(parser.parseThreadsFromContent(back.content), parser.parseThreadsFromContent(expected));
+    assert.equal(back.content, expected);
   });
 }
+
+test('reverseOps matches the reviewer by key: a reviewer renamed since the publish still takes their reaction back', () => {
+  const done = apply([mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-2', emoji: '🎉' })]);
+  assert.match(done.content, /🎉 Alice \{k-Alice\}/, 'published with the key and the name');
+  // the manifest records the name at publish time; the file's entry carries the same name here, so rename the entry
+  const renamed = done.content.replace('🎉 Alice {k-Alice}', '🎉 Alice Renamed {k-Alice}');
+  const back = reverseOps(renamed, done.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
+  assert.deepEqual(back.skipped, []);
+  assert.equal(back.content, NORMAL);
+});
+
+test('reverseOps leaves another person with the same name alone', () => {
+  const done = apply([mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-2', emoji: '🎉' })]);
+  const twin = done.content.replace('🎉 Alice {k-Alice}', '🎉 Alice {k-Alice}, Alice {k-other}');
+  const back = reverseOps(twin, done.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
+  assert.match(back.content, /🎉 Alice \{k-other\}/);
+  assert.doesNotMatch(back.content, /k-Alice\}/);
+});
 
 test('reverseOps removes a started thread with a later reply by someone else', () => {
   const started = appliedRows.get('add-thread (single-line highlight)')!;
@@ -105,7 +125,7 @@ test('reverseOps removes a started thread with a later reply by someone else', (
     'Bob',
   );
   assert.match(withBob.content, /c-bob/);
-  const back = reverseOps(withBob.content, started.applied, { authorName: 'Alice' });
+  const back = reverseOps(withBob.content, started.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
   assert.deepEqual(back.skipped, []);
   assert.equal(back.content, NORMAL);
 });
@@ -113,7 +133,7 @@ test('reverseOps removes a started thread with a later reply by someone else', (
 test('reverseOps re-parents later replies to a removed reply', () => {
   const r = apply([mk({ kind: 'add-comment', file: FILE, threadId: 't-2', commentId: 'c-r', parentId: 'c-3', body: 'R' })]);
   const later = apply([mk({ kind: 'add-comment', file: FILE, threadId: 't-2', commentId: 'c-bob', parentId: 'c-r', body: 'To R' })], r.content, 'Bob');
-  const back = reverseOps(later.content, r.applied, { authorName: 'Alice' });
+  const back = reverseOps(later.content, r.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
   const t2 = parser.parseThreadsFromContent(back.content).find((t) => t.id === 't-2')!;
   assert.deepEqual(t2.comments.map((c) => [c.id, c.parent_id]), [['c-3', null], ['c-bob', 'c-3']]);
 });
@@ -125,18 +145,18 @@ test('reverseOps skips ops whose target is gone, reverses the rest, is idempoten
   ]);
   // someone deleted t-new since the publish
   const gone = parser.replaceThreadsBlock(ops.content, parser.parseThreadsFromContent(ops.content).filter((t) => t.id !== 't-new'));
-  const first = reverseOps(gone, ops.applied, { authorName: 'Alice' });
+  const first = reverseOps(gone, ops.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
   assert.deepEqual(first.skipped.map((s) => s.opId), [ops.applied[0].opId]);
   assert.match(first.skipped[0].reason, /t-new/);
   assert.equal(first.content, NORMAL);
-  const second = reverseOps(first.content, ops.applied, { authorName: 'Alice' });
+  const second = reverseOps(first.content, ops.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
   assert.equal(second.content, first.content);
 });
 
 test('reverseOps returns an input it changes nothing in as the same string, even when it is not in serializer form', () => {
   assert.notEqual(PAGE, NORMAL, 'the raw page differs from its re-serialized form');
   const absent = apply([mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: null, body: 'New' })]);
-  const back = reverseOps(PAGE, absent.applied, { authorName: 'Alice' });
+  const back = reverseOps(PAGE, absent.applied, { authorKey: 'k-Alice', authorName: 'Alice' });
   assert.equal(back.content, PAGE);
   assert.deepEqual(back.skipped.map((x) => x.reason), ['thread t-new not found']);
 });
@@ -147,13 +167,13 @@ test('reverseOps undoes several ops on one comment newest first', () => {
     mk({ kind: 'edit-comment', file: FILE, threadId: 't-1', commentId: 'c-2', body: 'Second edit' }),
   ]);
   assert.match(twice.content, /Second edit/);
-  assert.equal(reverseOps(twice.content, twice.applied, { authorName: 'Alice' }).content, NORMAL);
+  assert.equal(reverseOps(twice.content, twice.applied, { authorKey: 'k-Alice', authorName: 'Alice' }).content, NORMAL);
 });
 
 test('reverseOps skips an edit with no recorded before-state', () => {
   const edit = apply([mk({ kind: 'edit-comment', file: FILE, threadId: 't-1', commentId: 'c-2', body: 'Changed' })]);
   const bare = edit.applied.map(({ before: _before, ...rest }) => rest);
-  const back = reverseOps(edit.content, bare as never, { authorName: 'Alice' });
+  const back = reverseOps(edit.content, bare as never, { authorKey: 'k-Alice', authorName: 'Alice' });
   assert.deepEqual(back.skipped.map((s) => s.reason), ['no recorded before-state']);
   assert.equal(back.content, edit.content);
 });

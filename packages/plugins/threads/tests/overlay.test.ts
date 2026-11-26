@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { overlay } from '../src/plugin/overlay.ts';
 import type { Thread, DraftOp } from '../src/types.ts';
 
-const who = { name: 'Me' };
+const who = { key: 'me', name: 'Me' };
 const F = 'docs/a.md';
 const at = '2026-04-01T10:00:00.000Z';
 const published = (): Thread[] => [{
@@ -11,7 +11,7 @@ const published = (): Thread[] => [{
   comments: [
     { id: 'c-1', thread_id: 't-pub', parent_id: null, author: 'Ann', date: '2026-01-01', edited_at: null, body: 'one', reactions: [] },
     { id: 'c-2', thread_id: 't-pub', parent_id: null, author: 'Bo', date: '2026-01-02', edited_at: null, body: 'two',
-      reactions: [{ emoji: '👍', authors: ['Ann'] }] },
+      reactions: [{ emoji: '👍', reactors: [{ key: 'ann', name: 'Ann' }] }] },
   ],
 }];
 const base = { opId: 'o', at, file: F };
@@ -56,12 +56,12 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
     assert.deepEqual([t[0].resolved, t[0].resolved_by, t[0].resolved_at], [false, null, null]);
   }],
   ['toggle-reaction joins an existing reaction', [{ ...base, kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-2', emoji: '👍' }], (t) => {
-    assert.deepEqual(t[0].comments[1].reactions, [{ emoji: '👍', authors: ['Ann', 'Me'] }]);
+    assert.deepEqual(t[0].comments[1].reactions, [{ emoji: '👍', reactors: [{ key: 'ann', name: 'Ann' }, { key: 'me', name: 'Me' }] }]);
   }],
   ['toggle-reaction leaves an existing reaction', [
     { ...base, kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-2', emoji: '👍' },
     { ...base, opId: 'o2', kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-2', emoji: '👍' },
-  ], (t) => assert.deepEqual(t[0].comments[1].reactions, [{ emoji: '👍', authors: ['Ann'] }])],
+  ], (t) => assert.deepEqual(t[0].comments[1].reactions, [{ emoji: '👍', reactors: [{ key: 'ann', name: 'Ann' }] }])],
   ['toggle-reaction new, then off removes the reaction', [
     { ...base, kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-1', emoji: '🎉' },
     { ...base, opId: 'o2', kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-1', emoji: '🎉' },
@@ -76,7 +76,7 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
   ['ops apply in order: a drafted comment can be reacted to', [
     { ...base, kind: 'add-comment', threadId: 't-pub', commentId: 'c-3', parentId: null, body: 'r' },
     { ...base, opId: 'o2', kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-3', emoji: '❤️' },
-  ], (t) => assert.deepEqual(t[0].comments[2].reactions, [{ emoji: '❤️', authors: ['Me'] }])],
+  ], (t) => assert.deepEqual(t[0].comments[2].reactions, [{ emoji: '❤️', reactors: [{ key: 'me', name: 'Me' }] }])],
 ];
 
 for (const [name, ops, check] of table) {
@@ -86,3 +86,34 @@ for (const [name, ops, check] of table) {
     assert.deepEqual(input, published(), 'input is not mutated');
   });
 }
+
+// Who "the caller" is in a reaction: the same key, or a key-less (old, name-only) entry with the same name.
+const reactionsOf = (reactions: Thread['comments'][number]['reactions']): Thread[] => {
+  const t = published();
+  t[0].comments[1].reactions = reactions;
+  return t;
+};
+const toggle = (opId = 'o'): DraftOp => ({ ...base, opId, kind: 'toggle-reaction', threadId: 't-pub', commentId: 'c-2', emoji: '👍' });
+
+test('overlay: a key-less entry with the caller\'s name is the caller\'s: toggling removes it', () => {
+  const out = overlay(reactionsOf([{ emoji: '👍', reactors: [{ key: null, name: 'Me' }, { key: 'ann', name: 'Ann' }] }]), [toggle()], F, who);
+  assert.deepEqual(out[0].comments[1].reactions, [{ emoji: '👍', reactors: [{ key: 'ann', name: 'Ann' }] }]);
+});
+
+test('overlay: another person with the same name is not the caller', () => {
+  const out = overlay(reactionsOf([{ emoji: '👍', reactors: [{ key: 'other-me', name: 'Me' }] }]), [toggle()], F, who);
+  assert.deepEqual(out[0].comments[1].reactions, [{ emoji: '👍', reactors: [{ key: 'other-me', name: 'Me' }, { key: 'me', name: 'Me' }] }]);
+});
+
+test('overlay: a renamed caller still removes their own reaction by key', () => {
+  const out = overlay(reactionsOf([{ emoji: '👍', reactors: [{ key: 'me', name: 'Old Name' }] }]), [toggle()], F, who);
+  assert.deepEqual(out[0].comments[1].reactions, []);
+});
+
+test('overlay: an entry with another key and the caller\'s name stays when the caller removes their own', () => {
+  const out = overlay(
+    reactionsOf([{ emoji: '👍', reactors: [{ key: 'other-me', name: 'Me' }, { key: 'me', name: 'Me' }] }]),
+    [toggle()], F, who,
+  );
+  assert.deepEqual(out[0].comments[1].reactions, [{ emoji: '👍', reactors: [{ key: 'other-me', name: 'Me' }] }]);
+});

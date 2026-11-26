@@ -265,11 +265,115 @@ for (const row of rows) {
 test('toggle-reaction returns the overlaid reactions and edit-comment the overlaid comment', async () => {
   const t = await addThread();
   const { result: reactions } = await call<Reaction[]>('threads:toggle-reaction', as(ALICE, { threadId: 't-thread1', commentId: 'c1-1', emoji: '🎉' }));
-  assert.deepEqual(reactions, [{ emoji: '🎉', authors: ['Alice'] }]);
+  assert.deepEqual(reactions, [{ emoji: '🎉', reactors: [{ key: 'alice', name: 'Alice' }] }]);
   const { result: edited } = await call<Comment>('threads:edit-comment', as(ALICE, { threadId: t.id, commentId: t.comments[0].id, body: 'v2' }));
   assert.deepEqual([edited.body, edited.author], ['v2', 'Alice']);
   const { result: resolved } = await call<Thread>('threads:resolve-thread', as(ALICE, { threadId: 't-thread1' }));
   assert.deepEqual([resolved.resolved, resolved.resolved_by, resolved.resolved_at], [true, 'Alice', '2026-03-10']);
+});
+
+/** A page whose one comment already carries `reactionLines` (inside its reactions block). */
+const pageWithReactions = (reactionLines: string) => {
+  fs.writeFileSync(safePath(project.root, project.file), `# Page
+
+::: threads
+  ::: thread t-rx
+    ::: comment c-rx "Bob" "2026-01-01"
+      Body
+
+      ::: reactions
+${reactionLines}
+      :::
+    :::
+  :::
+:::
+`);
+};
+const react = (emoji: unknown, who: Record<string, string> = ALICE, extra: Partial<TestCtx> = {}) =>
+  call<Reaction[]>('threads:toggle-reaction', as(who, { threadId: 't-rx', commentId: 'c-rx', emoji }), extra);
+const config = (reactions: Record<string, unknown>): Partial<TestCtx> => ({ config: { src: 'docs', plugins: { threads: { reactions } } } });
+const RESTRICTED = config({ emoji: ['👍', '🎉'], restricted: true });
+
+test('toggle-reaction accepts exactly one emoji, in both modes; nothing else reaches the markdown', async () => {
+  pageWithReactions('        - 👍 Bob {bob}');
+  const modes: Array<[string, Partial<TestCtx>, Record<string, string>]> = [
+    ['dev', {}, ALICE],
+    ['serve', { mode: 'serve', caller: { identity: 'alice' } }, {}],
+  ];
+  for (const [mode, extra, who] of modes) {
+    for (const bad of ['x', 'a,b', '👍,Mallory', '👍\n- 🎉 Mallory {m}', '👍\n', '👍👎', '👍 👎', ' 👍', 'ab👍', '', '   ', 5, null, ['👍'], { emoji: '👍' }]) {
+      await assert.rejects(react(bad, who, extra), (e: Error) => e.message.startsWith('threads/invalid'), `${mode}: ${JSON.stringify(bad)}`);
+    }
+  }
+  assert.equal(fs.existsSync(journalPath('alice')), false, 'a refused toggle records nothing');
+});
+
+test('toggle-reaction on an unrestricted site accepts any single emoji, skin-tone, flag and ZWJ sequences included', async () => {
+  pageWithReactions('        - 👍 Bob {bob}');
+  for (const emoji of ['🦄', '👍🏽', '🇧🇷', '👨‍👩‍👧', '1️⃣', '❤️']) {
+    const { result } = await react(emoji);
+    assert.deepEqual(result.find((r) => r.emoji === emoji)?.reactors, [{ key: 'alice', name: 'Alice' }], emoji);
+  }
+  assert.equal(journalOps('alice').length, 6);
+});
+
+test('toggle-reaction on a restricted site refuses unlisted emoji with threads/reaction-not-allowed and allows listed ones', async () => {
+  pageWithReactions('        - 👍 Bob {bob}');
+  await assert.rejects(react('🦄', ALICE, RESTRICTED), (e: Error) => e instanceof ThreadsError && e.code === 'reaction-not-allowed' && e.message.startsWith('threads/reaction-not-allowed:'));
+  assert.equal(fs.existsSync(journalPath('alice')), false, 'nothing was recorded');
+  const { result } = await react('🎉', ALICE, RESTRICTED);
+  assert.deepEqual(result.map((r) => r.emoji), ['👍', '🎉']);
+  // joining another person's reaction on an unlisted emoji is adding too
+  pageWithReactions('        - 🦄 Bob {bob}');
+  await assert.rejects(react('🦄', ALICE, RESTRICTED), /reaction-not-allowed/);
+  // a malformed emoji is invalid before the list is consulted
+  await assert.rejects(react('nope', ALICE, RESTRICTED), /^Error: threads\/invalid|threads\/invalid/);
+});
+
+test('a restricted site still lets the caller take back their own reaction on an emoji no longer listed', async () => {
+  const fresh = () => fs.rmSync(path.join(docsRoot, '.threads'), { recursive: true, force: true });
+  // by key
+  pageWithReactions('        - 🦄 Bob {bob}, Alice {alice}');
+  let { result } = await react('🦄', ALICE, RESTRICTED);
+  assert.deepEqual(result, [{ emoji: '🦄', reactors: [{ key: 'bob', name: 'Bob' }] }]);
+  // an old name-only entry with the caller's name
+  fresh();
+  pageWithReactions('        - 🦄 Alice, Bob {bob}');
+  ({ result } = await react('🦄', ALICE, RESTRICTED));
+  assert.deepEqual(result, [{ emoji: '🦄', reactors: [{ key: 'bob', name: 'Bob' }] }]);
+  // a renamed caller: the stored name is the old one, the key matches
+  fresh();
+  pageWithReactions('        - 🦄 Alice Before {alice}');
+  ({ result } = await react('🦄', ALICE, RESTRICTED));
+  assert.deepEqual(result, []);
+});
+
+test('a restricted site treats another person with the caller\'s name as someone else', async () => {
+  pageWithReactions('        - 🦄 Alice {alice-the-other}');
+  await assert.rejects(react('🦄', ALICE, RESTRICTED), /reaction-not-allowed/);
+});
+
+test('a restricted site lets the caller cancel their own drafted toggle of an emoji that is no longer listed', async () => {
+  pageWithReactions('        - 👍 Bob {bob}');
+  const open = config({ emoji: ['👍'], restricted: false });
+  await react('🦄', ALICE, open);
+  assert.equal(journalOps('alice').length, 1);
+  const { result } = await react('🦄', ALICE, RESTRICTED);
+  assert.deepEqual(result.map((r) => r.emoji), ['👍'], 'the drafted reaction is gone from the view');
+  assert.equal(journalOps('alice').length, 2, 'on a published comment the second toggle is a second op that undoes the first');
+});
+
+test('the same restricted rule holds under serve, keyed on the trusted identity', async () => {
+  pageWithReactions('        - 🦄 Alice {alice}');
+  const serve: Partial<TestCtx> = { ...RESTRICTED, mode: 'serve', caller: { identity: 'alice' } };
+  await assert.rejects(react('🐙', {}, serve), /reaction-not-allowed/);
+  const { result } = await react('🦄', {}, serve);
+  assert.deepEqual(result, []);
+});
+
+test('generateScripts hands the client the reactions option, both fields', () => {
+  const out = plugin.generateScripts({ src: 'docs' }, { reactions: { emoji: ['🎉', '🚀'], restricted: true } });
+  assert.ok(out.bodyScriptsHtml.includes('"reactions":{"emoji":["🎉","🚀"],"restricted":true}'), out.bodyScriptsHtml);
 });
 
 test('deleting a drafted comment removes its drafted replies, transitively, and ops on them', async () => {
@@ -558,8 +662,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}';
-  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}};'));
+  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false}';
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false}};'));
   for (const opts of [{}, undefined]) {
     const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
     assert.ok(out.bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));

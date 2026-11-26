@@ -3,7 +3,7 @@
  * the dispatcher returns plain error messages, and clients read the prefix.
  */
 
-export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config' | 'no-identity' | 'email-identity' | 'forbidden' | 'empty-review' | 'push-failed' | 'limit-chars' | 'rate-limited';
+export type ThreadsErrorCode = 'not-found' | 'invalid' | 'config' | 'no-identity' | 'email-identity' | 'forbidden' | 'empty-review' | 'push-failed' | 'limit-chars' | 'rate-limited' | 'reaction-not-allowed';
 
 export class ThreadsError extends Error {
   readonly code: ThreadsErrorCode;
