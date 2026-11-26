@@ -200,6 +200,38 @@ test('delete: with several comments it is a comment delete with the server\'s ta
   ]);
 });
 
+test('delete: in local mode only the viewer\'s own comment, by key or by name, or a draft', () => {
+  const always = () => true;
+  const ann = { key: 'ann-key', name: 'Ann' };
+  const thread = { comments: [c('a', { author: 'Bo', authorKey: 'bo-key' }), c('b', { author: 'Ann', authorKey: 'ann-key' }), c('d', { author: 'Cy', authorKey: 'cy-key', draft: true })] };
+  assert.equal(canDeleteComment(always, thread, 'a', ann, true), false, 'someone else\'s comment');
+  assert.equal(canDeleteComment(always, thread, 'b', ann, true), true, 'own comment by key');
+  assert.equal(canDeleteComment(always, thread, 'd', ann, true), true, 'a draft is always the caller\'s');
+  assert.equal(canDeleteComment(always, thread, 'a', ann, false), true, 'outside local mode the server rule decides');
+  assert.equal(canDeleteComment(always, thread, 'missing', ann, true), false, 'an unknown comment');
+});
+
+test('delete: in local mode the name match ignores case and spaces, and an empty name owns nothing', () => {
+  const always = () => true;
+  const thread = { comments: [c('a', { author: 'Ann Lee' }), c('b', { author: 'Bo' })] };
+  assert.equal(canDeleteComment(always, thread, 'a', { key: null, name: '  ann lee ' }, true), true);
+  assert.equal(canDeleteComment(always, thread, 'a', { key: null, name: '' }, true), false);
+  assert.equal(canDeleteComment(always, thread, 'b', { key: null, name: 'Ann Lee' }, true), false);
+  assert.equal(canDeleteComment(always, thread, 'a', { key: 'k', name: 'x' }, true), false, 'a key that matches nothing and another name');
+});
+
+test('delete: a lone comment is the thread, and in local mode only its author may delete it', () => {
+  const always = () => true;
+  const thread = { comments: [c('a', { author: 'Bo', authorKey: 'bo-key' })] };
+  assert.equal(canDeleteComment(always, thread, 'a', { key: 'ann-key', name: 'Ann' }, true), false);
+  assert.equal(canDeleteComment(always, thread, 'a', { key: 'bo-key', name: 'Bo' }, true), true);
+});
+
+test('delete: the server rule still decides first, in local mode too', () => {
+  const never = () => false;
+  assert.equal(canDeleteComment(never, { comments: [c('a', { author: 'Ann' })] }, 'a', { key: null, name: 'Ann' }, true), false);
+});
+
 // ---------------------------------------------------------------------------
 // colour, picker URLs
 // ---------------------------------------------------------------------------

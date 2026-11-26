@@ -16,7 +16,7 @@ import {
   Actor,
   ReplyToThread,
 } from "./screenplay.ts";
-import { clientKey, cleanThreads, inlineCard, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
+import { clientKey, cleanThreads, inlineCard, openPanel, panelCard, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
 
 let user: Actor;
 
@@ -187,6 +187,31 @@ test.describe("thread deletion", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("comment deletion", () => {
+  test("Delete is offered only on the viewer's own comments", async () => {
+    // Seeded as Alice (the comment limit is per author, and the specs of this file share TestUser's minute)
+    const { id: threadId } = await seedAndReload(user.page, {
+      author: "Alice",
+      body: "Alice's comment",
+      anchor: { quote: "verify core engine" },
+    });
+    await waitForClientProcessing(user.page);
+
+    // TestUser did not write it: no Delete
+    const card = inlineCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    await expect(card.locator("threads-comment")).toHaveCount(1);
+    await expect(card.locator('[part~="delete"]')).toHaveCount(0);
+    await openPanel(user.page);
+    await expect(panelCard(user.page, threadId).locator('[part~="delete"]')).toHaveCount(0);
+
+    // Under Alice's name, on the next load, it is hers to delete (the name matches without regard to case)
+    await setAuthor(user.page, "alice");
+    await user.page.reload({ waitUntil: "domcontentloaded" });
+    await user.page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
+    await waitForClientProcessing(user.page);
+    await expect(inlineCard(user.page, threadId).locator('[part~="delete"]')).toHaveCount(1, { timeout: 10_000 });
+  });
+
   test("deleting a reply leaves the root comment intact", async () => {
     const { id: threadId, comments } = await seedAndReload(user.page, {
       body: "Root comment",

@@ -33,7 +33,7 @@ const FLASH_MS = 2000;
  * rendered for each published comment; drafts and pending edits use their own `bodyHtml`), `authors`,
  * `viewer` (`{ key, name }`), `profileUrl` (pattern for profile links, or null), `reactionOptions`
  * (`{ options, restricted, pickerSrc, emojiDataSrc }`), `canShow(action, target)` (the permission mirror;
- * allows everything by default), `canReact` and `canReply` (both default to true; the app turns them off with no identity or no live server), `localMode` (the viewer is a local, unverified identity: Edit shows on
+ * allows everything by default), `canReact` and `canReply` (both default to true; the app turns them off with no identity or no live server), `localMode` (the viewer is a local, unverified identity: Edit and Delete show on
  * their own comments only), `variant` (`inline` | `panel`), `color` (a highlight name or `neutral`),
  * `quote` (text of the mark, or the stored quote of an orphan), `collapsed`, `flash` (clears itself).
  * Reflected: `data-thread-id`, `resolved`, `draft`, `orphaned`, `variant`, `color`, `collapsed`, `flash`.
@@ -262,7 +262,7 @@ export class ThreadsThread extends LitElement {
       .reactions=${toReactionViews(comment.reactions ?? [], this.authors, this.profileUrl)}
       .reactionOptions=${this.reactionOptions}
       .canEdit=${canEditComment(this.canShow, comment, this.viewer.name, this.localMode)}
-      .canDelete=${canDeleteComment(this.canShow, this.thread, comment.id)}
+      .canDelete=${canDeleteComment(this.canShow, this.thread, comment.id, this.viewer, this.localMode)}
       .canReact=${this.canReact}
       .canReply=${this.canReply}
       variant=${this.variant}

@@ -139,16 +139,33 @@ export function deleteScope(thread: Pick<Thread, 'comments'>): 'thread' | 'comme
   return thread.comments.length === 1 ? 'thread' : 'comment';
 }
 
-/** Whether to offer Delete on a comment, with the target the server checks for that scope. */
+/** Whether a comment is the viewer's own: an unpublished one, or one under the viewer's key or display name. */
+function isViewersComment(comment: Pick<Comment, 'author' | 'authorKey' | 'draft'>, viewer: { key: string | null; name: string }): boolean {
+  if (comment.draft) return true;
+  if (viewer.key && comment.authorKey === viewer.key) return true;
+  const name = viewer.name.trim().toLowerCase();
+  return name !== '' && (comment.author ?? '').trim().toLowerCase() === name;
+}
+
+/**
+ * Whether to offer Delete on a comment: the server's rule for that scope (the target is the thread's
+ * published authors for a lone comment, else the comment's own target), and in local mode, where the server
+ * lets anyone, only on the viewer's own comment, the same narrowing as Edit. Only an author (or an admin,
+ * which the server's rule lets through in header mode) sees a Delete that works for them.
+ */
 export function canDeleteComment(
   canShow: (action: ShowAction, target: ShowTarget) => boolean,
   thread: Pick<Thread, 'comments'>,
   commentId: string,
+  viewer: { key: string | null; name: string } = { key: null, name: '' },
+  localMode = false,
 ): boolean {
-  if (deleteScope(thread) === 'thread') {
-    return canShow('delete-thread', { authorKeys: thread.comments.filter((c) => !c.draft).map((c) => c.authorKey) });
-  }
-  return canShow('delete-comment', deleteCommentTarget(thread.comments, commentId));
+  const allowed = deleteScope(thread) === 'thread'
+    ? canShow('delete-thread', { authorKeys: thread.comments.filter((c) => !c.draft).map((c) => c.authorKey) })
+    : canShow('delete-comment', deleteCommentTarget(thread.comments, commentId));
+  if (!allowed || !localMode) return allowed;
+  const comment = thread.comments.find((c) => c.id === commentId);
+  return !!comment && isViewersComment(comment, viewer);
 }
 
 /** The highlight names a mark or card can wear; `neutral` is for threads with no mark. */
