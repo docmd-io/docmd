@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api.d.ts",
+      "default": "./dist/api.js"
     }
   },
   "docmd": {
@@ -26,7 +30,8 @@
     ]
   },
   "scripts": {
-    "build": "tsc && node build.js"
+    "build": "tsc && node build.js",
+    "test": "tsx --test tests/*.test.ts"
   },
   "files": [
     "dist",

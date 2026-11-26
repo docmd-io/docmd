@@ -89,7 +89,7 @@ test('plaintext fenced blocks are escaped without syntax-highlight spans', () =>
 });
 
 test('text and txt fenced blocks also skip syntax highlighting', () => {
-  for (const language of ['text', 'txt']) {
+  for (const language of ['text', 'txt', 'none', 'raw', 'nohighlight', 'no-highlight']) {
     const md = createMarkdownProcessor();
     const rendered = md.render(`\`\`\`${language}\na < b\n\`\`\``);
     assert.match(rendered, new RegExp(`<pre><code class="language-${language}">`));

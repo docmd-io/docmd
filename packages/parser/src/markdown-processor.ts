@@ -39,7 +39,7 @@ const DANGEROUS_URL_SCHEMES = new Set([
  * unknown language as a fallback grammar, so `plaintext` would otherwise still
  * emit `hljs-*` spans and the theme's code colours.
  */
-const PLAIN_TEXT_LANGUAGES = new Set(['plaintext', 'text', 'txt']);
+const PLAIN_TEXT_LANGUAGES = new Set(['plaintext', 'text', 'txt', 'none', 'raw', 'nohighlight', 'no-highlight']);
 
 function isDangerousHref(href: string): boolean {
   const lower = href.trim().toLowerCase();

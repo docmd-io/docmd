@@ -595,3 +595,4 @@ export function getAssets(_options?: any): any[] {
 }
 
 export { getGitFileInfo, formatLastUpdated };
+export * from './api.js';
