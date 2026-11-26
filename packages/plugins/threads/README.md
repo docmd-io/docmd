@@ -104,6 +104,14 @@ threads-comment::part(author) { font-weight: 700; }
 threads-button::part(base) { text-transform: uppercase; }
 ```
 
+### What you see
+
+- **Launcher**: a small notch on the right edge of the page, centred vertically. It widens on hover and is hidden while the panel is open. One badge on its corner shows the open-thread count, or the unpublished count (in the draft colour) while there are unpublished changes.
+- **Colours**: a thread's mark and its in-page card edge are blue when published, orange when it is a draft and green once resolved. Threads whose text is gone stay neutral. Cards in the panel are neutral.
+- **Dates**: comment dates are shown in the page language, with the time when the stored value has one; hover for the stored value. A date without a time is formatted in UTC so it never slips a day.
+- **Delete**: offered on your own comments (and on drafts, and to admins), the same way Edit is.
+- **Table of contents**: hidden while the panel is open.
+
 Parts per component:
 
 | Element | Parts |
