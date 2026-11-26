@@ -1,6 +1,6 @@
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import type { Thread, Comment, Anchor, AuthorsMap } from '../../types';
+import type { Thread, Comment, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
 import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
 import { deleteCommentTarget } from '../lib/can-show';
@@ -28,6 +28,8 @@ import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 
 /** Text under these is never a target when highlighting drafts after a load: thread cards, the panel, scripts. */
 const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, script, style';
+
+const EMOJI_PRESETS = ['\u{1F44D}', '\u{1F44E}', '\u{1F602}', '\u{1F389}', '\u{1F914}', '\u{2764}\u{FE0F}', '\u{1F680}', '\u{1F440}'];
 
 @customElement('threads-app')
 export class ThreadsApp extends LitElement {
@@ -464,7 +466,9 @@ export class ThreadsApp extends LitElement {
       marker.textContent = String(count);
       marker.title = label;
       marker.setAttribute('aria-label', label);
-      host.appendChild(marker);
+      const wrap = host.querySelector('.threads-fab__badge-wrap');
+      if (wrap) wrap.appendChild(marker);
+      else host.appendChild(marker);
     }
   };
 
@@ -571,10 +575,7 @@ export class ThreadsApp extends LitElement {
       const threadId = threadEl.dataset.threadId;
       if (!threadId) continue;
 
-      // Nest replies under their parent comments
-      this.nestReplies(threadEl);
-
-      // Add per-comment reply + delete buttons
+      // Add per-comment reply, delete buttons, and reaction bars
       const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
       const totalComments = allComments.length;
       for (const commentEl of allComments) {
@@ -643,7 +644,26 @@ export class ThreadsApp extends LitElement {
         }
 
         meta.appendChild(actions);
+
+        // Attach reactions bar if not present
+        if (!commentEl.querySelector('.threads-comment__reactions-bar')) {
+          const rawReactions = commentEl.querySelector('.threads-reactions');
+          rawReactions?.remove();
+          const thread = this.threads.find(th => th.id === threadId);
+          const comm = thread?.comments.find(c => c.id === commentId);
+          const reactions = comm?.reactions || [];
+          const rxBar = this.renderReactionsBar(threadId, commentId, reactions);
+          const bodyEl = commentEl.querySelector('.threads-comment__body');
+          if (bodyEl) {
+            bodyEl.insertAdjacentElement('afterend', rxBar);
+          } else {
+            commentEl.appendChild(rxBar);
+          }
+        }
       }
+
+      // Nest replies under their parent comments after reactions are attached
+      this.nestReplies(threadEl);
 
       // Build collapse summary
       const allCommentsForSummary = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
@@ -1261,7 +1281,99 @@ export class ThreadsApp extends LitElement {
     }
     commentEl.appendChild(body);
 
+    // Reactions bar
+    const reactions = comment.reactions || [];
+    commentEl.appendChild(this.renderReactionsBar(threadId, comment.id, reactions));
+
     return commentEl;
+  }
+
+  // ─── Reactions & Emoji picker ──────────────────────────────────────
+
+  private activeEmojiPopover: HTMLElement | null = null;
+
+  private async handleToggleReaction(threadId: string, commentId: string, emoji: string): Promise<void> {
+    try {
+      const identity = getIdentityPayload();
+      await api.toggleReaction(threadId, commentId, { emoji, author: identity.author || 'Anonymous' });
+      await this.loadThreads();
+    } catch (err) {
+      console.error('[threads] Failed to toggle reaction:', err);
+    }
+  }
+
+  private toggleEmojiPicker(anchorEl: HTMLElement, threadId: string, commentId: string): void {
+    if (this.activeEmojiPopover) {
+      this.activeEmojiPopover.remove();
+      this.activeEmojiPopover = null;
+      return;
+    }
+
+    const popover = document.createElement('div');
+    popover.className = 'threads-emoji-popover';
+
+    for (const emoji of EMOJI_PRESETS) {
+      const btn = document.createElement('button');
+      btn.className = 'threads-emoji-popover__btn';
+      btn.textContent = emoji;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popover.remove();
+        this.activeEmojiPopover = null;
+        void this.handleToggleReaction(threadId, commentId, emoji);
+      });
+      popover.appendChild(btn);
+    }
+
+    document.body.appendChild(popover);
+    this.activeEmojiPopover = popover;
+
+    const rect = anchorEl.getBoundingClientRect();
+    popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    popover.style.left = `${Math.max(8, rect.left + window.scrollX - 4)}px`;
+
+    const closeHandler = (e: MouseEvent) => {
+      if (this.activeEmojiPopover && !this.activeEmojiPopover.contains(e.target as Node) && e.target !== anchorEl) {
+        this.activeEmojiPopover.remove();
+        this.activeEmojiPopover = null;
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 0);
+  }
+
+  private renderReactionsBar(threadId: string, commentId: string, reactions: Reaction[]): HTMLElement {
+    const bar = document.createElement('div');
+    bar.className = 'threads-comment__reactions-bar';
+
+    const identity = getIdentityPayload();
+    const currentAuthor = identity.author || '';
+
+    for (const r of reactions) {
+      if (!r.authors || r.authors.length === 0) continue;
+      const pill = document.createElement('button');
+      const isActive = r.authors.includes(currentAuthor);
+      pill.className = `threads-reaction-pill${isActive ? ' threads-reaction-pill--active' : ''}`;
+      pill.title = r.authors.join(', ');
+      pill.innerHTML = `${r.emoji} <span class="threads-reaction-pill__count">${r.authors.length}</span>`;
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void this.handleToggleReaction(threadId, commentId, r.emoji);
+      });
+      bar.appendChild(pill);
+    }
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'threads-add-reaction-btn';
+    addBtn.title = t('addReaction') || 'Add reaction';
+    addBtn.appendChild(createSvgElement('emoji-smile', 13));
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleEmojiPicker(addBtn, threadId, commentId);
+    });
+    bar.appendChild(addBtn);
+
+    return bar;
   }
 
   // ─── Floating action button ──────────────────────────────────────
@@ -1274,10 +1386,15 @@ export class ThreadsApp extends LitElement {
     fab.title = t('jumpToThreads');
     fab.appendChild(createSvgElement('messages-square', 18));
 
+    const badgeWrap = document.createElement('span');
+    badgeWrap.className = 'threads-fab__badge-wrap';
+
     const badge = document.createElement('span');
     badge.className = 'threads-fab__badge';
     badge.style.display = 'none';
-    fab.appendChild(badge);
+    badgeWrap.appendChild(badge);
+
+    fab.appendChild(badgeWrap);
 
     fab.addEventListener('click', () => {
       const isOpen = document.body.classList.contains('tc-panel-open');

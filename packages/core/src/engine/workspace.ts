@@ -769,7 +769,9 @@ export async function devWorkspace(
       if (Date.now() - lastConfigRebuildAt < CONFIG_QUIET_MS) return;
 
       if (filename.includes('.git') || filename.includes('node_modules') ||
-          filename.includes('.DS_Store') || filename.startsWith('.') ||
+          filename.includes('.threads') ||
+          filename.split(/[/\\]/).some((seg) => seg.startsWith('.')) ||
+          filename.includes('.DS_Store') ||
           filename.includes('docmd.config-') || filename.endsWith('.js.bak')) return;
 
       // Exclude build output

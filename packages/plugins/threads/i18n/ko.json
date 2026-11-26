@@ -69,5 +69,8 @@
   "reviewSummary": "요약",
   "saveFailed": "리뷰를 저장할 수 없습니다",
   "limitChars": "댓글이 너무 깁니다. 줄인 뒤 다시 시도하세요.",
-  "rateLimited": "댓글을 너무 빠르게 작성하고 있습니다. 1분 기다린 뒤 다시 시도하세요."
+  "rateLimited": "댓글을 너무 빠르게 작성하고 있습니다. 1분 기다린 뒤 다시 시도하세요.",
+  "addReaction": "반응 추가",
+  "resolve": "해결됨으로 표시",
+  "unresolve": "해결 취소"
 }

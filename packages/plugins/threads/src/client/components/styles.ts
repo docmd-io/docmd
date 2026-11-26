@@ -17,6 +17,8 @@ export function injectComponentStyles(): void {
       --tc-accent-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 9%))));
       --tc-card: var(--summer-surface, var(--bg-color, hsl(0 0% 100%)));
       --tc-card-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 9%))));
+      --tc-thread-bg: hsl(220 20% 98.2%);
+      --tc-thread-border: hsl(220 18% 88%);
       --tc-radius: var(--summer-radius-lg, var(--radius-md, 8px));
       --tc-font: var(--summer-font-sans, var(--font-family-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif));
     }
@@ -33,6 +35,8 @@ export function injectComponentStyles(): void {
       --tc-accent-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 95%))));
       --tc-card: var(--summer-surface, var(--bg-color, hsl(0 0% 14%)));
       --tc-card-fg: var(--summer-fg, var(--summer-text, var(--text-color, hsl(0 0% 95%))));
+      --tc-thread-bg: hsl(220 15% 15.5%);
+      --tc-thread-border: hsl(220 14% 24%);
     }
 
     /* ========= Highlight colors (cycling palette) ========= */
@@ -65,16 +69,19 @@ export function injectComponentStyles(): void {
       top: 0;
       right: 0;
       bottom: 0;
-      width: 40px;
+      width: 0;
       z-index: 3000;
       display: flex;
       flex-direction: column;
-      transition: width 0.2s ease;
+      pointer-events: none;
+      transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
       font-family: var(--tc-font);
     }
 
     body.tc-panel-open .tc-sidebar-column {
       width: 380px;
+      pointer-events: auto;
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.16);
     }
 
     body.tc-has-sidebar main,
@@ -84,8 +91,8 @@ export function injectComponentStyles(): void {
 
     body.tc-has-sidebar .main-content-wrapper,
     body.tc-has-sidebar .summer-layout {
-      margin-right: 40px;
-      transition: margin-right 0.2s ease;
+      margin-right: 0;
+      transition: margin-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     }
     body.tc-panel-open .main-content-wrapper,
     body.tc-panel-open .summer-layout {
@@ -99,29 +106,9 @@ export function injectComponentStyles(): void {
       }
     }
 
-    /* ========= Toggle strip ========= */
+    /* ========= Legacy Toggle strip (hidden in favor of floating notch) ========= */
     .tc-sidebar-toggle {
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      width: 40px;
-      height: 100%;
-      cursor: pointer;
-      border: none;
-      background: var(--tc-bg);
-      color: var(--tc-muted-fg);
-      border-left: 1px solid var(--tc-border);
-      transition: color 0.15s, background 0.15s;
-      position: relative;
-      padding: 16px 0 0 0;
-    }
-    .tc-sidebar-toggle:hover {
-      background: var(--tc-accent);
-      color: var(--tc-fg);
-    }
-
-    body.tc-panel-open .tc-sidebar-toggle {
-      display: none;
+      display: none !important;
     }
 
     /* ========= Panel ========= */
@@ -201,17 +188,16 @@ export function injectComponentStyles(): void {
 
     /* Unpublished-comment count on the FAB and the toggle strip, apart from the open-threads badge. */
     .tc-unpublished-marker {
-      position: absolute;
-      bottom: -6px;
-      left: -6px;
-      min-width: 18px;
-      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 16px;
+      height: 16px;
       padding: 0 5px;
       border-radius: 999px;
-      border: 1px solid var(--tc-bg);
-      background: var(--tc-fg);
-      color: var(--tc-bg);
-      font-size: 11px;
+      background: hsl(38 92% 50%);
+      color: #1c1917;
+      font-size: 10px;
       font-weight: 700;
       line-height: 16px;
       text-align: center;
@@ -219,7 +205,17 @@ export function injectComponentStyles(): void {
       box-sizing: border-box;
       pointer-events: none;
     }
-    .tc-sidebar-toggle .tc-unpublished-marker { bottom: auto; top: 44px; left: 4px; }
+    .threads-fab__badge-wrap .tc-unpublished-marker {
+      border-radius: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.4);
+    }
+    .threads-fab__badge-wrap .tc-unpublished-marker:only-child {
+      border-radius: 999px;
+      border-left: none;
+    }
+    .threads-fab__badge-wrap .threads-fab__badge:only-child {
+      border-radius: 999px;
+    }
 
     /* ========= Empty state ========= */
     .tc-empty {
@@ -491,38 +487,38 @@ export function injectComponentStyles(): void {
 
     /* ========= Thread card ========= */
     .threads-thread {
-      margin: 14px 0;
-      border: 1px solid var(--tc-border);
-      border-left: 3px solid var(--tc-ring);
-      border-radius: var(--tc-radius, 10px);
-      background: var(--tc-card);
+      margin: 18px 0;
+      border: 1px solid var(--tc-thread-border, var(--tc-border));
+      border-left: 4px solid var(--tc-ring);
+      border-radius: 12px;
+      background: var(--tc-thread-bg, var(--tc-card));
       overflow: hidden;
       font-family: var(--tc-font);
-      box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.06), 0 1px 4px -1px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
       transition: all 0.18s ease;
     }
     .threads-thread:hover {
-      box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 6px 20px -2px rgba(0, 0, 0, 0.09), 0 3px 8px -1px rgba(0, 0, 0, 0.05);
     }
     .threads-thread--inline {
-      margin: 16px 0 20px;
-      max-width: 680px;
+      margin: 20px 0 26px;
+      max-width: 740px;
     }
     body.tc-panel-open .threads-thread--inline {
       display: none !important;
     }
     .threads-thread--resolved {
-      opacity: 0.6;
+      opacity: 0.65;
     }
 
     /* Anchor Quote Badge */
     .threads-thread__quote-badge {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      background: var(--tc-muted);
-      border-bottom: 1px solid var(--tc-border);
+      gap: 8px;
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--tc-muted) 80%, var(--tc-bg));
+      border-bottom: 1px solid var(--tc-thread-border, var(--tc-border));
       font-size: 12px;
       color: var(--tc-muted-fg);
       cursor: pointer;
@@ -530,7 +526,7 @@ export function injectComponentStyles(): void {
       transition: background 0.15s;
     }
     .threads-thread__quote-badge:hover {
-      background: color-mix(in srgb, var(--tc-muted) 80%, var(--tc-border));
+      background: color-mix(in srgb, var(--tc-muted) 92%, var(--tc-ring) 8%);
     }
     .threads-thread__quote-text {
       font-weight: 500;
@@ -564,16 +560,15 @@ export function injectComponentStyles(): void {
     /* ========= Comment item ========= */
     .threads-comment {
       display: grid;
-      grid-template-columns: 32px 1fr;
-      grid-template-rows: auto auto auto;
+      grid-template-columns: 28px 1fr;
       padding: 10px 14px;
-      font-size: 13.5px;
-      column-gap: 10px;
-      row-gap: 4px;
+      font-size: 13px;
+      column-gap: 12px;
+      row-gap: 6px;
     }
     .threads-comment--reply {
-      padding-top: 8px;
-      padding-bottom: 8px;
+      padding-top: 6px;
+      padding-bottom: 6px;
     }
     @media (max-width: 768px) {
       .threads-comment {
@@ -584,7 +579,7 @@ export function injectComponentStyles(): void {
     /* Avatar column */
     .threads-comment__avatar-col {
       grid-column: 1;
-      grid-row: 1 / 3;
+      grid-row: 1;
       display: flex;
       align-items: flex-start;
       justify-content: center;
@@ -601,10 +596,9 @@ export function injectComponentStyles(): void {
 
     .threads-comment__meta {
       grid-column: 2;
-      grid-row: 1;
       display: flex;
       align-items: center;
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--tc-muted-fg);
       gap: 6px;
     }
@@ -646,10 +640,9 @@ export function injectComponentStyles(): void {
 
     .threads-comment__body {
       grid-column: 2;
-      grid-row: 2;
       color: var(--tc-fg);
       line-height: 1.55;
-      font-size: 13.5px;
+      font-size: 13px;
     }
     .threads-comment__body p {
       margin: 0 0 6px 0;
@@ -658,12 +651,118 @@ export function injectComponentStyles(): void {
       margin-bottom: 0;
     }
 
-    .threads-replies {
-      grid-column: 1 / -1;
-      border-left: 2px solid var(--tc-border);
-      margin-left: 14px;
-      padding-left: 4px;
+    /* ========= Emoji reactions on comments ========= */
+    .threads-comment__reactions-bar {
+      grid-column: 2;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
       margin-top: 4px;
+    }
+    .threads-reaction-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--tc-border);
+      background: var(--tc-card);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--tc-fg);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      font-family: var(--tc-font);
+    }
+    .threads-reaction-pill:hover {
+      border-color: var(--tc-ring);
+      background: color-mix(in srgb, var(--tc-muted) 80%, var(--tc-ring) 20%);
+    }
+    .threads-reaction-pill--active {
+      border-color: var(--tc-ring);
+      background: color-mix(in srgb, var(--tc-ring) 14%, var(--tc-card));
+      color: var(--tc-ring);
+      font-weight: 600;
+    }
+    .threads-reaction-pill__count {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+    .threads-add-reaction-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px dashed var(--tc-border);
+      background: transparent;
+      color: var(--tc-muted-fg);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+    .threads-add-reaction-btn:hover {
+      border-color: var(--tc-ring);
+      color: var(--tc-fg);
+      background: var(--tc-muted);
+    }
+    .threads-emoji-popover {
+      position: absolute;
+      z-index: 3500;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 6px;
+      background: var(--tc-card);
+      border: 1px solid var(--tc-border);
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      animation: tc-popover-in 0.12s ease-out;
+    }
+    @keyframes tc-popover-in {
+      from { opacity: 0; transform: scale(0.92) translateY(-4px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .threads-emoji-popover__btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      padding: 4px 5px;
+      border-radius: 5px;
+      transition: background 0.12s, transform 0.12s;
+    }
+    .threads-emoji-popover__btn:hover {
+      background: var(--tc-muted);
+      transform: scale(1.25);
+    }
+
+    /* ========= Nested replies tree ========= */
+    .threads-replies {
+      grid-column: 2;
+      margin-top: 8px;
+      padding-left: 12px;
+      border-left: 2px solid color-mix(in srgb, var(--tc-border) 75%, var(--tc-ring) 25%);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .threads-comment--reply {
+      padding: 6px 0 !important;
+      grid-template-columns: 22px 1fr;
+      column-gap: 10px;
+    }
+    .threads-comment--reply .threads-comment__avatar {
+      width: 22px;
+      height: 22px;
+    }
+    .threads-comment--reply .threads-comment__body {
+      font-size: 12.5px;
     }
 
     /* ========= Collapsed thread ========= */
@@ -763,34 +862,6 @@ export function injectComponentStyles(): void {
       margin-top: 12px;
     }
 
-    /* Vertical connector line centered under avatar */
-    .threads-comment:has(.threads-replies) > .threads-comment__avatar-col {
-      grid-row: 1 / 4;
-      align-items: flex-start;
-      position: relative;
-    }
-    .threads-comment:has(.threads-replies) > .threads-comment__avatar-col::after {
-      content: '';
-      position: absolute;
-      top: 36px;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 2px;
-      background: var(--tc-border);
-    }
-
-    .threads-comment--reply {
-      padding: 8px 0 !important;
-    }
-    .threads-comment--reply {
-      grid-template-columns: 24px 1fr;
-      grid-template-rows: 24px auto auto;
-    }
-    .threads-comment--reply .threads-comment__avatar {
-      width: 24px;
-      height: 24px;
-    }
 
     /* ========= Per-comment reply button ========= */
     .threads-comment-reply-btn {
@@ -1130,15 +1201,16 @@ export function injectComponentStyles(): void {
     body.tc-sidebar-active .threads-sidebar { display: none !important; }
     body.tc-sidebar-active .tc-has-sidebar { padding-right: 40px; }
 
-    /* ========= Floating threads toggle / right-docked slide tab ========= */
+    /* ========= Floating threads toggle / right-docked notch ========= */
     .threads-fab {
       position: fixed;
       top: 50%;
       right: 0;
-      transform: translateY(-50%);
-      z-index: 2100;
-      width: 40px;
-      height: 48px;
+      transform: translateY(-50%) translateX(12px);
+      opacity: 0.72;
+      z-index: 2900;
+      width: 34px;
+      height: 44px;
       border-radius: 10px 0 0 10px;
       border: 1px solid var(--tc-border);
       border-right: none;
@@ -1148,49 +1220,59 @@ export function injectComponentStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.1), -1px 1px 4px rgba(0, 0, 0, 0.06);
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-      padding-left: 3px;
+      box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.08);
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, width 0.2s ease, color 0.15s ease, background 0.15s ease, box-shadow 0.2s ease;
+      padding-left: 2px;
     }
     .threads-fab:hover {
+      transform: translateY(-50%) translateX(0);
+      opacity: 1;
+      width: 40px;
       color: var(--tc-fg);
       border-color: var(--tc-ring);
-      width: 46px;
-      box-shadow: -6px 6px 22px rgba(0, 0, 0, 0.16), -2px 2px 6px rgba(0, 0, 0, 0.08);
+      box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.14);
     }
     body.tc-panel-open .threads-fab {
-      right: 380px;
-      border-radius: 10px 0 0 10px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(24px);
+    }
+    .threads-fab__badge-wrap {
+      position: absolute;
+      top: -8px;
+      left: -6px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+      pointer-events: none;
     }
     .threads-fab__badge {
-      position: absolute;
-      top: -6px;
-      left: -6px;
-      min-width: 18px;
-      height: 18px;
+      display: inline-block;
+      min-width: 16px;
+      height: 16px;
       padding: 0 5px;
-      border-radius: 999px;
       background: var(--tc-ring);
       color: #fff;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      line-height: 18px;
+      line-height: 16px;
       text-align: center;
       font-family: var(--tc-font);
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
 
     /* Template-specific styling touches */
     body:has(.summer-layout) .threads-thread,
     body.summer-template .threads-thread {
       border-radius: var(--summer-radius, 14px);
-      border-color: var(--summer-border);
-      background: var(--summer-surface);
+      border-color: var(--tc-thread-border);
+      background: var(--tc-thread-bg);
     }
     body:has(.summer-layout) .threads-thread__quote-badge,
     body.summer-template .threads-thread__quote-badge {
-      background: var(--summer-surface-2);
-      border-color: var(--summer-border);
+      background: color-mix(in srgb, var(--summer-surface-2) 80%, var(--tc-bg));
+      border-color: var(--tc-thread-border);
     }
     body:has(.summer-layout) .threads-new-thread-btn,
     body.summer-template .threads-new-thread-btn {

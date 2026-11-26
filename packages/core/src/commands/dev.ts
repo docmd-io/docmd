@@ -323,7 +323,8 @@ export async function startDevServer(configPathOption: string, opts: any = {}) {
         if (
           filename.includes('.git') ||
           filename.includes('node_modules') ||
-          filename.startsWith('.') ||
+          filename.includes('.threads') ||
+          filename.split(/[/\\]/).some((seg) => seg.startsWith('.')) ||
           filename.includes('.DS_Store')
         ) return;
 
