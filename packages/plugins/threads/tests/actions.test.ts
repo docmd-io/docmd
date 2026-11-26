@@ -293,15 +293,55 @@ const MUTATIONS: Array<[string, Record<string, unknown>]> = [
   ['threads:toggle-reaction', { threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }],
 ];
 
-test('serve without a trusted identity refuses every mutation; dev succeeds; get-threads works in both', async () => {
-  for (const [name, payload] of MUTATIONS) {
-    await assert.rejects(
-      call(name, as(ALICE, payload), { mode: 'serve', caller: { identity: null } }),
-      (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity' && /no trusted identity/.test(e.message),
-      name,
-    );
-    assert.equal(fs.existsSync(path.join(docsRoot, '.threads')), false, `${name} wrote nothing`);
+/** Every file under the docs root with its bytes, to prove a refused call changed nothing. */
+function snapshotTree(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of fs.readdirSync(safePath(dir, '.'), { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    out[path.relative(dir, file)] = fs.readFileSync(safePath(path.dirname(file), entry.name), 'utf8');
   }
+  return out;
+}
+
+test('serve without a trusted identity refuses every write, with or without author; dev succeeds; reads work in both', async () => {
+  const REFUSED: Array<[string, Record<string, unknown>]> = [
+    ...MUTATIONS,
+    ['threads:set-mode', { mode: 'collect' }],
+    ['threads:publish-review', {}],
+    ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],
+  ];
+  const tree = snapshotTree(docsRoot);
+  const EMAIL = 'alice@example.com';
+  const warn = console.warn; // the refusals log the once-per-process warning; keep it out of the test output
+  console.warn = () => {};
+  // No identity, then an e-mail-shaped one: each is refused first, before the payload is read, and nothing is written.
+  for (const [identity, code] of [[null, 'no-identity'], [EMAIL, 'email-identity']] as const) {
+    for (const [name, payload] of REFUSED) {
+      const bare = name === 'threads:set-mode' ? {} : payload; // no mode: the identity is still checked first
+      for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
+        await assert.rejects(
+          call(name, sent, { mode: 'serve', caller: { identity } }),
+          (e: unknown) => e instanceof ThreadsError && e.code === code && e.message.startsWith(`threads/${code}: `)
+            && (identity === null ? /^threads\/no-identity: no trusted identity/.test(e.message) : !e.message.includes(EMAIL) && e.message.includes('X-Auth-Request-User')),
+          `${code} ${name}`,
+        );
+        assert.deepEqual(snapshotTree(docsRoot), tree, `${code} ${name} changed nothing`);
+      }
+    }
+  }
+  console.warn = warn;
+  // Reads treat an e-mail-shaped identity as unidentified and never carry the address.
+  const mail = { mode: 'serve', caller: { identity: EMAIL } } as const;
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null });
+  assert.ok(!JSON.stringify((await call('threads:get-authors', {}, mail)).result).includes(EMAIL), 'threads:get-authors');
+  const mailThreads = await getThreads({}, mail);
+  assert.deepEqual(mailThreads.map((t) => t.id), ['t-thread1', 't-thread2', 't-thread3']);
+  assert.ok(!JSON.stringify(mailThreads).includes(EMAIL));
+  assert.deepEqual(snapshotTree(docsRoot), tree, 'e-mail reads changed nothing');
+  const none = { mode: 'serve', caller: { identity: null } } as const;
+  assert.deepEqual((await call<Record<string, unknown>>('threads:get-authors', {}, none)).result, {});
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null });
   for (const [name, payload] of MUTATIONS) {
     await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
   }
@@ -316,7 +356,7 @@ test('serve keys journals on the trusted identity, not the payload', async () =>
   const t = (await call<Thread>('threads:add-thread', as({ author: 'Mallory', authorKey: 'bob' }, { body: 'mine' }), serve('alice'))).result;
   assert.equal(fs.existsSync(journalPath('bob')), false);
   assert.equal(journalOps('alice').length, 1);
-  assert.equal(t.comments[0].author, 'Mallory', 'the payload still supplies the display name');
+  assert.equal(t.comments[0].author, 'alice', 'the display name is the identity, not the payload');
 
   const asBob = await getThreads({ author: 'Bob', authorKey: 'alice' }, serve('bob'));
   assert.ok(!asBob.some((x) => x.id === t.id), "bob does not see alice's drafts");
@@ -374,11 +414,12 @@ test('whoami returns the caller\'s journal, or null without an identity, and not
   await addThread();
   await addThread(BOB);
   const mine = await whoami(ALICE);
-  assert.deepEqual(Object.keys(mine), ['journal']);
+  assert.deepEqual(Object.keys(mine), ['identity', 'journal']);
+  assert.deepEqual(mine.identity, { key: 'alice', name: 'Alice', avatarUrl: '', source: 'payload', isAdmin: false });
   assert.equal(mine.journal?.ops.length, 2);
   assert.equal((await whoami(BOB)).journal?.ops.length, 1);
-  assert.deepEqual(await whoami({}), { journal: null });
-  assert.deepEqual(await whoami({ author: '  ' }), { journal: null });
+  assert.deepEqual(await whoami({}), { identity: null, journal: null });
+  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null });
 });
 
 test('whoami in the window after a publish whose journal reset failed leaves out the ops it published', async () => {
@@ -407,7 +448,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
     (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity',
   );
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false, 'nothing was written');
-  assert.deepEqual(await whoami(ALICE, serve(null)), { journal: null });
+  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null });
 
   const set = await setMode({ author: 'Mallory', authorKey: 'bob', mode: 'collect' }, serve('alice'));
   assert.equal(set.mode, 'collect');
@@ -415,6 +456,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
   assert.equal(fs.existsSync(journalPath('bob')), false, 'the payload key is ignored');
   const seen = (await whoami({ author: 'Mallory', authorKey: 'bob' }, serve('alice'))).journal;
   assert.deepEqual(seen, set);
+  assert.deepEqual((await whoami({}, serve('alice'))).identity, { key: 'alice', name: 'alice', avatarUrl: '', source: 'header', isAdmin: false });
 
   const dev = await setMode({ ...BOB, mode: 'collect' }, { mode: 'dev', caller: { identity: 'alice' } });
   assert.equal(dev.mode, 'collect');
@@ -481,8 +523,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true}';
-  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true}};'));
+  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}';
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"}};'));
   for (const opts of [{}, undefined]) {
     const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
     assert.ok(out.bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));
@@ -490,9 +532,9 @@ test('plugin surface: descriptor, hooks and action names', () => {
   // Only the options the client reads are injected; the rest of the plugin config stays on the server.
   const secret = plugin.generateScripts(
     { src: path.join(project.root, 'docs') },
-    { autoPublish: { seconds: 60, startOn: false }, identityHeader: 'X-A', permissions: { admins: ['a'] } },
+    { autoPublish: { seconds: 60, startOn: false }, identityHeader: 'X-A', permissions: { admins: ['a'], resolve: 'author' } },
   ).bodyScriptsHtml;
-  assert.ok(secret.includes('"autoPublish":{"seconds":60,"startOn":false}'));
+  assert.ok(secret.includes('"autoPublish":{"seconds":60,"startOn":false},"permissions":{"resolve":"author"}'));
   for (const leak of ['admins', 'identityHeader', 'X-A']) assert.ok(!secret.includes(leak), leak);
   assert.ok(plugin.generateScripts({ src: path.join(project.root, 'docs') }, { autoPublish: false })
     .bodyScriptsHtml.includes('"autoPublish":false'));

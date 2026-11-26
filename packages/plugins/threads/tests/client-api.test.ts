@@ -106,6 +106,13 @@ test('whoami sends the page and exactly the stored identity, or no identity with
   assert.equal(prompts, 0);
 });
 
+test('upsertAuthor sends no authorKey when given null, the key otherwise', async () => {
+  await api.upsertAuthor(null, 'Ann', 'u');
+  await api.upsertAuthor('ann', 'Ann', 'u');
+  assert.deepEqual(calls[0], { action: 'threads:upsert-author', payload: { ...page, name: 'Ann', avatarUrl: 'u' } });
+  assert.deepEqual(calls[1], { action: 'threads:upsert-author', payload: { ...page, authorKey: 'ann', name: 'Ann', avatarUrl: 'u' } });
+});
+
 test('setMode and publishReview send the page and the identity, setMode with the mode', async () => {
   identify();
   await api.setMode('auto');

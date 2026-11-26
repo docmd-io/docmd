@@ -4,6 +4,8 @@ export interface ThreadsOptions {
   sidebar: boolean;
   /** `false`: collect-only. Otherwise drafts publish `seconds` after the last edit while a user's mode is auto. */
   autoPublish: false | { seconds: number; startOn: boolean };
+  /** Who may change what under `docmd serve`: `admins` may do everything; `resolve` says who may resolve a thread. */
+  permissions: { admins: string[]; resolve: 'anyone' | 'author' };
 }
 
 const bad = (key: string, why: string): never => {
@@ -54,9 +56,18 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
     autoPublish = { seconds: positiveNumber(ap, 'autoPublish', 'seconds', 180), startOn: startOn as boolean };
   }
 
+  const perms = section(raw, 'permissions');
+  const admins = perms.admins ?? [];
+  if (!Array.isArray(admins) || admins.some((a) => typeof a !== 'string')) {
+    bad('permissions.admins', 'must be an array of strings');
+  }
+  const resolve = perms.resolve ?? 'anyone';
+  if (resolve !== 'anyone' && resolve !== 'author') bad('permissions.resolve', "must be 'anyone' or 'author'");
+
   return {
     sidebar: optionalBoolean(raw, 'sidebar', false),
     autoPublish,
+    permissions: { admins: [...(admins as string[])], resolve: resolve as 'anyone' | 'author' },
   };
 }
 

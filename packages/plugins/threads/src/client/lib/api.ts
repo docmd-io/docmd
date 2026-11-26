@@ -42,8 +42,12 @@ export async function fetchAuthors(): Promise<AuthorsMap> {
   }
 }
 
-export async function upsertAuthor(authorKey: string, name: string, avatarUrl: string): Promise<void> {
-  await docmd.call('threads:upsert-author', { ...pageFile(), authorKey, name, avatarUrl });
+export async function upsertAuthor(authorKey: string | null, name: string, avatarUrl: string): Promise<void> {
+  // A header identity names itself; the server rejects a client-sent key.
+  const payload = authorKey === null
+    ? { ...pageFile(), name, avatarUrl }
+    : { ...pageFile(), authorKey, name, avatarUrl };
+  await docmd.call('threads:upsert-author', payload);
 }
 
 export async function fetchThreads(): Promise<Thread[]> {

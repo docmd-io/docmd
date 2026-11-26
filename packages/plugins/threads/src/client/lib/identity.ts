@@ -1,3 +1,7 @@
+import type { WhoAmI } from '../../types';
+import { canShow, type ShowAction, type ShowTarget } from './can-show';
+import { resolveIdentity, showContext, type IdentityMode } from './identity-mode';
+
 const STORAGE_KEY_NAME = 'threads_author';
 const STORAGE_KEY_EMAIL = 'threads_email';
 const STORAGE_KEY_GITHUB = 'threads_github';
@@ -6,6 +10,7 @@ const STORAGE_KEY_AUTHOR_KEY = 'threads_author_key';
 
 declare global {
   interface Window {
+    __threads_config?: unknown;
     __docmd_dev?: {
       name: string;
       email: string;
@@ -111,11 +116,30 @@ async function getGravatarUrl(email: string): Promise<string | null> {
   }
 }
 
+let identity: IdentityMode = { mode: 'local' };
+
+export function getIdentityMode(): IdentityMode {
+  return identity;
+}
+
+/** After the server accepted a profile edit: keep the module identity in step with it. */
+export function setHeaderProfile(name: string, avatarUrl: string): void {
+  if (identity.mode === 'header') identity = { ...identity, payload: { ...identity.payload, author: name, avatarUrl } };
+}
+
+/** Whether to render a button the server may refuse; local mode always shows. */
+export function canShowFor(action: ShowAction, target: ShowTarget): boolean {
+  return canShow(action, showContext(identity, window.__threads_config, getAuthorKey()), target);
+}
+
 /**
- * On first load, seed identity from git config if available
- * and nothing is stored yet.
+ * On first load ask `whoami`: a header identity wins and is never prompted for;
+ * otherwise (or when no live server answers) seed from git config as before.
  */
-export function initIdentity(): void {
+export async function initIdentity(whoami: () => Promise<WhoAmI>): Promise<void> {
+  identity = await resolveIdentity(whoami);
+  if (identity.mode === 'header') return;
+
   const devInfo = window.__docmd_dev;
   if (!devInfo) return;
 
@@ -131,6 +155,7 @@ export function initIdentity(): void {
 }
 
 export function ensureAuthor(): string {
+  if (identity.mode === 'header') return identity.payload.author;
   let author = getAuthor();
   if (!author) {
     author = prompt('Enter your display name for discussions:');
@@ -153,6 +178,7 @@ export function ensureAuthor(): string {
  * Get the full identity info needed for creating comments.
  */
 export function getIdentityPayload(): { author: string; authorKey: string; avatarUrl: string } {
+  if (identity.mode === 'header') return { ...identity.payload };
   const author = ensureAuthor();
   const authorKey = getAuthorKey() || computeAuthorKey(author, getGithub() || '');
   const avatarUrl = getAvatarUrl() || '';

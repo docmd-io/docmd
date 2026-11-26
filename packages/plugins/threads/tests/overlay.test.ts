@@ -20,7 +20,7 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
   ['add-thread', [{ ...base, kind: 'add-thread', threadId: 't-new', commentId: 'c-new', body: 'hello' }], (t) => {
     assert.equal(t.length, 2);
     assert.deepEqual(t[1], {
-      id: 't-new', resolved: false, resolved_by: null, resolved_at: null,
+      id: 't-new', resolved: false, resolved_by: null, resolved_at: null, draft: true,
       comments: [{ id: 'c-new', thread_id: 't-new', parent_id: null, author: 'Me', date: '2026-04-01', edited_at: null, body: 'hello', reactions: [], draft: true }],
     });
   }],
