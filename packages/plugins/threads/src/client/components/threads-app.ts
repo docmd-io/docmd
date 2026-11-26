@@ -520,7 +520,7 @@ export class ThreadsApp extends LitElement {
     this.handleDeepLink();
   }
 
-  /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
+  /** The review section reports its unpublished count: show it on the launcher notch. */
   private handleUnpublishedCount = (e: CustomEvent<{ count: number }>): void => {
     const count = e.detail.count;
     // Publishing empties the open review: the review it made is new in the Reviews tab.

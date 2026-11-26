@@ -9,7 +9,7 @@
 
 import { test, expect } from "@playwright/test";
 import { Actor, NavigateTo, inlineCards, newThreadButton } from "./screenplay.ts";
-import { openPanel, panelCard, setAuthor, waitForClientProcessing, waitForHydration } from "./helpers.ts";
+import { openPanel, panelCard, panelLauncher, setAuthor, waitForClientProcessing, waitForHydration } from "./helpers.ts";
 
 
 
@@ -205,5 +205,45 @@ test.describe("threads plugin - basic UI", () => {
     }
     await expect(panelCard(user.page, "t-thread3")).toHaveAttribute("resolved", "");
     await expect(panelCard(user.page, "t-thread1")).not.toHaveAttribute("resolved", "");
+  });
+
+  test("the launcher is a notch that docks wider on hover and is gone while the panel is open", async () => {
+    await user.perform(NavigateTo.path("/"));
+    const notch = panelLauncher(user.page);
+    await expect(notch).toBeVisible();
+    const rest = await notch.boundingBox();
+    expect(rest!.width).toBeLessThanOrEqual(40);
+    // Centred vertically on the page edge
+    const viewport = user.page.viewportSize()!;
+    expect(Math.abs(rest!.y + rest!.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
+    expect(Math.round(rest!.x + rest!.width)).toBe(viewport.width);
+
+    await notch.hover();
+    await expect.poll(async () => (await notch.boundingBox())!.width).toBeGreaterThan(rest!.width + 4);
+    const docked = await notch.boundingBox();
+    expect(Math.round(docked!.x + docked!.width)).toBe(viewport.width);
+
+    await notch.click();
+    await expect(user.page.locator("threads-panel").getByRole("complementary")).toBeVisible();
+    await expect(notch).toHaveCount(0);
+  });
+
+  test("the table of contents is hidden while the panel is open, at any width", async () => {
+    await user.perform(NavigateTo.path("/"));
+    // The playground theme may not render a TOC: give the page a stand-in the layout rule targets
+    await user.page.evaluate(() => {
+      const toc = document.createElement("aside");
+      toc.className = "toc-sidebar";
+      toc.id = "e2e-toc";
+      toc.textContent = "On this page";
+      document.body.appendChild(toc);
+    });
+    await user.page.setViewportSize({ width: 1700, height: 900 });
+    const toc = user.page.locator("#e2e-toc");
+    await expect(toc).toBeVisible();
+    await openPanel(user.page);
+    await expect(toc).toBeHidden();
+    await user.page.getByRole("button", { name: "Close panel" }).first().click();
+    await expect(toc).toBeVisible();
   });
 });

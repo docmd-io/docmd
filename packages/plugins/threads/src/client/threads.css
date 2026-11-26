@@ -148,15 +148,13 @@ body.tc-has-sidebar main,
 body.tc-has-sidebar .summer-main { max-width: 1440px; }
 body.tc-has-sidebar .main-content-wrapper,
 body.tc-has-sidebar .summer-layout {
-  margin-right: 40px;
   transition: margin-right 0.2s ease;
 }
 body.tc-panel-open .main-content-wrapper,
 body.tc-panel-open .summer-layout { margin-right: var(--threads-panel-width, 380px); }
-@media (max-width: 1400px) {
-  body.tc-panel-open .toc-sidebar,
-  body.tc-panel-open .summer-toc { display: none; }
-}
+/* The table of contents steps aside whenever the panel is open */
+body.tc-panel-open .toc-sidebar,
+body.tc-panel-open .summer-toc { display: none; }
 /* In sidebar mode the panel shows every thread: the server's cards are not repeated. */
 body.tc-sidebar-active .threads-sidebar { display: none !important; }
 

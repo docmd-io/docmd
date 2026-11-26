@@ -151,7 +151,7 @@ export class ThreadsPublishWidget extends LitElement {
   private announced: number | null = null;
 
   override updated(): void {
-    // The drawer's FAB and toggle strip show this count while the drawer is closed.
+    // The launcher notch shows this count while the drawer is closed.
     const count = this.controller.view().pendingCount;
     if (count !== this.announced) {
       this.announced = count;

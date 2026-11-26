@@ -1,6 +1,6 @@
 /**
- * The review UI lives in the sidebar drawer: the publish section is inside it (never on the body), the FAB and
- * the toggle strip count unpublished comments while the drawer is closed, and a thread whose quote is gone from
+ * The review UI lives in the sidebar drawer: the publish section is inside it (never on the body), the
+ * launcher counts unpublished comments while the drawer is closed, and a thread whose quote is gone from
  * the page is listed apart, with a line telling its author.
  */
 
@@ -109,7 +109,7 @@ test("the review section is in the drawer; the launcher counts unpublished comme
 
   const quote = await firstWords(page);
   await addThread(page, quote, "drawer draft");
-  // One marker on the launcher, whichever look (strip or floating button) it has
+  // One marker on the launcher, whichever mode the panel is in
   const marker = page.getByTestId("unpublished-marker");
   await expect(marker).toHaveText("1");
   await expect(marker).toHaveAttribute("title", "1 unpublished comment");

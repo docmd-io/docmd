@@ -17,9 +17,9 @@ const TABS: readonly PanelTab[] = ['threads', 'reviews'];
 const BODY_CLASSES = ['tc-panel-open', 'tc-has-sidebar', 'tc-sidebar-active'] as const;
 
 /**
- * The right-hand panel and its launcher. One element on `body`, in two looks: `sidebar` (a 40px strip
- * that is always there and widens into the panel) and `floating` (a tab on the page edge that opens the
- * panel over it).
+ * The right-hand panel and its launcher. One element on `body`. The launcher is a notch on the page edge
+ * (centred vertically, it docks wider on hover and is gone while the panel is open). In `sidebar` mode the
+ * panel pushes the page aside; in `floating` mode it opens over it.
  *
  * Attributes and properties: `open`, `mode`, `open-count` (unresolved threads, shown on the launcher),
  * `unpublished` (draft change count, shown as a marker), `tab` (`threads` | `reviews`), `show-tabs`
@@ -46,55 +46,48 @@ export class ThreadsPanel extends LitElement {
       z-index: var(--_z-panel);
       display: flex;
       flex-direction: column;
-      width: 40px;
+      width: var(--_panel-width);
       font-family: var(--_font);
       font-size: var(--_font-size);
       line-height: var(--_line-height);
       color: var(--_fg);
-      transition: width 0.2s ease;
+      box-shadow: var(--_shadow-lg);
     }
-    .column.open { width: var(--_panel-width); box-shadow: var(--_shadow-lg); }
 
+    /* The notch: a small tab on the page edge, centred vertically. It docks (widens) on hover and is
+       not there while the panel is open (the panel has its own close button). */
     .launcher {
-      position: relative;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      width: 40px;
-      height: 100%;
-      padding: 16px 0 0;
-      border: 0;
-      border-left: 1px solid var(--_border);
-      background: var(--_surface);
-      color: var(--_fg-muted);
-      cursor: pointer;
-    }
-    .launcher:hover { background: var(--_surface-muted); color: var(--_fg); }
-    .launcher:focus-visible { outline: 2px solid var(--_focus); outline-offset: -2px; }
-    .launcher .icon { display: inline-flex; }
-
-    /* The floating look: a tab docked to the page edge, beside the panel when it is open. */
-    .launcher.fab {
       position: fixed;
       top: 50%;
       right: 0;
       z-index: var(--_z-fab);
-      width: 40px;
-      height: 48px;
-      padding: 0 0 0 3px;
+      display: flex;
       align-items: center;
+      justify-content: flex-start;
+      width: 38px;
+      height: 44px;
+      padding: 0 0 0 9px;
+      box-sizing: border-box;
       transform: translateY(-50%);
       border: 1px solid var(--_border);
       border-right: 0;
       border-radius: 10px 0 0 10px;
+      background: var(--_surface);
+      color: var(--_fg-muted);
       box-shadow: var(--_shadow-lg);
-      transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), right 0.2s ease;
+      cursor: pointer;
+      transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease, border-color 0.15s ease;
     }
-    .launcher.fab:hover { width: 46px; border-color: var(--_accent); }
-    :host([open]) .launcher.fab { right: var(--_panel-width); }
+    .launcher:hover, .launcher:focus-visible { width: 46px; color: var(--_fg); border-color: var(--_accent); }
+    .launcher:focus-visible { outline: 2px solid var(--_focus); outline-offset: -2px; }
+    .launcher .icon { display: inline-flex; }
 
-    .badge, .marker {
+    /* One pill on the notch corner: the open-thread count, or while there are unpublished changes the
+       unpublished count in the draft colour. */
+    .badge {
       position: absolute;
+      top: -8px;
+      left: -8px;
       min-width: 18px;
       height: 18px;
       padding: 0 5px;
@@ -102,16 +95,13 @@ export class ThreadsPanel extends LitElement {
       border-radius: 999px;
       font-size: var(--_font-size-2xs);
       font-weight: 700;
-      line-height: 16px;
+      line-height: 18px;
       text-align: center;
       pointer-events: none;
+      background: var(--_accent-strong);
+      color: var(--_on-accent);
     }
-    .badge { background: var(--_accent-strong); color: var(--_on-accent); line-height: 18px; }
-    .marker { border: 1px solid var(--_surface); background: var(--_fg); color: var(--_surface); }
-    .strip .badge { top: 40px; left: 50%; transform: translateX(-50%); }
-    .strip .marker { top: 62px; left: 50%; transform: translateX(-50%); }
-    .fab .badge { top: -6px; left: -6px; }
-    .fab .marker { bottom: -6px; left: -6px; }
+    .badge.marker { border: 1px solid var(--_surface); background: var(--_draft); color: var(--_surface); line-height: 16px; }
 
     .panel {
       display: flex;
@@ -240,20 +230,19 @@ export class ThreadsPanel extends LitElement {
     return html`<span class="icon" aria-hidden="true">${unsafeHTML(getThreadSvg(name, size))}</span>`;
   }
 
-  private renderLauncher(fab: boolean) {
-    const label = this.open ? t('closePanel') : t('openThreadsPanel');
+  private renderLauncher() {
+    const label = t('openThreadsPanel');
     const unpublishedLabel = this.unpublished > 0
       ? tCount('unpublishedCount', this.unpublished)
       : '';
-    return html`<button class="launcher ${fab ? 'fab' : 'strip'}" part="launcher" type="button"
-      aria-label=${label} title=${label} aria-expanded=${String(this.open)}
-      @click=${() => { this.open = !this.open; }}>
+    return html`<button class="launcher" part="launcher" type="button"
+      aria-label=${label} title=${label} aria-expanded="false"
+      @click=${() => { this.open = true; }}>
       ${this.icon('messages-square')}
-      ${this.openCount > 0 ? html`<span class="badge" part="launcher-badge">${this.openCount}</span>` : nothing}
       ${this.unpublished > 0
-        ? html`<span class="marker" part="unpublished-marker" data-testid="unpublished-marker"
+        ? html`<span class="badge marker" part="unpublished-marker" data-testid="unpublished-marker"
           title=${unpublishedLabel} aria-label=${unpublishedLabel}>${this.unpublished}</span>`
-        : nothing}
+        : this.openCount > 0 ? html`<span class="badge" part="launcher-badge">${this.openCount}</span>` : nothing}
     </button>`;
   }
 
@@ -283,11 +272,8 @@ export class ThreadsPanel extends LitElement {
   }
 
   override render() {
-    const sidebar = this.mode === 'sidebar';
-    const showColumn = sidebar || this.open;
     return html`
-      ${showColumn ? html`<div class="column ${this.open ? 'open' : ''}" part="column">
-        ${this.open ? html`
+      ${this.open ? html`<div class="column open" part="column">
           <div class="panel" part="panel" role="complementary" aria-label=${t('threads')}>
             <div class="header" part="header">
               <div class="title" part="title">
@@ -305,9 +291,8 @@ export class ThreadsPanel extends LitElement {
             <div class="body" part="body" id="body" role=${this.showTabs ? 'tabpanel' : nothing}
               aria-labelledby=${this.showTabs ? `tab-${this.tab}` : nothing}>${this.renderBody()}</div>
             <div class="footer" part="footer"><slot name="footer"></slot></div>
-          </div>` : (sidebar ? this.renderLauncher(false) : nothing)}
-      </div>` : nothing}
-      ${!sidebar ? this.renderLauncher(true) : nothing}
+          </div>
+      </div>` : this.renderLauncher()}
     `;
   }
 }
