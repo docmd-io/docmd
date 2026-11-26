@@ -2,7 +2,7 @@
  * Playwright Screenplay primitives for e2e testing the threads plugin.
  *
  * Adapted from old-discussions-plugin/src/e2e/screenplay.ts for the new
- * inline-only architecture (no sidebar panel, server-rendered threads,
+ * inline architecture (server-rendered threads, review UI in a sidebar drawer,
  * WebSocket actions instead of HTTP API).
  */
 

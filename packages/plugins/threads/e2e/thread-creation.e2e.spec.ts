@@ -3,7 +3,6 @@
  * and filters-general.e2e.spec.ts "general comments" block.
  *
  * Changes from old plugin:
- * - No sidebar panel; threads are inline in the content area
  * - "Add comment" popover opens inline editor (not a panel compose form)
  * - "New Thread" button replaces "Add general comment" panel button
  * - WebSocket actions instead of HTTP API for verification
