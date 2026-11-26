@@ -36,7 +36,7 @@ async function build() {
 
 // Emoji data for the picker, served with the site as assets/threads/emoji/<lang>.json, and the licence
 // texts that travel with the vendored picker (Apache-2.0 section 4) and its data.
-const EMOJI_LANGS = ['en', 'hi', 'ko', 'zh'];
+const EMOJI_LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 
 function copyEmojiAssets() {
   const out = path.resolve(__dirname, 'dist/client');

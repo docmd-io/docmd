@@ -161,7 +161,7 @@ export function colorAt(index: number): CardColor {
 }
 
 /** The languages the emoji data is built for (build.js copies the same list). */
-const EMOJI_LANGS = ['en', 'hi', 'ko', 'zh'];
+const EMOJI_LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 
 /** The emoji data language for the page's `lang` (`zh-CN` gives `zh`); `en` when there is none or it is not built. */
 export function emojiLang(pageLang: string | null | undefined): string {

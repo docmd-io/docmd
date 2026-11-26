@@ -11,7 +11,7 @@ const dataDir = path.join(path.dirname(require.resolve('emoji-picker-element-dat
 
 test('every emoji of the shipped picker data is accepted, and its normal form is accepted too', () => {
   let total = 0;
-  for (const lang of ['en', 'hi', 'ko', 'zh']) {
+  for (const lang of ['en', 'de', 'es', 'hi', 'ko', 'zh']) {
     // The same source order build.js uses for the shipped file
     const file = ['emojibase', 'cldr'].map((d) => path.join(dataDir, lang, d, 'data.json')).find((f) => fs.existsSync(f))!;
     const entries = JSON.parse(fs.readFileSync(file, 'utf8')) as { emoji: string }[];

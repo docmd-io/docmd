@@ -693,7 +693,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.ok(html.includes('<mark'));
   assert.deepEqual(assets.map((a: { dest: string }) => a.dest), [
     'assets/js/threads.js', 'assets/css/threads.css', 'assets/js/threads-emoji-picker.js',
-    'assets/threads/emoji/en.json', 'assets/threads/emoji/hi.json', 'assets/threads/emoji/ko.json', 'assets/threads/emoji/zh.json',
+    'assets/threads/emoji/en.json', 'assets/threads/emoji/de.json', 'assets/threads/emoji/es.json', 'assets/threads/emoji/hi.json',
+    'assets/threads/emoji/ko.json', 'assets/threads/emoji/zh.json',
     'assets/threads/threads-emoji-picker.LICENSE.txt', 'assets/threads/emoji/LICENSE',
   ]);
 });

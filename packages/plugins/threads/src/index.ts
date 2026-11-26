@@ -94,7 +94,7 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
 }
 
 /** Languages the picker's emoji data is built for (build.js copies the same list). */
-const EMOJI_LANGS = ['en', 'hi', 'ko', 'zh'];
+const EMOJI_LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 
 export function getAssets(_options?: any): any[] {
   // Resolve relative to the compiled output location

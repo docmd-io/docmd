@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const vendor = path.join(root, 'src', 'client', 'vendor', 'emoji-picker');
 const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8');
-const LANGS = ['en', 'hi', 'ko', 'zh'];
+const LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 
 const g = globalThis as Record<string, unknown>;
 let hadWindow = false;

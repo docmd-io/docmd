@@ -213,6 +213,8 @@ test('emojiLang: the primary subtag when its data is built, English otherwise', 
   assert.equal(emojiLang('zh-CN'), 'zh');
   assert.equal(emojiLang('ko'), 'ko');
   assert.equal(emojiLang('HI_IN'), 'hi');
+  assert.equal(emojiLang('de-AT'), 'de');
+  assert.equal(emojiLang('es_MX'), 'es');
   assert.equal(emojiLang('fr'), 'en');
   assert.equal(emojiLang(''), 'en');
   assert.equal(emojiLang(null), 'en');
@@ -224,7 +226,7 @@ test('pickerUrls: the picker sits next to the bundle, the data one folder up und
     pickerSrc: 'https://x.test/base/assets/js/threads-emoji-picker.js',
     emojiDataSrc: 'https://x.test/base/assets/threads/emoji/zh.json',
   });
-  assert.equal(pickerUrls('http://localhost:3000/assets/js/threads.js', 'de').emojiDataSrc, 'http://localhost:3000/assets/threads/emoji/en.json');
+  assert.equal(pickerUrls('http://localhost:3000/assets/js/threads.js', 'fr').emojiDataSrc, 'http://localhost:3000/assets/threads/emoji/en.json');
 });
 
 test('tree: a comment hanging off a parent cycle is still shown', () => {
