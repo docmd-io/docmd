@@ -34,6 +34,13 @@ const DANGEROUS_URL_SCHEMES = new Set([
   'file:'
 ]);
 
+/**
+ * Fence languages that should render as plain text. The highlighter treats an
+ * unknown language as a fallback grammar, so `plaintext` would otherwise still
+ * emit `hljs-*` spans and the theme's code colours.
+ */
+const PLAIN_TEXT_LANGUAGES = new Set(['plaintext', 'text', 'txt']);
+
 function isDangerousHref(href: string): boolean {
   const lower = href.trim().toLowerCase();
   for (const prefix of DANGEROUS_URL_SCHEMES) {
@@ -281,6 +288,11 @@ function createMarkdownProcessor(config: any = {}, pluginsCallback: any) {
   const highlightFn = (str: any, lang: any) => {
     if (lang === 'mermaid') {
       return `<pre class="mermaid">${new MarkdownIt().utils.escapeHtml(str)}</pre>`;
+    }
+    if (PLAIN_TEXT_LANGUAGES.has(String(lang).toLowerCase())) {
+      const langAttr = lang ? ` class="language-${lang}"` : '';
+      const escaped = highlightWithPlaceholders(str, (clean) => new MarkdownIt().utils.escapeHtml(clean));
+      return `<pre><code${langAttr}>${escaped}</code></pre>`;
     }
     const highlighted = highlightWithPlaceholders(str, (clean) => {
       return highlight(clean, { language: lang, mimicHljs: true }).value;
