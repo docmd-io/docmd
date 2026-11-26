@@ -49,7 +49,6 @@ export async function upsertAuthor(authorKey: string | null, name: string, avata
     : { ...pageFile(), authorKey, name, avatarUrl };
   await docmd.call('threads:upsert-author', payload);
 }
-}
 
 export async function fetchThreads(): Promise<Thread[]> {
   return docmd.call('threads:get-threads', { file: getSourceFile(), ...storedIdentity() });

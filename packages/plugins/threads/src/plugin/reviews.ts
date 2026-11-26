@@ -323,7 +323,7 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
  * subproject's own `src`), as the host resolves it; without a host resolver, the project root
  * joined with the configured docs source folder.
  */
-export const docsRootOf = (ctx: ActionContext, file?: string): string =>
+export const docsRootOf = (ctx: Pick<ActionContext, 'projectRoot' | 'config' | 'docsRootOf'>, file?: string): string =>
   ctx.docsRootOf?.(file) ?? safePath(ctx.projectRoot, ctx.config?.src || '.');
 const reviewsDir = (ctx: ActionContext) => safePath(docsRootOf(ctx), path.join('.threads', 'reviews'));
 
