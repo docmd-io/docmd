@@ -7,7 +7,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, firstWordsOf, openPanel, panelLauncher, removeAuthorProfile, setAuthor } from "./helpers.ts";
 import type { Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -47,8 +47,7 @@ async function load(page: Page): Promise<void> {
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 }
 
-const firstWords = (page: Page): Promise<string> =>
-  page.evaluate(() => (document.querySelector("main p, .content p, article p") as HTMLElement).textContent!.trim().split(" ").slice(0, 3).join(" "));
+const firstWords = (page: Page): Promise<string> => firstWordsOf(page);
 
 /** The ids of the add-thread ops in the caller's open review. */
 const draftedIds = (page: Page): Promise<string[]> =>
@@ -95,7 +94,7 @@ const served = (page: Page, path: string, text: string): Promise<void> =>
  */
 async function inReviews(page: Page, check: () => Promise<void>): Promise<void> {
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await openPanel(page, 1_000);
     await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
     await check();
   }).toPass({ timeout: 15_000 });
@@ -109,7 +108,7 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 
   // The title field belongs to the open review: Save puts the title in the journal.
-  await page.locator(".threads-fab").click();
+  await panelLauncher(page).click();
   await page.getByTestId("tpw-title").fill("My review");
   await page.getByTestId("tpw-summary").fill("Why these comments.\nSecond line.");
   await page.getByTestId("tpw-title-save").click();
@@ -123,7 +122,7 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   // The drawer shows the saved summary again after a reload.
   await page.reload();
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
-  await page.locator(".threads-fab").click();
+  await panelLauncher(page).click();
   await expect(page.getByTestId("tpw-summary")).toHaveValue("Why these comments.\nSecond line.");
 
   // Publishing from the review section lists the new review in the open Reviews tab, titled as saved.
@@ -170,10 +169,10 @@ test("a review gets its title, is listed with a link to its comment, and Discard
 
   // Cancel keeps the review; the open review's own section is not involved (nothing is drafted, so it has no Discard).
   await entry.getByTestId("discard-open").click();
-  await expect(entry.getByTestId("discard-dialog")).toBeVisible();
+  await expect(entry.getByRole("dialog")).toBeVisible();
   await expect(page.locator("threads-publish-widget threads-discard-review")).toHaveCount(0);
   await entry.getByTestId("discard-cancel").click();
-  await expect(entry.getByTestId("discard-dialog")).toBeHidden();
+  await expect(entry.getByRole("dialog")).toBeHidden();
   await expect(entry).toHaveAttribute("data-state", "published");
 
   // Confirm discards it: the entry says so and has no Discard.
@@ -181,10 +180,7 @@ test("a review gets its title, is listed with a link to its comment, and Discard
   // The tab refreshes itself on success: watch this very entry (the dev server reloads the page soon after).
   const handle = await entry.elementHandle();
   await entry.getByTestId("discard-confirm").click();
-  await page.waitForFunction(
-    (el) => el?.getAttribute("data-state") === "discarded" && !el.querySelector('[data-testid="discard-open"]'),
-    handle,
-  );
+  await page.waitForFunction((el) => el?.getAttribute("data-state") === "discarded", handle);
   await inReviews(page, async () => {
     await expect(entry).toHaveAttribute("data-state", "discarded", { timeout: 1_000 });
     await expect(entry.getByTestId("review-state")).toHaveText("Discarded", { timeout: 1_000 });

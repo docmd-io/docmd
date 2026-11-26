@@ -7,7 +7,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, mainOf, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, firstWordsOf, openPanel, panelCard, removeAuthorProfile, mainOf, setAuthor } from "./helpers.ts";
 import type { Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -31,10 +31,7 @@ async function load(page: Page): Promise<void> {
   await page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 }
 
-/** The first words of the page's first paragraph: text the page certainly has. */
-async function firstWords(page: Page): Promise<string> {
-  return ((await page.locator("main p, .content p, article p").first().textContent())!).trim().split(" ").slice(0, 3).join(" ");
-}
+const firstWords = (page: Page): Promise<string> => firstWordsOf(page);
 
 const widgetAttached = (page: Page) => page.waitForSelector("threads-publish-widget", { state: "attached", timeout: 10_000 });
 
@@ -82,8 +79,8 @@ async function publish(page: Page): Promise<void> {
  */
 async function inDrawer(page: Page, check: () => Promise<void>): Promise<void> {
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click();
-    await expect(page.locator(".tc-panel threads-publish-widget")).toBeVisible({ timeout: 1_000 });
+    await openPanel(page, 1_000);
+    await expect(page.locator("threads-panel threads-publish-widget")).toBeVisible({ timeout: 1_000 });
     await check();
   }).toPass({ timeout: 15_000 });
 }
@@ -102,20 +99,20 @@ test.afterEach(async ({ page }) => {
   await cleanThreads(page);
 });
 
-test("the review section is in the drawer; the FAB and the toggle strip count unpublished comments until they are published", async ({ page }) => {
+test("the review section is in the drawer; the launcher counts unpublished comments until they are published", async ({ page }) => {
   await load(page);
   await expect(page.locator("body > threads-publish-widget")).toHaveCount(0);
-  const section = page.locator(".tc-panel threads-publish-widget");
+  const section = page.locator("threads-panel threads-publish-widget");
   await expect(section).toHaveCount(1);
   await expect(section).toBeHidden(); // attached while the drawer is closed
-  await expect(page.locator(".threads-fab .tc-unpublished-marker")).toHaveCount(0);
+  await expect(page.getByTestId("unpublished-marker")).toHaveCount(0);
 
   const quote = await firstWords(page);
   await addThread(page, quote, "drawer draft");
-  const fabMarker = page.locator(".threads-fab .tc-unpublished-marker");
-  await expect(fabMarker).toHaveText("1");
-  await expect(fabMarker).toHaveAttribute("title", "1 unpublished comment");
-  await expect(page.locator(".tc-sidebar-toggle .tc-unpublished-marker")).toHaveText("1");
+  // One marker on the launcher, whichever look (strip or floating button) it has
+  const marker = page.getByTestId("unpublished-marker");
+  await expect(marker).toHaveText("1");
+  await expect(marker).toHaveAttribute("title", "1 unpublished comment");
   await expect(section).toBeHidden();
 
   await inDrawer(page, async () => {
@@ -127,7 +124,7 @@ test("the review section is in the drawer; the FAB and the toggle strip count un
 
   await page.getByTestId("tpw-publish").click();
   await expect(page.getByTestId("tpw-count")).toHaveText("0 unpublished comments");
-  await expect(page.locator(".tc-unpublished-marker")).toHaveCount(0);
+  await expect(page.getByTestId("unpublished-marker")).toHaveCount(0);
 });
 
 test("a published thread whose quote left the page is in the Orphaned group with its quote, and its author is told", async ({ page }) => {
@@ -145,8 +142,10 @@ test("a published thread whose quote left the page is in the Orphaned group with
   await inDrawer(page, async () => {
     const group = page.getByTestId("orphaned-group");
     await expect(group).toContainText("Orphaned", { timeout: 1_000 });
-    await expect(group.locator(`.threads-thread[data-thread-id="${id}"]`)).toContainText(quote, { timeout: 1_000 });
-    await expect(page.locator(`.tc-panel__body > .threads-thread[data-thread-id="${id}"]`)).toHaveCount(0, { timeout: 1_000 });
+    // Orphan cards are in the panel's `orphans` slot, which the group wraps; none is in the main list
+    await expect(panelCard(page, id)).toHaveAttribute("slot", "orphans", { timeout: 1_000 });
+    await expect(panelCard(page, id)).toContainText(quote, { timeout: 1_000 });
+    await expect(page.locator(`threads-panel > threads-thread[data-thread-id="${id}"]:not([slot])`)).toHaveCount(0, { timeout: 1_000 });
     await expect(page.getByTestId("tpw-orphan")).toHaveText("1 of your comments lost its anchor", { timeout: 1_000 });
   });
 });

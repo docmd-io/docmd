@@ -8,7 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { safePath } from "@docmd/utils";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -340,4 +340,68 @@ export async function tolerateReload<T>(call: Promise<T>): Promise<T | undefined
     if (e instanceof Error && /Execution context was destroyed|Target (page, context or browser )?has been closed/i.test(e.message)) return undefined;
     throw e;
   }
+}
+
+// ---------------------------------------------------------------------------
+// The enhanced UI is shadow DOM: Playwright locators pierce it, `document.querySelector` does not.
+// ---------------------------------------------------------------------------
+
+/** The card a thread has inside the article (only threads with a highlight get one). */
+export function inlineCard(page: Page, threadId: string): Locator {
+  return page.locator(`threads-thread[variant="inline"][data-thread-id="${threadId}"]`);
+}
+
+/** The card a thread has in the sidebar panel (every thread has one, shown when the panel is open). */
+export function panelCard(page: Page, threadId: string): Locator {
+  return page.locator(`threads-panel threads-thread[data-thread-id="${threadId}"]`);
+}
+
+/** Whether the sidebar panel is open (the panel sets this class on the body for the page layout). */
+export function isPanelOpen(page: Page): Promise<boolean> {
+  return page.locator("body").evaluate((el) => el.classList.contains("tc-panel-open"));
+}
+
+/** The launcher that opens the panel, a `<button>` in the panel's shadow root. */
+export function panelLauncher(page: Page): Locator {
+  return page.getByRole("button", { name: "Open threads panel" });
+}
+
+/** Open the sidebar panel unless it is open. */
+export async function openPanel(page: Page, timeout = 5_000): Promise<void> {
+  if (!(await isPanelOpen(page))) await panelLauncher(page).click({ timeout });
+  await expect(page.locator("threads-panel").getByRole("complementary")).toBeVisible({ timeout });
+}
+
+/** The first words of the page's first paragraph: text the page certainly has. */
+export function firstWordsOf(page: Page, count = 3): Promise<string> {
+  return page
+    .locator("main p, .content p, article p")
+    .first()
+    .innerText()
+    .then((text) => text.trim().split(" ").slice(0, count).join(" "));
+}
+
+/** Wait until the app replaced the build's HTML with the cards (the build's own copy is hidden then). */
+export async function waitForHydration(page: Page): Promise<void> {
+  await expect(page.locator(".threads-sidebar").first()).toBeHidden({ timeout: 10_000 });
+}
+
+/**
+ * Change what the page reads from the site config the server injects as `window.__threads_config` (the
+ * client takes `reactions` and `profileUrl` from there). The patch is merged over the injected object, at the top
+ * level, before any page script runs, and again after every navigation or reload of this page. The server's own
+ * config is not touched: server-side rules (an unlisted emoji refused on a restricted site) are covered by the
+ * Node tests.
+ */
+export async function overrideSiteConfig(page: Page, patch: Record<string, unknown>): Promise<void> {
+  await page.addInitScript((overrides) => {
+    let injected: unknown;
+    Object.defineProperty(window, "__threads_config", {
+      configurable: true,
+      get: () => injected,
+      set: (value) => {
+        injected = { ...(value as Record<string, unknown>), ...overrides };
+      },
+    });
+  }, patch);
 }

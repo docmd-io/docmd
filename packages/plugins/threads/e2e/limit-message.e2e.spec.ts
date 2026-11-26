@@ -5,6 +5,7 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { cleanThreads, emptyOpenReview, setAuthor, waitForReload } from "./helpers.ts";
+import { inlineCards, newThreadButton } from "./screenplay.ts";
 
 const identity = { author: "TestUser", authorKey: "testuser" };
 const TOO_LONG = "This comment is too long. Shorten it and try again.";
@@ -29,19 +30,19 @@ const journalOps = (page: Page) =>
 
 /** Submit `text` in the open box and expect the limit message, the text kept and Submit usable again. */
 async function expectRejected(page: Page, text: string, opsBefore: unknown[]): Promise<void> {
-  const editor = page.locator("threads-inline-editor");
+  const editor = page.locator("threads-editor");
   await editor.waitFor({ state: "attached", timeout: 5_000 });
-  const textarea = editor.locator("sl-textarea").locator("textarea");
+  const textarea = editor.getByRole("textbox");
   await textarea.waitFor({ timeout: 5_000 });
   await textarea.fill(text);
-  const submit = editor.locator("sl-button[variant='primary']");
+  const submit = editor.getByRole("button", { name: "Submit" });
   await submit.click();
 
   await expect(editor.getByTestId("editor-message")).toHaveText(TOO_LONG, { timeout: 10_000 });
   await expect(editor).toHaveCount(1);
   await expect(textarea).toHaveValue(text);
-  await expect(submit).not.toHaveAttribute("disabled", /.*/);
-  await expect(submit).toHaveText("Submit");
+  await expect(submit).toBeEnabled();
+  await expect(editor.locator('threads-button[part~="submit"]')).toHaveText("Submit");
   expect(await journalOps(page)).toEqual(opsBefore);
 }
 
@@ -50,10 +51,10 @@ test("a body over the character limit leaves each box open with a message and th
   const opsBefore = await journalOps(page);
 
   // New Thread under a heading
-  await page.locator(".threads-new-thread-btn").first().click();
+  await newThreadButton(page).click();
   await expectRejected(page, long, opsBefore);
-  await page.locator("threads-inline-editor").locator("sl-button[variant='neutral']").click();
-  await expect(page.locator("threads-inline-editor")).toHaveCount(0);
+  await page.locator("threads-editor").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator("threads-editor")).toHaveCount(0);
 
   // A selection's add-comment popover
   await page.waitForSelector(contentSelector, { timeout: 5_000 });
@@ -76,24 +77,24 @@ test("a body over the character limit leaves each box open with a message and th
       return;
     }
   }, quote);
-  const addComment = page.locator("threads-popover").getByText("Add comment");
+  const addComment = page.getByRole("button", { name: "Add comment", exact: true });
   await addComment.waitFor({ state: "visible", timeout: 5_000 });
   await addComment.click();
   await expectRejected(page, long, opsBefore);
 
   // A shorter text in the same box succeeds and the box closes
-  const editor = page.locator("threads-inline-editor");
-  await editor.locator("sl-textarea").locator("textarea").fill("A short comment");
-  await editor.locator("sl-button[variant='primary']").click();
+  const editor = page.locator("threads-editor");
+  await editor.getByRole("textbox").fill("A short comment");
+  await editor.getByRole("button", { name: "Submit" }).click();
   await editor.waitFor({ state: "detached", timeout: 10_000 });
-  const thread = page.locator(".threads-thread[data-thread-id]").first();
+  const thread = inlineCards(page).first();
   await expect(thread.getByText("A short comment")).toBeVisible({ timeout: 10_000 });
 
   // New Comment on that thread
   const opsWithThread = await journalOps(page);
-  await thread.locator(".threads-new-comment-btn").first().click();
+  await thread.getByRole("button", { name: "New Comment" }).click();
   await expectRejected(page, long, opsWithThread);
 
-  await page.locator("threads-inline-editor").locator("sl-button[variant='neutral']").click();
-  await expect(page.locator("threads-inline-editor")).toHaveCount(0);
+  await page.locator("threads-editor").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator("threads-editor")).toHaveCount(0);
 });

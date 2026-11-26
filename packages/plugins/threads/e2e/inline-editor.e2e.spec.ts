@@ -2,8 +2,8 @@
  * Inline editor tests - adapted from old inline-editor.e2e.spec.ts.
  *
  * Changes from old plugin:
- * - threads-inline-editor replaces devtalk-inline-editor
- * - "Add comment" popover replaces "Add to page" button
+ * - threads-editor (shadow DOM) replaces devtalk-inline-editor
+ * - The "Add comment" selection button replaces "Add to page" button
  * - No separate panel compose form; all editing is inline
  */
 
@@ -46,21 +46,22 @@ async function getTextToSelect(): Promise<string> {
 async function openInlineEditor(textToSelect: string): Promise<void> {
   await user.perform(SelectText.within(contentSelector, textToSelect));
 
-  const addCommentBtn = user.page.locator("threads-popover").getByText("Add comment");
+  const addCommentBtn = user.page.getByRole("button", { name: "Add comment", exact: true });
   await addCommentBtn.waitFor({ state: "visible", timeout: 5_000 });
   await addCommentBtn.click();
 
-  const editor = user.page.locator("threads-inline-editor");
-  await editor.waitFor({ state: "attached", timeout: 5_000 });
+  await editor().waitFor({ state: "attached", timeout: 5_000 });
 }
+
+/** The inline editor, and the pieces of it the specs use (found by role and name, inside its shadow root). */
+const editor = () => user.page.locator("threads-editor");
+const textbox = () => editor().getByRole("textbox", { name: "Write your comment..." });
+const submitButton = () => editor().getByRole("button", { name: "Submit" });
+const cancelButton = () => editor().getByRole("button", { name: "Cancel" });
 
 /** Helper: type text into the inline editor's textarea */
 async function typeInEditor(text: string): Promise<void> {
-  const textarea = user.page
-    .locator("threads-inline-editor")
-    .locator("sl-textarea")
-    .locator("textarea");
-  await textarea.fill(text);
+  await textbox().fill(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,11 +85,9 @@ test.describe("inline editor basics", () => {
     await openInlineEditor(textToSelect);
     await typeInEditor("Inline comment via selection");
 
-    const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("sl-button[variant='primary']");
-    await submitBtn.click();
+    await submitButton().click();
 
-    await editor.waitFor({ state: "detached", timeout: 10_000 });
+    await editor().waitFor({ state: "detached", timeout: 10_000 });
   });
 
   test("cancel removes inline editor", async () => {
@@ -98,11 +97,9 @@ test.describe("inline editor basics", () => {
     await openInlineEditor(textToSelect);
     expect(await user.ask(TheInlineEditor.isVisible())).toBe(true);
 
-    const editor = user.page.locator("threads-inline-editor");
-    const cancelBtn = editor.locator("sl-button[variant='neutral']");
-    await cancelBtn.click();
+    await cancelButton().click();
 
-    await editor.waitFor({ state: "detached", timeout: 5_000 });
+    await editor().waitFor({ state: "detached", timeout: 5_000 });
   });
 
   test("submit button is disabled when textarea is empty", async () => {
@@ -111,9 +108,7 @@ test.describe("inline editor basics", () => {
 
     await openInlineEditor(textToSelect);
 
-    const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("sl-button[variant='primary']");
-    await expect(submitBtn).toHaveAttribute("disabled", { timeout: 3_000 });
+    await expect(submitButton()).toBeDisabled({ timeout: 3_000 });
   });
 });
 
@@ -131,8 +126,7 @@ test.describe("keyboard shortcuts", () => {
 
     await user.perform(SubmitWithKeyboard.inInlineEditor());
 
-    const editor = user.page.locator("threads-inline-editor");
-    await editor.waitFor({ state: "detached", timeout: 10_000 });
+    await editor().waitFor({ state: "detached", timeout: 10_000 });
   });
 
   test("Escape cancels inline editor", async () => {
@@ -143,8 +137,7 @@ test.describe("keyboard shortcuts", () => {
 
     await user.perform(CancelWithKeyboard.inInlineEditor());
 
-    const editor = user.page.locator("threads-inline-editor");
-    await editor.waitFor({ state: "detached", timeout: 5_000 });
+    await editor().waitFor({ state: "detached", timeout: 5_000 });
   });
 
   test("Cmd+Enter does nothing when textarea is empty", async () => {
@@ -157,8 +150,7 @@ test.describe("keyboard shortcuts", () => {
     await user.perform(SubmitWithKeyboard.inInlineEditor());
 
     // Editor should still be present
-    const editor = user.page.locator("threads-inline-editor");
-    await expect(editor).toBeAttached({ timeout: 1_000 });
+    await expect(editor()).toBeAttached({ timeout: 1_000 });
   });
 });
 
@@ -173,16 +165,9 @@ test.describe("inline editor validation", () => {
 
     await openInlineEditor(textToSelect);
 
-    const textarea = user.page
-      .locator("threads-inline-editor")
-      .locator("sl-textarea")
-      .locator("textarea");
-    await textarea.fill("   ");
+    await textbox().fill("   ");
 
-    const submitBtn = user.page
-      .locator("threads-inline-editor")
-      .locator("sl-button[variant='primary']");
-    await expect(submitBtn).toHaveAttribute("disabled");
+    await expect(submitButton()).toBeDisabled();
   });
 
   test("inline editor textarea gets autofocus on open", async () => {
@@ -191,12 +176,7 @@ test.describe("inline editor validation", () => {
 
     await openInlineEditor(textToSelect);
 
-    const textarea = user.page
-      .locator("threads-inline-editor")
-      .locator("sl-textarea")
-      .locator("textarea");
-
-    await expect(textarea).toBeFocused({ timeout: 3_000 });
+    await expect(textbox()).toBeFocused({ timeout: 3_000 });
   });
 });
 
@@ -212,10 +192,9 @@ test.describe("inline editor submitting state", () => {
     await openInlineEditor(textToSelect);
     await typeInEditor("Some comment text");
 
-    const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("sl-button[variant='primary']");
-
-    await expect(submitBtn).toContainText("Submit");
+    await expect(submitButton()).toBeEnabled();
+    // The label is slotted text of the `threads-button` host
+    await expect(editor().locator('threads-button[part~="submit"]')).toHaveText("Submit");
   });
 
   test("submit button footer hint reads Cmd+Enter to submit", async () => {
@@ -224,8 +203,7 @@ test.describe("inline editor submitting state", () => {
 
     await openInlineEditor(textToSelect);
 
-    const editor = user.page.locator("threads-inline-editor");
-    const hint = editor.locator(".hint");
+    const hint = editor().locator('[part~="hint"]');
 
     await expect(hint).toBeVisible();
     await expect(hint).toContainText("Cmd+Enter to submit");
@@ -238,13 +216,10 @@ test.describe("inline editor submitting state", () => {
     await openInlineEditor(textToSelect);
     await typeInEditor("Double-submit test comment");
 
-    const editor = user.page.locator("threads-inline-editor");
-    const submitBtn = editor.locator("sl-button[variant='primary']");
+    await submitButton().click();
+    await submitButton().click({ force: true, timeout: 1_000 }).catch(() => {});
 
-    await submitBtn.click();
-    await submitBtn.click({ force: true }).catch(() => {});
-
-    await editor.waitFor({ state: "detached", timeout: 10_000 });
+    await editor().waitFor({ state: "detached", timeout: 10_000 });
   });
 });
 
@@ -258,9 +233,6 @@ test.describe("inline editor placeholder text", () => {
 
     await openInlineEditor(await getTextToSelect());
 
-    const editor = user.page.locator("threads-inline-editor");
-    const textarea = editor.locator("sl-textarea").locator("textarea");
-
-    await expect(textarea).toHaveAttribute("placeholder", "Write your comment...");
+    await expect(textbox()).toHaveAttribute("placeholder", "Write your comment...");
   });
 });
