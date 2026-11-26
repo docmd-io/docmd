@@ -14,7 +14,7 @@
   "noThreads": "此页面还没有讨论。",
   "selectTextToStart": "选择文本开始讨论。",
   "writeComment": "写下您的评论...",
-  "addComment": "添加评论...",
+  "addComment": "添加评论",
   "cmdEnterSubmit": "Cmd+Enter 提交",
   "cancel": "取消",
   "submit": "提交",
@@ -72,5 +72,6 @@
   "rateLimited": "您评论得太快了。请等待一分钟后重试。",
   "addReaction": "添加回应",
   "resolve": "标记解决",
-  "unresolve": "取消解决"
+  "unresolve": "取消解决",
+  "couldNotSave": "无法保存。请重试。"
 }

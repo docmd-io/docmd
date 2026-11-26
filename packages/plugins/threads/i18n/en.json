@@ -14,7 +14,7 @@
   "noThreads": "No threads on this page yet.",
   "selectTextToStart": "Select text to start one.",
   "writeComment": "Write your comment...",
-  "addComment": "Add a comment...",
+  "addComment": "Add comment",
   "cmdEnterSubmit": "Cmd+Enter to submit",
   "cancel": "Cancel",
   "submit": "Submit",
@@ -72,5 +72,6 @@
   "rateLimited": "You are commenting too fast. Wait a minute and try again.",
   "addReaction": "Add reaction",
   "resolve": "Resolve",
-  "unresolve": "Unresolve"
+  "unresolve": "Unresolve",
+  "couldNotSave": "Could not save. Try again."
 }

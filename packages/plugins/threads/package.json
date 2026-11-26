@@ -9,7 +9,11 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./components": {
+      "default": "./dist/client/components.js"
+    },
+    "./threads.css": "./dist/client/index.css"
   },
   "files": [
     "dist",

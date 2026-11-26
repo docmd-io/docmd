@@ -20,7 +20,7 @@ const defaults: Record<string, string> = {
   noThreads: 'No threads on this page yet.',
   selectTextToStart: 'Select text to start one.',
   writeComment: 'Write your comment...',
-  addComment: 'Add a comment...',
+  addComment: 'Add comment',
   cmdEnterSubmit: 'Cmd+Enter to submit',
   cancel: 'Cancel',
   submit: 'Submit',
@@ -76,17 +76,30 @@ const defaults: Record<string, string> = {
   saveFailed: 'Could not save the review',
   limitChars: 'This comment is too long. Shorten it and try again.',
   rateLimited: 'You are commenting too fast. Wait a minute and try again.',
-  addReaction: 'Add reaction',
-  resolve: 'Resolve',
-  unresolve: 'Unresolve',
+  couldNotSave: 'Could not save. Try again.',
 };
+
+/** Strings a host app set with setThreadsStrings; they win over the page's injected strings. */
+const overrides: Record<string, string> = {};
+
+/**
+ * Set translated strings for hosts that are not docmd (docmd's own bundle gets its strings injected).
+ * Keys not in the dictionary keep their value; a later call with the same key replaces it.
+ * Non-string values are ignored.
+ */
+export function setThreadsStrings(dict: Record<string, string>): void {
+  for (const [key, value] of Object.entries(dict)) {
+    if (typeof value === 'string') overrides[key] = value;
+  }
+}
 
 /**
  * Get a translated string by key.
- * Priority: window.__threads_i18n[key] → defaults[key] → key itself.
+ * Priority: setThreadsStrings → window.__threads_i18n[key] → defaults[key] → key itself.
  */
 export function t(key: string): string {
-  const injected = (window as any).__threads_i18n;
+  if (Object.hasOwn(overrides, key)) return overrides[key];
+  const injected = (globalThis as any).window?.__threads_i18n;
   if (injected && typeof injected[key] === 'string') return injected[key];
-  return defaults[key] || key;
+  return Object.hasOwn(defaults, key) && defaults[key] ? defaults[key] : key;
 }

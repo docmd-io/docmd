@@ -6,7 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function build() {
   await esbuild.build({
-    entryPoints: [path.resolve(__dirname, 'src/client/index.ts')],
+    // index.js is the docmd bundle (served as assets/js/threads.js); components.js is the portable
+    // entry published as the "./components" export.
+    entryPoints: [
+      path.resolve(__dirname, 'src/client/index.ts'),
+      path.resolve(__dirname, 'src/client/components.ts'),
+    ],
     bundle: true,
     platform: 'browser',
     target: 'es2022',
