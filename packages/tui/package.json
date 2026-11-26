@@ -24,7 +24,7 @@
     "chalk": "^6.0.1"
   },
   "devDependencies": {
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.11",
     "typescript": "^6.0.3"
   },
   "keywords": [

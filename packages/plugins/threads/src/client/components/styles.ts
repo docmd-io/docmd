@@ -250,12 +250,15 @@ export function injectComponentStyles(): void {
       pointer-events: none;
     }
     .threads-fab__badge-wrap .tc-unpublished-marker {
-      border-radius: 0;
-      border-left: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 999px;
+      border-left: none;
     }
     .threads-fab__badge-wrap .tc-unpublished-marker:only-child {
       border-radius: 999px;
       border-left: none;
+    }
+    .threads-fab__badge-wrap .threads-fab__badge {
+      border-radius: 999px;
     }
     .threads-fab__badge-wrap .threads-fab__badge:only-child {
       border-radius: 999px;
@@ -691,9 +694,71 @@ export function injectComponentStyles(): void {
       gap: 6px;
       width: 100%;
     }
-    .threads-comment__meta strong {
+    .threads-comment__meta strong,
+    .threads-comment__meta .threads-comment__author {
       color: var(--tc-fg);
       font-weight: 600;
+    }
+    .threads-comment__meta .threads-comment__date {
+      color: var(--tc-muted-fg);
+      font-size: 11.5px;
+    }
+    .threads-comment__meta .threads-comment__sep {
+      color: var(--tc-muted-fg);
+      opacity: 0.6;
+    }
+
+    /* Sidebar drawer comments: 2-line header right next to avatar */
+    .tc-panel .threads-comment__meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+      row-gap: 1px;
+      column-gap: 4px;
+      line-height: 1.25;
+      font-size: 11px;
+    }
+    .tc-panel .threads-comment__meta strong,
+    .tc-panel .threads-comment__meta .threads-comment__author {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--tc-fg);
+      order: 1;
+    }
+    .tc-panel .threads-comment__meta .threads-comment__actions {
+      margin-left: auto;
+      order: 2;
+    }
+    .tc-panel .threads-comment__meta .threads-comment__sep {
+      display: none !important;
+    }
+    .tc-panel .threads-comment__meta .threads-comment__date {
+      display: block;
+      width: 100%;
+      order: 3;
+      font-size: 11px;
+      color: var(--tc-muted-fg);
+      font-weight: 400;
+      margin-top: 1px;
+    }
+
+    /* In-page comments: single line header right next to avatar */
+    .threads-comment:not(.tc-panel .threads-comment) .threads-comment__meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.4;
+      font-size: 12px;
+    }
+    .threads-comment:not(.tc-panel .threads-comment) .threads-comment__meta strong,
+    .threads-comment:not(.tc-panel .threads-comment) .threads-comment__meta .threads-comment__author {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--tc-fg);
+    }
+    .threads-comment:not(.tc-panel .threads-comment) .threads-comment__meta .threads-comment__actions {
+      margin-left: auto;
     }
 
     .threads-comment__actions {

@@ -44,7 +44,7 @@
   "devDependencies": {
     "@docmd/api": "workspace:*",
     "@types/markdown-it": "^14.2.0",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.11",
     "esbuild": "^0.28.2"
   },
   "keywords": [

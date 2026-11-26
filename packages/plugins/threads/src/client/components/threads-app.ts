@@ -2,8 +2,8 @@ import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { Thread, Comment, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
-import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
-import { deleteCommentTarget } from '../lib/can-show';
+import { initIdentity, getIdentityPayload, getIdentityMode, getAuthorKey, getAuthor, canShowFor } from '../lib/identity';
+import { deleteCommentTarget, type ShowTarget } from '../lib/can-show';
 import { computeAnchor, getSelectionPosition, isWithinContent } from '../lib/selection';
 import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
@@ -13,6 +13,29 @@ import { createPublishMount } from '../lib/publish-mount';
 import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 import { hideRawSidebars } from '../lib/raw-sidebars';
+
+/**
+ * Format raw ISO or timestamp string into an understandable, human-readable date & time.
+ * E.g., '2026-11-19T10:00:00Z' -> 'Nov 19, 2026, 10:00 AM'
+ * '2026-11-26' -> 'Nov 26, 2026'
+ */
+function formatDateTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed;
+  const hasTime = trimmed.includes('T') || trimmed.includes(':');
+  if (!hasTime) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 import './threads-popover';
 import './threads-inline-editor';
@@ -64,10 +87,12 @@ export class ThreadsApp extends LitElement {
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
       // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
-      if (!this.panelEl) return el; // no drawer to show it in: nothing to refresh
-      this.panelEl.appendChild(el);
-      this.mountTabs();
-      void el.refresh();
+      if (!this.panelEl) this.initSidebarColumn();
+      if (this.panelEl) {
+        this.panelEl.appendChild(el);
+        this.mountTabs();
+        void el.refresh();
+      }
       return el;
     },
     remove: (el) => {
@@ -484,7 +509,27 @@ export class ThreadsApp extends LitElement {
       if (wrap) wrap.appendChild(marker);
       else host.appendChild(marker);
     }
+    this.updateFabBadge();
   };
+
+  /**
+   * Determine whether the delete action should be offered to the current user.
+   * Only the author of the comment (or thread) or an admin may delete.
+   */
+  private canDeleteComment(target: ShowTarget, commentAuthor?: string | null, commentAuthorKey?: string | null): boolean {
+    if (target.drafted) return true;
+    const idMode = getIdentityMode();
+    if (idMode.mode === 'header' && idMode.isAdmin) return true;
+    const currentKey = idMode.mode === 'header' ? idMode.payload.authorKey : getAuthorKey();
+    const currentName = idMode.mode === 'header' ? idMode.payload.author : getAuthor();
+    if (target.authorKey && currentKey && target.authorKey === currentKey) return true;
+    if (commentAuthorKey && currentKey && commentAuthorKey === currentKey) return true;
+    if (commentAuthor && currentName && commentAuthor.toLowerCase().trim() === currentName.toLowerCase().trim()) return true;
+    if (target.authorKeys && target.authorKeys.length > 0) {
+      if (currentKey && target.authorKeys.every(k => k === currentKey)) return true;
+    }
+    return false;
+  }
 
   /** The publish widget exists only against a live server. */
   private mountPublishWidget(): void {
@@ -678,7 +723,30 @@ export class ThreadsApp extends LitElement {
         const commentId = commentEl.dataset.commentId;
         if (!commentId) continue;
 
-        const meta = commentEl.querySelector('.threads-comment__meta');
+        const meta = commentEl.querySelector<HTMLElement>('.threads-comment__meta');
+        if (meta) {
+          const authorEl = meta.querySelector('strong');
+          if (authorEl) authorEl.classList.add('threads-comment__author');
+          let dateEl = meta.querySelector('.threads-comment__date');
+          if (!dateEl) {
+            const rawDate = commentEl.dataset.date || meta.textContent?.replace(authorEl?.textContent || '', '').replace(/^[·\s·\s]+/, '').trim() || '';
+            const dateFormatted = formatDateTime(rawDate);
+            for (const node of Array.from(meta.childNodes)) {
+              if (node !== authorEl) node.remove();
+            }
+            const sep = document.createElement('span');
+            sep.className = 'threads-comment__sep';
+            sep.textContent = ' · ';
+            meta.appendChild(sep);
+
+            dateEl = document.createElement('span');
+            dateEl.className = 'threads-comment__date';
+            dateEl.textContent = dateFormatted;
+            meta.appendChild(dateEl);
+          } else if (dateEl.textContent) {
+            dateEl.textContent = formatDateTime(dateEl.textContent.trim());
+          }
+        }
 
         // Inject avatar into the avatar column if not already present
         const avatarCol = commentEl.querySelector('.threads-comment__avatar-col');
@@ -722,11 +790,17 @@ export class ThreadsApp extends LitElement {
           });
           actions.appendChild(replyBtn);
 
-          // Delete button: only when the server would accept it (a lone comment deletes the thread)
-          let deletable: boolean;
-          if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
-          else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
-          else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
+          // Delete button: only when user is author or admin and canShowFor passes
+          let deletable = false;
+          const comm = thread?.comments.find(c => c.id === commentId);
+          const target = !thread
+            ? { authorKey: null }
+            : (totalComments === 1
+                ? { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) }
+                : deleteCommentTarget(thread.comments, commentId));
+          if (canShowFor('delete-comment', target)) {
+            deletable = this.canDeleteComment(target, comm?.author || commentEl.dataset.author, comm?.authorKey);
+          }
           if (deletable) {
             const delBtn = document.createElement('button');
             delBtn.className = 'threads-delete-btn';
@@ -1066,6 +1140,13 @@ export class ThreadsApp extends LitElement {
 
     column.appendChild(panel);
     document.body.appendChild(column);
+
+    // Ensure publish widget is mounted in panel if already created
+    if (this.publishMount.widget && !panel.contains(this.publishMount.widget)) {
+      panel.appendChild(this.publishMount.widget);
+      this.mountTabs();
+      void this.publishMount.widget.refresh();
+    }
   }
 
   /** The Threads / Reviews tab buttons, between the drawer's header and body. Only a live drawer has them. */
@@ -1348,14 +1429,18 @@ export class ThreadsApp extends LitElement {
     meta.className = 'threads-comment__meta';
 
     const authorStrong = document.createElement('strong');
+    authorStrong.className = 'threads-comment__author';
     authorStrong.textContent = authorInfo?.name || comment.author;
     meta.appendChild(authorStrong);
 
-    const dot = document.createTextNode(' · ');
-    meta.appendChild(dot);
+    const sep = document.createElement('span');
+    sep.className = 'threads-comment__sep';
+    sep.textContent = ' · ';
+    meta.appendChild(sep);
 
     const dateSpan = document.createElement('span');
-    dateSpan.textContent = comment.date;
+    dateSpan.className = 'threads-comment__date';
+    dateSpan.textContent = formatDateTime(comment.date);
     meta.appendChild(dateSpan);
 
     // Actions
@@ -1377,8 +1462,9 @@ export class ThreadsApp extends LitElement {
     });
     actions.appendChild(replyBtn);
 
-    // Delete button
-    if (canShowFor('delete-comment', deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id))) {
+    // Delete button: only when user is author or admin and canShowFor passes
+    const delTarget = deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id);
+    if (canShowFor('delete-comment', delTarget) && this.canDeleteComment(delTarget, comment.author, comment.authorKey)) {
       const delBtn = document.createElement('button');
       delBtn.className = 'threads-delete-btn';
       delBtn.appendChild(createSvgElement('trash', 13));
@@ -1576,8 +1662,11 @@ export class ThreadsApp extends LitElement {
     const badge = document.querySelector('.threads-fab__badge') as HTMLElement | null;
     if (!badge) return;
     const count = this.threads.filter(t => !t.resolved).length;
-    if (count > 0) {
+    // When unpublished marker is active on FAB, hide open-threads badge to avoid confusing dual-pill crowding
+    const hasUnpublished = this.unpublishedCount > 0;
+    if (count > 0 && !hasUnpublished) {
       badge.textContent = String(count);
+      badge.title = `${count} ${t('openCount') || 'discussions'}`;
       badge.style.display = '';
     } else {
       badge.style.display = 'none';
