@@ -110,5 +110,12 @@
   "editComment": "댓글 수정",
   "edited": "수정됨",
   "unpublished": "게시되지 않음",
-  "replyingTo": "{name}님에게 답글"
+  "replyingTo": "{name}님에게 답글",
+  "identityRequired": "먼저 이름을 설정하세요",
+  "resolve": "해결",
+  "unresolve": "다시 열기",
+  "emptyHint": "댓글을 남기려면 이 페이지의 텍스트를 선택하거나 제목 옆의 새 스레드를 클릭하세요.",
+  "sidebar": "사이드바",
+  "openInSidebar": "사이드바에서 토론 열기",
+  "jumpToHighlight": "본문의 강조 표시로 이동"
 }

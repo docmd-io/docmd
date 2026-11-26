@@ -128,3 +128,10 @@ threads-button.threads-selection::part(base) {
 
 /* An editor the app places in the page, after a block, a heading or a comment. */
 threads-editor.threads-inline-editor { margin: 16px 0; }
+
+/* The server-rendered cards are replaced by the components; `hidden` must beat the author `display`. */
+.threads-sidebar[hidden] { display: none !important; }
+/* While the panel is open its cards are the view: inline cards step aside. */
+body.tc-panel-open threads-thread[variant="inline"] { display: none !important; }
+/* No flash of unstyled components before they upgrade. */
+threads-thread:not(:defined) { visibility: hidden; }

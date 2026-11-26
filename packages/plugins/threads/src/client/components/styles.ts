@@ -21,14 +21,6 @@ export function injectComponentStyles(): void {
     .threads-hl-purple  { background: var(--threads-hl-purple); border-bottom: 2px solid var(--threads-hl-purple-strong); }
     .threads-hl-orange  { background: var(--threads-hl-orange); border-bottom: 2px solid var(--threads-hl-orange-strong); }
 
-    /* Matching left-border colors for thread cards */
-    .threads-border-yellow { border-left-color: var(--threads-hl-yellow-strong) !important; }
-    .threads-border-blue   { border-left-color: var(--threads-hl-blue-strong) !important; }
-    .threads-border-green  { border-left-color: var(--threads-hl-green-strong) !important; }
-    .threads-border-pink   { border-left-color: var(--threads-hl-pink-strong) !important; }
-    .threads-border-purple { border-left-color: var(--threads-hl-purple-strong) !important; }
-    .threads-border-orange { border-left-color: var(--threads-hl-orange-strong) !important; }
-
     /* ========= Layout: fixed right sidebar column ========= */
     .tc-sidebar-column {
       position: fixed;
@@ -149,6 +141,8 @@ export function injectComponentStyles(): void {
       padding: 8px 0;
     }
 
+    .tc-panel__cards { padding: 4px 12px; }
+
     .tc-panel__group-title {
       padding: 12px 16px 6px;
       font-size: 11px;
@@ -216,61 +210,8 @@ export function injectComponentStyles(): void {
     .threads-thread:hover {
       box-shadow: 0 4px 18px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
     }
-    .threads-thread--inline {
-      margin: 16px 0 20px;
-      max-width: 680px;
-    }
-    body.tc-panel-open .threads-thread--inline {
-      display: none !important;
-    }
     .threads-thread--resolved {
       opacity: 0.6;
-    }
-
-    /* Anchor Quote Badge */
-    .threads-thread__quote-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      background: var(--threads-surface-muted);
-      border-bottom: 1px solid var(--threads-border);
-      font-size: 12px;
-      color: var(--threads-fg-muted);
-      cursor: pointer;
-      user-select: none;
-      transition: background 0.15s;
-    }
-    .threads-thread__quote-badge:hover {
-      background: color-mix(in srgb, var(--threads-surface-muted) 80%, var(--threads-border));
-    }
-    .threads-thread__quote-text {
-      font-weight: 500;
-      color: var(--threads-fg);
-      font-style: italic;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      flex: 1;
-      min-width: 0;
-    }
-    .threads-thread__open-panel-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--threads-accent-strong);
-      padding: 2px 6px;
-      border-radius: 4px;
-      flex-shrink: 0;
-      transition: all 0.15s;
-    }
-    .threads-thread__open-panel-btn:hover {
-      background: var(--threads-border);
     }
 
     /* ========= Comment item ========= */
@@ -321,37 +262,6 @@ export function injectComponentStyles(): void {
       font-weight: 600;
     }
 
-    .threads-comment__actions {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-left: auto;
-      flex-shrink: 0;
-    }
-    .threads-comment__actions button {
-      background: none;
-      border: 1px solid transparent;
-      cursor: pointer;
-      color: var(--threads-fg-muted);
-      padding: 2px 6px;
-      border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 11.5px;
-      transition: all 0.15s;
-    }
-    .threads-comment__actions button:hover {
-      color: var(--threads-fg);
-      background: var(--threads-surface-muted);
-      border-color: var(--threads-border);
-    }
-    .threads-comment__actions .threads-delete-btn:hover {
-      color: var(--threads-danger);
-      background: var(--threads-danger-soft);
-      border-color: var(--threads-danger);
-    }
-
     .threads-comment__body {
       grid-column: 2;
       grid-row: 2;
@@ -366,105 +276,6 @@ export function injectComponentStyles(): void {
       margin-bottom: 0;
     }
 
-    /* ========= Collapsed thread ========= */
-    .threads-thread__summary {
-      display: none;
-      font-size: 13px;
-      color: var(--threads-fg-muted);
-      font-style: italic;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-    .threads-thread--collapsed .threads-thread__summary {
-      display: block;
-    }
-    .threads-thread--collapsed .threads-comment,
-    .threads-thread--collapsed .threads-replies {
-      display: none;
-    }
-    .threads-thread--collapsed .threads-new-comment-btn {
-      display: none;
-    }
-    .threads-thread--collapsed .threads-thread__footer {
-      border-top: none;
-    }
-
-    /* ========= Thread footer & buttons ========= */
-    .threads-thread__footer {
-      display: flex;
-      align-items: center;
-      padding: 8px 14px;
-      background: color-mix(in srgb, var(--threads-surface) 95%, var(--threads-surface-muted));
-      border-top: 1px solid var(--threads-border);
-      gap: 8px;
-    }
-    .threads-resolve-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 4px 8px;
-      border-radius: 4px;
-      margin-left: auto;
-      transition: all 0.15s;
-    }
-    .threads-resolve-btn:hover {
-      background: var(--threads-surface-muted);
-    }
-    .threads-new-comment-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border: 1px dashed var(--threads-border);
-      background: transparent;
-      color: var(--threads-fg-muted);
-      font-family: var(--threads-font);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      border-radius: var(--threads-radius);
-      transition: color 0.15s, background 0.15s, border-color 0.15s;
-    }
-    .threads-new-comment-btn:hover {
-      color: var(--threads-fg);
-      border-color: var(--threads-fg);
-      background: var(--threads-surface-muted);
-    }
-
-    /* ========= Nested replies ========= */
-    .threads-replies {
-      grid-column: 2;
-      grid-row: 3;
-      border-left: 2px solid var(--threads-border);
-      margin-left: 14px;
-      padding-left: 4px;
-      margin-top: 12px;
-    }
-
-    /* Vertical connector line centered under avatar */
-    .threads-comment:has(.threads-replies) > .threads-comment__avatar-col {
-      grid-row: 1 / 4;
-      align-items: flex-start;
-      position: relative;
-    }
-    .threads-comment:has(.threads-replies) > .threads-comment__avatar-col::after {
-      content: '';
-      position: absolute;
-      top: 36px;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 2px;
-      background: var(--threads-border);
-    }
-
     .threads-comment--reply {
       padding: 8px 0 !important;
       grid-template-columns: 24px 1fr;
@@ -473,32 +284,6 @@ export function injectComponentStyles(): void {
     .threads-comment--reply .threads-comment__avatar {
       width: 24px;
       height: 24px;
-    }
-
-    /* ========= Per-comment reply button ========= */
-    .threads-comment-reply-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 8px;
-      background: transparent;
-      border: none;
-      color: var(--threads-fg-muted);
-      font-family: var(--threads-font);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.15s, color 0.15s, background 0.15s;
-      border-radius: var(--threads-radius);
-    }
-    .threads-comment:hover .threads-comment-reply-btn {
-      opacity: 0.6;
-    }
-    .threads-comment-reply-btn:hover {
-      opacity: 1 !important;
-      color: var(--threads-fg);
-      background: var(--threads-surface-muted);
     }
 
     /* ========= Server-rendered reactions ========= */
@@ -574,46 +359,6 @@ export function injectComponentStyles(): void {
       border-color: var(--threads-accent);
       background: var(--threads-surface-muted);
       transform: translateY(-1px);
-    }
-
-    /* ========= Delete button (on comment meta) ========= */
-    .threads-delete-btn {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 6px;
-      background: transparent;
-      border: none;
-      color: var(--threads-fg-muted);
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.15s, color 0.15s, background 0.15s;
-      border-radius: var(--threads-radius);
-    }
-    .threads-comment:hover .threads-delete-btn {
-      opacity: 0.6;
-    }
-    .threads-delete-btn:hover {
-      opacity: 1 !important;
-      color: var(--threads-danger);
-      background: var(--threads-danger-soft);
-    }
-
-    /* ========= Collapse/expand toggle button ========= */
-    .threads-collapse-btn {
-      display: inline-flex;
-      align-items: center;
-      margin-left: auto;
-      padding: 3px 6px;
-      background: transparent;
-      border: none;
-      color: var(--threads-fg-muted);
-      cursor: pointer;
-      border-radius: var(--threads-radius);
-      transition: color 0.15s, background 0.15s;
-    }
-    .threads-collapse-btn:hover {
-      color: var(--threads-fg);
-      background: var(--threads-surface-muted);
     }
 
     /* ========= Thread flash animation (on highlight click) ========= */
@@ -843,11 +588,6 @@ export function injectComponentStyles(): void {
       border-color: var(--summer-border);
       background: var(--summer-surface);
     }
-    body:has(.summer-layout) .threads-thread__quote-badge,
-    body.summer-template .threads-thread__quote-badge {
-      background: var(--summer-surface-2);
-      border-color: var(--summer-border);
-    }
     body:has(.summer-layout) .threads-new-thread-btn,
     body.summer-template .threads-new-thread-btn {
       border-radius: 999px;
@@ -858,10 +598,6 @@ export function injectComponentStyles(): void {
       border-color: var(--summer-accent);
       color: var(--summer-accent);
       background: color-mix(in srgb, var(--summer-accent) 8%, transparent);
-    }
-    body:has(.summer-layout) .threads-comment-reply-btn:hover,
-    body.summer-template .threads-comment-reply-btn:hover {
-      color: var(--summer-accent);
     }
     body:has(.summer-layout) .threads-fab,
     body.summer-template .threads-fab {

@@ -29,6 +29,7 @@ export function dispatchRequest<D extends object>(target: EventTarget, type: str
 /** Rejections other than the limits that have their own message. */
 const CODE_KEYS: Record<string, string> = {
   'threads/reaction-not-allowed': 'reactionNotAllowed',
+  'threads/identity-required': 'identityRequired',
 };
 
 /** The text a component shows in its error line for a rejected request. */

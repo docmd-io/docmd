@@ -68,3 +68,7 @@ test('requestErrorMessage: a reaction the site does not allow says so; other cod
   assert.equal(requestErrorMessage(new Error('threads/invalid: not an emoji')), 'Could not save. Try again.');
   assert.equal(requestErrorMessage(new Error('threads/forbidden: not yours')), 'Could not save. Try again.');
 });
+
+test('requestErrorMessage: a write with no display name says to set one', () => {
+  assert.equal(requestErrorMessage(new Error('threads/identity-required: Set your name first')), 'Set your name first');
+});

@@ -24,19 +24,39 @@ export function getContentArea(): HTMLElement | null {
   return null;
 }
 
+/** Whether a tag name belongs to one of our components (`threads-thread`, `threads-editor`, ...). */
+export function isThreadsTag(tagName: string | null | undefined): boolean {
+  return (tagName ?? '').toUpperCase().startsWith('THREADS-');
+}
+
+/**
+ * Whether an event's composed path passes through one of our components. A mouse-up inside an
+ * inline card (comment text, editor) is not a selection of the page and must not offer "Add comment".
+ */
+export function pathHasThreadsElement(path: ReadonlyArray<{ tagName?: string | null }>): boolean {
+  return path.some((el) => isThreadsTag(el?.tagName));
+}
+
+/**
+ * Whether a node is part of the page's own tree. Nodes inside a shadow root report that root as
+ * theirs, so a selection inside one of our components is not one the page can anchor to.
+ */
+export function inDocumentTree(node: { getRootNode?(): unknown }, doc: unknown): boolean {
+  return typeof node.getRootNode === 'function' && node.getRootNode() === doc;
+}
+
 export function isWithinContent(node: Node): boolean {
   const content = getContentArea();
   return content ? content.contains(node) : false;
 }
 
-function getBlockAncestor(node: Node): HTMLElement {
+/** The block a node sits in; null when it sits inside one of our components. */
+function getBlockAncestor(node: Node): HTMLElement | null {
   let current: Node | null = node;
   while (current && current !== document.body) {
-    if (
-      current instanceof HTMLElement &&
-      BLOCK_ELEMENTS.has(current.tagName)
-    ) {
-      return current;
+    if (current instanceof HTMLElement) {
+      if (isThreadsTag(current.tagName)) return null;
+      if (BLOCK_ELEMENTS.has(current.tagName)) return current;
     }
     current = current.parentNode;
   }
@@ -52,8 +72,9 @@ function generateSelector(element: HTMLElement): string {
     const parent = cur.parentElement;
     if (parent) {
       const tagName = cur.tagName;
+      // Our components are never counted: a stored selector must not depend on whether cards are loaded.
       const siblings = Array.from(parent.children).filter(
-        (sibling) => sibling.tagName === tagName,
+        (sibling) => sibling.tagName === tagName && !isThreadsTag(sibling.tagName),
       );
       if (siblings.length > 1) {
         const index = siblings.indexOf(cur) + 1;
@@ -104,8 +125,10 @@ export function computeAnchor(selection: Selection): Anchor | null {
 
   if (!quote || quote.length < 3) return null;
   if (!isWithinContent(range.startContainer)) return null;
+  if (!inDocumentTree(range.startContainer, document) || !inDocumentTree(range.endContainer, document)) return null;
 
   const blockEl = getBlockAncestor(range.startContainer);
+  if (!blockEl) return null;
   const selector = generateSelector(blockEl);
   const fullText = blockEl.textContent || "";
   const offset = getTextOffset(blockEl, range);

@@ -114,6 +114,13 @@ const defaults: Record<string, string> = {
   edited: 'edited',
   unpublished: 'Unpublished',
   replyingTo: 'Replying to {name}',
+  identityRequired: 'Set your name first',
+  resolve: 'Resolve',
+  unresolve: 'Unresolve',
+  emptyHint: 'Select any text on this page to leave a comment, or click New Thread beside any heading.',
+  sidebar: 'Sidebar',
+  openInSidebar: 'Open discussion in sidebar',
+  jumpToHighlight: 'Jump to highlight in text',
 };
 
 /** Strings a host app set with setThreadsStrings; they win over the page's injected strings. */

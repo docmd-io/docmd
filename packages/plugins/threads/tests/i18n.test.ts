@@ -88,3 +88,12 @@ test('the strings the comment and reactions components use exist in all four lan
     assert.ok(dict['replyingTo']!.includes('{name}'), `${lang}.replyingTo keeps its placeholder`);
   }
 });
+
+test('the strings the thread card and panel use exist in all four languages', () => {
+  for (const lang of LANGS) {
+    const dict = load(lang);
+    for (const key of ['identityRequired', 'resolve', 'unresolve', 'emptyHint', 'sidebar', 'openInSidebar', 'jumpToHighlight', 'resolved', 'noThreads', 'newComment', 'collapseThread', 'expandThread', 'openThreadsPanel', 'closePanel', 'openCount', 'orphaned', 'unpublished']) {
+      assert.ok(dict[key], `${lang}.${key}`);
+    }
+  }
+});

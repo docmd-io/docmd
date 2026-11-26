@@ -71,8 +71,8 @@
   "limitChars": "此评论过长。请缩短后重试。",
   "rateLimited": "您评论得太快了。请等待一分钟后重试。",
   "addReaction": "添加表情回应",
-  "resolve": "标记解决",
-  "unresolve": "取消解决",
+  "resolve": "标记为已解决",
+  "unresolve": "重新打开",
   "couldNotSave": "无法保存。请重试。",
   "emojiPickerFailed": "无法加载表情符号选择器。快速表情仍然可用。",
   "emojiPicker.categoriesLabel": "类别",
@@ -109,5 +109,10 @@
   "editComment": "编辑评论",
   "edited": "已编辑",
   "unpublished": "未发布",
-  "replyingTo": "回复 {name}"
+  "replyingTo": "回复 {name}",
+  "identityRequired": "请先设置你的名字",
+  "emptyHint": "选中本页任意文字即可发表评论，或点击标题旁的“新讨论”。",
+  "sidebar": "侧边栏",
+  "openInSidebar": "在侧边栏中打开讨论",
+  "jumpToHighlight": "跳转到文中的高亮"
 }

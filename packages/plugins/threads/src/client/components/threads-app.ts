@@ -1,17 +1,20 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, render } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import type { Thread, Comment, Anchor, AuthorsMap } from '../../types';
+import { repeat } from 'lit/directives/repeat.js';
+import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
-import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
-import { deleteCommentTarget } from '../lib/can-show';
-import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent } from '../lib/selection';
+import { initIdentity, getIdentityPayload, getIdentityMode, getViewer, canShowFor } from '../lib/identity';
+import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent, pathHasThreadsElement } from '../lib/selection';
 import { injectComponentStyles } from './styles';
 import { t } from '../lib/i18n';
-import { createSvgElement, getThreadSvg } from '../lib/icons';
+import { createSvgElement } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
+import type { RequestDetail } from '../lib/request';
 import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 import { hideRawSidebars } from '../lib/raw-sidebars';
+import { QUICK_REACTIONS, toReactionViews } from '../lib/reactions';
+import { colorAt, deleteScope, pickerUrls, type CardColor } from '../lib/thread-view';
 
 import './threads-button';
 import './threads-dialog';
@@ -19,11 +22,41 @@ import './threads-editor';
 import './threads-identity';
 import './threads-publish-widget';
 import './threads-reviews-panel';
+import './threads-thread';
 import type { ThreadsReviewsPanel } from './threads-reviews-panel';
+import type { ThreadsThread } from './threads-thread';
+import type { ReactionOptions } from './threads-comment';
 import type { ThreadsPublishWidget } from './threads-publish-widget';
 
 /** Text under these is never a target when highlighting drafts after a load: thread cards, the panel, scripts. */
-const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, script, style';
+const SKIP_WRAP = '.threads-thread, threads-thread, .tc-panel, threads-panel, threads-app, script, style';
+
+/** A request event from a card: the app calls `waitUntil` with the promise of the work. */
+type CardEvent<D> = CustomEvent<D & RequestDetail>;
+
+/** Blocks an inline card can follow: the nearest one around a mark. */
+const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
+
+/** The block a mark sits in, or null when it is directly in the body. */
+function blockOf(mark: Element): HTMLElement | null {
+  for (let el: Element | null = mark; el && el !== document.body; el = el.parentElement) {
+    if (el instanceof HTMLElement && BLOCK_TAGS.has(el.tagName)) return el;
+  }
+  return null;
+}
+
+/**
+ * Put a card directly after a block, after any cards already there, with no wrapper. A card already
+ * in that run stays where it is, so a reload that re-inserts the same instances does not shuffle them.
+ */
+function placeAfterBlock(block: HTMLElement, card: HTMLElement): void {
+  let ref: Element = block;
+  for (let n = block.nextElementSibling; n && n.localName === 'threads-thread'; n = n.nextElementSibling) {
+    if (n === card) return;
+    ref = n;
+  }
+  ref.insertAdjacentElement('afterend', card);
+}
 
 @customElement('threads-app')
 export class ThreadsApp extends LitElement {
@@ -31,6 +64,20 @@ export class ThreadsApp extends LitElement {
 
   @state() private threads: Thread[] = [];
   @state() private authorsMap: AuthorsMap = {};
+
+  /** Inline cards, kept across reloads: a detached card keeps its open editors, typed text and collapsed state. */
+  private instances = new Map<string, ThreadsThread>();
+  /** Threads whose cards are collapsed, shared by a thread's inline and panel copies. */
+  private collapsed = new Set<string>();
+  private colors = new Map<string, CardColor>();
+  /** The first mark of each thread in the page. */
+  private marks = new Map<string, HTMLElement>();
+  /** Comment id to the HTML the build rendered for it, read from the page's own server markup. */
+  private bodies = new Map<string, string>();
+  /** The cards replaced the server markup (the threads loaded at least once on this page). */
+  private hydrated = false;
+  /** The panel's card list (rendered with Lit into the panel body until the panel is its own element). */
+  private cardsEl: HTMLElement | null = null;
 
   /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
   private identityReady: Promise<void> = Promise.resolve();
@@ -72,8 +119,21 @@ export class ThreadsApp extends LitElement {
     return !!(window as any).__threads_config?.sidebar;
   }
 
+  /** The card events the app answers; each is a request event whose promise the card waits on. */
+  private cardEvents: Array<[string, EventListener]> = [
+    ['threads-resolve', (e) => this.onResolve(e as CardEvent<{ threadId: string }>)],
+    ['threads-comment-submit', (e) => this.onCommentSubmit(e as CardEvent<{ threadId: string; parentId: string | null; body: string }>)],
+    ['threads-edit', (e) => this.onEdit(e as CardEvent<{ threadId: string; commentId: string; body: string }>)],
+    ['threads-delete', (e) => this.onDelete(e as CardEvent<{ threadId: string; commentId: string }>)],
+    ['threads-react', (e) => this.onReact(e as CardEvent<{ threadId: string; commentId: string; emoji: string }>)],
+    ['threads-collapse-change', (e) => this.onCollapseChange(e as CustomEvent<{ threadId: string; collapsed: boolean }>)],
+    ['threads-reveal-quote', (e) => this.revealMark((e as CustomEvent<{ threadId: string }>).detail.threadId)],
+    ['threads-open-panel', (e) => this.revealInPanel((e as CustomEvent<{ threadId: string }>).detail.threadId)],
+  ];
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    for (const [type, listener] of this.cardEvents) document.removeEventListener(type, listener);
     document.removeEventListener('mouseup', this.handleMouseUp);
     document.removeEventListener('mousedown', this.handleOutsidePopoverClick);
     document.removeEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
@@ -86,6 +146,7 @@ export class ThreadsApp extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     injectComponentStyles();
+    for (const [type, listener] of this.cardEvents) document.addEventListener(type, listener);
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
@@ -214,7 +275,9 @@ export class ThreadsApp extends LitElement {
       }
       return;
     }
-    if (e.composedPath().includes(this.selectionButton() as EventTarget)) return;
+    // A mouse-up inside one of our components (a card's text, an editor, the selection button) is not a
+    // selection of the page: an inline card sits in the content area and would become the "block".
+    if (pathHasThreadsElement(e.composedPath() as Array<{ tagName?: string }>)) return;
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -352,8 +415,6 @@ export class ThreadsApp extends LitElement {
         mark.replaceWith(...mark.childNodes);
         parent?.normalize(); // join the text the mark had split, so a later quote spanning it is found
       }
-      // In inline mode the highlight had put the thread's card after its block: it goes with the highlight.
-      document.querySelectorAll(`.threads-thread--inline[data-thread-id="${CSS.escape(id)}"]`).forEach((el) => el.remove());
     }
     const root = getContentArea() as HTMLElement | null;
     if (!root) return;
@@ -397,18 +458,24 @@ export class ThreadsApp extends LitElement {
     if (id === null) { this.deepLinkDone = true; return; }
     // Not loaded yet (or not a thread of this page): leave the latch open for the next load.
     if (!this.threads.some(th => th.id === id)) return;
-    const sel = `[data-thread-id="${CSS.escape(id)}"]`;
-    const target = document.querySelector<HTMLElement>(`mark.threads-highlight${sel}`)
-      ?? document.querySelector<HTMLElement>(`.threads-thread${sel}:not(.tc-panel .threads-thread)`);
+    const mark = this.marks.get(id) ?? document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${CSS.escape(id)}"]`);
+    const card = this.instances.get(id);
+    const target = mark ?? (card?.isConnected ? card : null);
     if (!target) return;
     this.deepLinkDone = true;
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    target.classList.add('threads-thread--flash');
-    setTimeout(() => target.classList.remove('threads-thread--flash'), 2000);
+    if (mark) this.flashMark(mark);
+    else if (card) card.flash = true;
+  }
+
+  private flashMark(mark: HTMLElement): void {
+    mark.classList.add('threads-thread--flash');
+    setTimeout(() => mark.classList.remove('threads-thread--flash'), 2000);
   }
 
   private async loadThreads(): Promise<void> {
     await this.identityReady;
+    let loaded = false;
     try {
       const [threads, authors] = await Promise.all([
         api.fetchThreads(),
@@ -416,6 +483,7 @@ export class ThreadsApp extends LitElement {
       ]);
       if (Array.isArray(threads)) {
         this.threads = threads;
+        loaded = true;
       }
       if (authors && typeof authors === 'object') {
         this.authorsMap = authors;
@@ -424,7 +492,10 @@ export class ThreadsApp extends LitElement {
       console.error('[threads] Failed to load threads:', err);
     }
     this.syncDraftMarks();
-    this.scanRenderedHighlights();
+    this.scanMarks();
+    // The cards replace the server markup only when there is data to build them from; on a failed load
+    // the server cards stay visible and readable.
+    if (loaded) this.hydrate();
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
     this.handleDeepLink();
@@ -455,355 +526,228 @@ export class ThreadsApp extends LitElement {
     this.publishMount.start();
   }
 
-  // Color palette for highlights - cycles through these
-  private static HIGHLIGHT_COLORS = [
-    'threads-hl-yellow',
-    'threads-hl-blue',
-    'threads-hl-green',
-    'threads-hl-pink',
-    'threads-hl-purple',
-    'threads-hl-orange',
-  ];
+  // ─── Marks, cards and hydration ────────────────────────────────────
 
   /**
-   * Scan the DOM for <mark class="threads-highlight" data-thread-id="..."> elements.
-   * Assigns cycling highlight colors, moves thread cards inline after the block
-   * containing the highlight, and attaches click handlers.
+   * Colour the page's marks (one colour per thread, cycling) and make each open its thread in the
+   * panel. Runs whether or not the load succeeded: with no data a click scrolls to the server card.
    */
-  private scanRenderedHighlights(): void {
-    const marks = document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]');
-    const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
-    let colorIndex = 0;
-
-    for (const mark of marks) {
+  private scanMarks(): void {
+    this.marks.clear();
+    this.colors.clear();
+    let next = 0;
+    for (const mark of document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]')) {
       const threadId = mark.dataset.threadId;
       if (!threadId) continue;
-
-      // 1. Assign cycling highlight color
-      const colorClass = ThreadsApp.HIGHLIGHT_COLORS[colorIndex % ThreadsApp.HIGHLIGHT_COLORS.length];
-      mark.classList.add(colorClass);
-      colorIndex++;
-
-      const threadData = this.threads.find(t => t.id === threadId);
-
-      // 2. In inline mode, ensure the thread card exists right after the block
-      if (!this.sidebarEnabled) {
-        let threadEl = document.querySelector<HTMLElement>(`.threads-thread[data-thread-id="${threadId}"]:not(.tc-panel .threads-thread)`);
-        if (!threadEl && threadData) {
-          threadEl = this.renderThreadCard(threadData, false);
-        }
-
-        if (threadEl) {
-          threadEl.classList.add('threads-thread--inline');
-          threadEl.classList.add(colorClass.replace('threads-hl-', 'threads-border-'));
-
-          let blockEl: Element | null = mark;
-          while (blockEl && blockEl !== document.body) {
-            if (blockEl instanceof HTMLElement && BLOCK_TAGS.has(blockEl.tagName)) {
-              break;
-            }
-            blockEl = blockEl.parentElement;
-          }
-
-          if (blockEl && blockEl !== document.body && threadEl.parentElement !== blockEl.parentElement) {
-            blockEl.insertAdjacentElement('afterend', threadEl);
-          }
-        }
+      if (!this.colors.has(threadId)) {
+        this.colors.set(threadId, colorAt(next++));
+        this.marks.set(threadId, mark);
       }
-
-      // 3. Click handler: always open thread in sidebar panel and focus it
+      for (const cls of [...mark.classList]) if (cls.startsWith('threads-hl-')) mark.classList.remove(cls);
+      mark.classList.add(`threads-hl-${this.colors.get(threadId)}`);
       mark.style.cursor = 'pointer';
       mark.onclick = (e) => {
         e.stopPropagation();
-        this.closeAiDrawerIfOpen();
-        document.body.classList.add('tc-panel-open');
-        this.selectTab('threads');
-        const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
-        if (targetInPanel) {
-          targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetInPanel.classList.add('threads-thread--flash');
-          setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
-        }
+        if (this.hydrated) this.revealInPanel(threadId);
+        else this.scrollToServerCard(threadId);
       };
     }
+  }
 
-    // 4. Inject reply buttons into any static server-rendered thread cards
-    this.injectReplyButtons();
+  /** Before the cards exist (or when the load failed): bring the build's own card into view. */
+  private scrollToServerCard(threadId: string): void {
+    document.querySelector<HTMLElement>(`.threads-sidebar .threads-thread[data-thread-id="${CSS.escape(threadId)}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
-    // 5. Hide the raw .threads-sidebar markdown-it renders for every threads block
+  /**
+   * Replace the server markup with the cards, in one task: read the comment bodies the build rendered,
+   * place the inline cards and the panel's cards, then hide the server markup.
+   */
+  private hydrate(): void {
+    this.readBodies();
+    this.renderCards();
     hideRawSidebars(document);
+    this.hydrated = true;
+  }
 
-    // 6. If sidebar mode or panel is open, populate the right sidebar panel
-    if (this.sidebarEnabled || document.body.classList.contains('tc-panel-open')) {
-      this.populateSidebarPanel();
+  /** Copy each published comment's body HTML from the page's server markup, before that markup is hidden. */
+  private readBodies(): void {
+    const bodies = new Map<string, string>();
+    for (const el of document.querySelectorAll<HTMLElement>('.threads-sidebar .threads-comment[data-comment-id]')) {
+      const body = el.querySelector(':scope > .threads-comment__body');
+      if (body && el.dataset.commentId) bodies.set(el.dataset.commentId, body.innerHTML);
     }
+    this.bodies = bodies;
+  }
+
+  /** Reaction options from the site's config and where the lazy picker and its emoji data are served. */
+  private reactionOptions(): ReactionOptions {
+    const cfg = (window.__threads_config as { reactions?: { emoji?: unknown; restricted?: unknown } } | undefined)?.reactions;
+    const options = Array.isArray(cfg?.emoji) && cfg.emoji.every((e) => typeof e === 'string') ? (cfg.emoji as string[]) : [...QUICK_REACTIONS];
+    return { options, restricted: cfg?.restricted === true, ...pickerUrls(import.meta.url, document.documentElement.lang) };
+  }
+
+  private get profileUrl(): string | null {
+    const url = (window.__threads_config as { profileUrl?: unknown } | undefined)?.profileUrl;
+    return typeof url === 'string' && url ? url : null;
+  }
+
+  /** The text of the mark, or an orphan's stored quote (the mark is gone from the page). */
+  private quoteFor(thread: Thread): string {
+    return this.marks.get(thread.id)?.textContent?.trim() || (thread.orphaned ? thread.anchor?.quote ?? '' : '');
+  }
+
+  /** Give a card its data. The inline copy and the panel's copy of a thread get the same. */
+  private cardProps(thread: Thread) {
+    return {
+      thread,
+      bodies: this.bodies,
+      authors: this.authorsMap,
+      viewer: getViewer(),
+      profileUrl: this.profileUrl,
+      reactionOptions: this.reactionOptions(),
+      canShow: canShowFor,
+      localMode: getIdentityMode().mode === 'local',
+      color: this.colors.get(thread.id) ?? ('neutral' as CardColor),
+      quote: this.quoteFor(thread),
+      collapsed: this.collapsed.has(thread.id),
+    };
+  }
+
+  /** Place the inline cards and render the panel's cards from the current data. */
+  private renderCards(): void {
+    this.renderInlineCards();
+    this.renderPanelCards();
   }
 
   /**
-   * Enhance thread cards: nest replies under parents, add per-comment reply & delete buttons,
-   * and a "+ New Comment" footer button for top-level comments.
+   * Inline mode: one kept `threads-thread` per thread that has a mark, directly after the mark's block
+   * (no wrapper element, so stored block selectors do not depend on whether cards are loaded). After a
+   * page reload the article is new; the same instances are put back after the new blocks.
    */
-  private injectReplyButtons(): void {
-    const threads = document.querySelectorAll<HTMLElement>('.threads-thread[data-thread-id]');
-    for (const threadEl of threads) {
-      // Skip if already enhanced
-      if (threadEl.querySelector('.threads-new-comment-btn')) continue;
-
-      const threadId = threadEl.dataset.threadId;
-      if (!threadId) continue;
-
-      // Nest replies under their parent comments
-      this.nestReplies(threadEl);
-
-      // Add per-comment reply + delete buttons
-      const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
-      const totalComments = allComments.length;
-      for (const commentEl of allComments) {
-        const commentId = commentEl.dataset.commentId;
-        if (!commentId) continue;
-
-        const meta = commentEl.querySelector('.threads-comment__meta');
-        if (!meta) continue;
-
-        // Inject avatar into the avatar column if not already present
-        const avatarCol = commentEl.querySelector('.threads-comment__avatar-col');
-        if (avatarCol && !avatarCol.querySelector('.threads-comment__avatar')) {
-          const authorVal = commentEl.dataset.author || '';
-          const authorInfo = this.resolveAuthor(authorVal);
-          if (authorInfo?.avatarUrl) {
-            const avatar = document.createElement('img');
-            avatar.className = 'threads-comment__avatar';
-            avatar.src = authorInfo.avatarUrl;
-            avatar.alt = authorInfo.name || authorVal;
-            avatarCol.appendChild(avatar);
-          }
+  private renderInlineCards(): void {
+    const wanted = new Set<string>();
+    if (!this.sidebarEnabled) {
+      for (const thread of this.threads) {
+        const mark = this.marks.get(thread.id);
+        const block = mark ? blockOf(mark) : null;
+        if (!block) continue;
+        wanted.add(thread.id);
+        let card = this.instances.get(thread.id);
+        if (!card) {
+          card = document.createElement('threads-thread');
+          this.instances.set(thread.id, card);
         }
-
-        // Skip if actions already added (re-render)
-        if (commentEl.querySelector('.threads-comment__actions')) continue;
-
-        // Actions container - pushed to the right via margin-left: auto
-        const actions = document.createElement('div');
-        actions.className = 'threads-comment__actions';
-
-        // Reply button
-        const replyBtn = document.createElement('button');
-        replyBtn.className = 'threads-comment-reply-btn';
-        replyBtn.appendChild(createSvgElement('reply', 13));
-        replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
-        replyBtn.title = t('replyToComment');
-        replyBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openReplyEditor(threadEl, threadId, commentId);
-        });
-        actions.appendChild(replyBtn);
-
-        // Delete button: only when the server would accept it (a lone comment deletes the thread)
-        const thread = this.threads.find(th => th.id === threadId);
-        // No thread to check against (load failed): fail closed, like the multi-comment path.
-        let deletable: boolean;
-        if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
-        else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
-        else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
-        if (deletable) {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'threads-delete-btn';
-        delBtn.appendChild(createSvgElement('trash', 13));
-        delBtn.title = t('deleteComment');
-        delBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.askDelete(totalComments === 1 ? { type: 'thread', id: threadId } : { type: 'comment', id: commentId, threadId });
-        });
-        actions.appendChild(delBtn);
-        }
-
-        meta.appendChild(actions);
+        card.variant = 'inline';
+        Object.assign(card, this.cardProps(thread));
+        placeAfterBlock(block, card);
       }
-
-      // Build collapse summary
-      const allCommentsForSummary = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
-      const summary = this.buildCollapseSummary(allCommentsForSummary);
-
-      // Footer with summary (hidden when expanded), "+ New Comment", and collapse toggle
-      const footer = document.createElement('div');
-      footer.className = 'threads-thread__footer';
-
-      // Summary element (visible only when collapsed, via CSS)
-      const summaryEl = document.createElement('div');
-      summaryEl.className = 'threads-thread__summary';
-      summaryEl.textContent = summary;
-      footer.appendChild(summaryEl);
-
-      const btn = document.createElement('button');
-      btn.className = 'threads-new-comment-btn';
-      btn.appendChild(createSvgElement('plus', 13));
-      btn.appendChild(document.createTextNode(' ' + t('newComment')));
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openReplyEditor(threadEl, threadId, null);
-      });
-      footer.appendChild(btn);
-
-      // Collapse/expand toggle button
-      const toggleBtn = document.createElement('button');
-      toggleBtn.className = 'threads-collapse-btn';
-      toggleBtn.appendChild(createSvgElement('chevron-up', 14));
-      toggleBtn.title = t('collapseThread');
-      toggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isCollapsed = threadEl.classList.toggle('threads-thread--collapsed');
-        toggleBtn.innerHTML = '';
-        toggleBtn.appendChild(createSvgElement(isCollapsed ? 'chevron-down' : 'chevron-up', 14));
-        toggleBtn.title = isCollapsed ? t('expandThread') : t('collapseThread');
-      });
-      footer.appendChild(toggleBtn);
-
-      threadEl.appendChild(footer);
+    }
+    for (const [id, card] of this.instances) {
+      if (wanted.has(id)) continue;
+      card.remove();
+      this.instances.delete(id);
     }
   }
 
-  /**
-   * Build a summary string like "3 comments by Alice, Bob, and 1 more".
-   * Uses only the first name of each author.
-   */
-  private buildCollapseSummary(comments: NodeListOf<HTMLElement> | HTMLElement[]): string {
-    const count = comments.length;
-    const authors = new Set<string>();
-    for (const c of comments) {
-      const author = c.dataset.author;
-      if (author) {
-        const firstName = author.split(/\s+/)[0];
-        authors.add(firstName);
-      }
-    }
-
-    const uniqueNames = Array.from(authors);
-    const MAX_SHOWN = 3;
-    let byPart: string;
-
-    if (uniqueNames.length === 0) {
-      byPart = '';
-    } else if (uniqueNames.length <= MAX_SHOWN) {
-      if (uniqueNames.length === 1) {
-        byPart = ` ${t('by')} ${uniqueNames[0]}`;
-      } else if (uniqueNames.length === 2) {
-        byPart = ` ${t('by')} ${uniqueNames[0]} ${t('and')} ${uniqueNames[1]}`;
-      } else {
-        byPart = ` ${t('by')} ${uniqueNames.slice(0, -1).join(', ')}, ${t('and')} ${uniqueNames[uniqueNames.length - 1]}`;
-      }
-    } else {
-      const shown = uniqueNames.slice(0, MAX_SHOWN);
-      const remaining = uniqueNames.length - MAX_SHOWN;
-      byPart = ` ${t('by')} ${shown.join(', ')}, ${t('and')} ${remaining} ${t('more')}`;
-    }
-
-    return `${count} ${count === 1 ? t('commentCount') : t('commentsCount')}${byPart}`;
+  /** The panel's card for a thread, if rendered. */
+  private panelCard(threadId: string): ThreadsThread | null {
+    return this.cardsEl?.querySelector<ThreadsThread>(`threads-thread[data-thread-id="${CSS.escape(threadId)}"]`) ?? null;
   }
 
-  /**
-   * Reorganize flat comment elements into a nested structure.
-   * Comments with data-parent-id get moved into a .threads-replies container
-   * after their parent comment.
-   */
-  private nestReplies(threadEl: HTMLElement): void {
-    const comments = Array.from(threadEl.querySelectorAll<HTMLElement>('.threads-comment'));
-    // Build a map of comment ID → element
-    const commentMap = new Map<string, HTMLElement>();
-    for (const c of comments) {
-      const id = c.dataset.commentId;
-      if (id) commentMap.set(id, c);
-    }
-
-    // Move replies under their parents
-    for (const commentEl of comments) {
-      const parentId = commentEl.dataset.parentId;
-      if (!parentId) continue;
-
-      const parentEl = commentMap.get(parentId);
-      if (!parentEl) continue;
-
-      // Ensure the parent has a replies container
-      let repliesContainer = parentEl.querySelector('.threads-replies') as HTMLElement;
-      if (!repliesContainer) {
-        repliesContainer = document.createElement('div');
-        repliesContainer.className = 'threads-replies';
-        parentEl.appendChild(repliesContainer);
-      }
-
-      commentEl.classList.add('threads-comment--reply');
-      repliesContainer.appendChild(commentEl);
-    }
+  private cardTemplate(thread: Thread) {
+    const p = this.cardProps(thread);
+    return html`<threads-thread
+      variant="panel"
+      .thread=${p.thread}
+      .bodies=${p.bodies}
+      .authors=${p.authors}
+      .viewer=${p.viewer}
+      .profileUrl=${p.profileUrl}
+      .reactionOptions=${p.reactionOptions}
+      .canShow=${p.canShow}
+      .localMode=${p.localMode}
+      .color=${p.color}
+      .quote=${p.quote}
+      .collapsed=${p.collapsed}
+      data-thread-id=${thread.id}
+    ></threads-thread>`;
   }
 
-  /**
-   * Open an inline editor for replying to a comment or adding a new top-level comment.
-   * @param parentCommentId - null for top-level comment, or comment ID to reply to
-   */
-  private openReplyEditor(threadEl: HTMLElement, threadId: string, parentCommentId: string | null): void {
-    this.removeInlineEditor();
+  /** Bring a thread into view in the panel: open it, show the Threads tab, scroll to the card and flash it. */
+  private revealInPanel(threadId: string): void {
+    this.closeAiDrawerIfOpen();
+    document.body.classList.add('tc-panel-open');
+    this.selectTab('threads');
+    const card = this.panelCard(threadId);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.flash = true;
+  }
 
-    const editor = this.createEditor('', async (body) => {
-      try {
-        await api.addComment(threadId, { ...getIdentityPayload(), body, parentId: parentCommentId });
-      } catch (err) {
-        console.error('[threads] Failed to add comment:', err);
-        throw err;
-      }
-      this.removeInlineEditor();
+  /** The card's quote was clicked: scroll to the highlight in the text and flash it. */
+  private revealMark(threadId: string): void {
+    const mark = this.marks.get(threadId);
+    if (!mark) return;
+    mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    this.flashMark(mark);
+  }
+
+  // ─── What the cards ask for ─────────────────────────────────────────
+
+  /** Resolve or unresolve (the server toggles), then reload; the card shows the error if it fails. */
+  private onResolve(e: CardEvent<{ threadId: string }>): void {
+    e.detail.waitUntil((async () => {
+      await api.resolveThread(e.detail.threadId, { resolved_by: getIdentityPayload().author });
       await this.loadThreads();
-    });
-
-    if (parentCommentId) {
-      // Insert editor after the specific comment (or its replies container)
-      const parentComment = threadEl.querySelector(`.threads-comment[data-comment-id="${parentCommentId}"]`);
-      if (parentComment) {
-        const repliesContainer = parentComment.querySelector('.threads-replies');
-        if (repliesContainer) {
-          repliesContainer.appendChild(editor);
-        } else {
-          const bodyEl = parentComment.querySelector('.threads-comment__body');
-          if (bodyEl) {
-            bodyEl.appendChild(editor);
-          } else {
-            parentComment.appendChild(editor);
-          }
-        }
-      } else {
-        threadEl.appendChild(editor);
-      }
-    } else {
-      // Top-level: insert before the footer
-      const footer = threadEl.querySelector('.threads-thread__footer');
-      if (footer) {
-        threadEl.insertBefore(editor, footer);
-      } else {
-        threadEl.appendChild(editor);
-      }
-    }
-    this.inlineEditorEl = editor;
+    })());
   }
 
-  // ─── Author resolution ──────────────────────────────────────────
+  private onCommentSubmit(e: CardEvent<{ threadId: string; parentId: string | null; body: string }>): void {
+    const { threadId, parentId, body } = e.detail;
+    e.detail.waitUntil((async () => {
+      await api.addComment(threadId, { ...getIdentityPayload(), body, parentId });
+      await this.loadThreads();
+    })());
+  }
+
+  private onEdit(e: CardEvent<{ threadId: string; commentId: string; body: string }>): void {
+    const { threadId, commentId, body } = e.detail;
+    e.detail.waitUntil((async () => {
+      await api.editComment(threadId, commentId, { body });
+      await this.loadThreads();
+    })());
+  }
+
+  /** Deleting the only comment deletes the thread; the app asks first. */
+  private onDelete(e: CardEvent<{ threadId: string; commentId: string }>): void {
+    const { threadId, commentId } = e.detail;
+    const thread = this.threads.find((th) => th.id === threadId);
+    if (!thread) return;
+    this.askDelete(deleteScope(thread) === 'thread' ? { type: 'thread', id: threadId } : { type: 'comment', id: commentId, threadId });
+  }
 
   /**
-   * Look up author info by key or display name.
-   * Tries direct key match first, then scans by display name for legacy comments.
+   * Toggle a reaction; the comment shows the list the server returns (with profile links), and the
+   * kept thread data takes it too so a later render of the same data does not bring the old list back.
    */
-  private resolveAuthor(authorVal: string): { name: string; avatarUrl: string } | null {
-    // Direct key match
-    if (this.authorsMap[authorVal]) return this.authorsMap[authorVal];
+  private onReact(e: CardEvent<{ threadId: string; commentId: string; emoji: string }>): void {
+    const { threadId, commentId, emoji } = e.detail;
+    e.detail.waitUntil((async () => {
+      const reactions: Reaction[] = await api.toggleReaction(threadId, commentId, { emoji, author: getIdentityPayload().author });
+      const comment = this.threads.find((th) => th.id === threadId)?.comments.find((c) => c.id === commentId);
+      if (comment) comment.reactions = reactions;
+      void this.publishMount.widget?.refresh(); // the toggle is an unpublished change
+      return toReactionViews(reactions, this.authorsMap, this.profileUrl);
+    })());
+  }
 
-    // Fallback: match by display name (legacy comments store full name)
-    for (const info of Object.values(this.authorsMap)) {
-      if (info.name === authorVal) return info;
-    }
-
-    // Fallback: match by first name (comments may only show first name)
-    for (const info of Object.values(this.authorsMap)) {
-      if (info.name.split(/\s+/)[0] === authorVal) return info;
-    }
-
-    return null;
+  private onCollapseChange(e: CustomEvent<{ threadId: string; collapsed: boolean }>): void {
+    const { threadId, collapsed } = e.detail;
+    if (collapsed) this.collapsed.add(threadId);
+    else this.collapsed.delete(threadId);
+    this.renderCards(); // the thread's other copy follows
   }
 
   // ─── Inline editor helpers ────────────────────────────────────────
@@ -917,6 +861,10 @@ export class ThreadsApp extends LitElement {
     // Panel body (thread cards go here)
     const body = document.createElement('div');
     body.className = 'tc-panel__body';
+    const cards = document.createElement('div');
+    cards.className = 'tc-panel__cards';
+    body.appendChild(cards);
+    this.cardsEl = cards;
     panel.appendChild(body);
 
     column.appendChild(panel);
@@ -957,23 +905,23 @@ export class ThreadsApp extends LitElement {
   }
 
   /**
-   * Populate the sidebar panel body with thread cards directly from this.threads data, or the Reviews tab.
+   * Show the Threads tab (the cards) or the Reviews tab in the panel body.
    * `refreshReviews`: re-read an already mounted Reviews tab (a user opened it); other callers leave its list alone.
    */
   private populateSidebarPanel(refreshReviews = false): void {
     const panelBody = document.querySelector('.tc-panel__body');
-    if (!panelBody) return;
+    if (!panelBody || !this.cardsEl) return;
 
     this.tabsEl?.querySelectorAll<HTMLElement>('.tc-panel__tab').forEach(b =>
       b.setAttribute('aria-selected', String(b.dataset.tab === this.panelTab)));
 
+    const existing = panelBody.querySelector<ThreadsReviewsPanel>('threads-reviews-panel');
     if (this.panelTab === 'reviews') {
-      const existing = panelBody.querySelector<ThreadsReviewsPanel>('threads-reviews-panel');
+      this.cardsEl.hidden = true;
       if (existing) {
         if (refreshReviews) void existing.refresh();
         return;
       }
-      panelBody.textContent = '';
       const reviews = document.createElement('threads-reviews-panel');
       // A link to the URL already open fires no hashchange: reveal the thread again.
       reviews.addEventListener('reveal-thread', (e) => {
@@ -985,263 +933,36 @@ export class ThreadsApp extends LitElement {
       return;
     }
 
-    // Clear existing panel threads
-    panelBody.textContent = '';
+    existing?.remove();
+    this.cardsEl.hidden = false;
+    this.renderPanelCards();
+  }
 
+  /** Render the panel's cards (and the empty state, orphan group and count) from the current data. */
+  private renderPanelCards(): void {
+    if (!this.cardsEl) return;
     const normal = this.threads.filter(th => !th.orphaned);
     const orphaned = this.threads.filter(th => th.orphaned);
 
-    if (this.threads.length === 0) {
-      const emptyState = document.createElement('div');
-      emptyState.className = 'tc-panel__empty';
-      emptyState.innerHTML = `
-        <div style="text-align:center;padding:40px 16px;color:var(--threads-fg-muted);">
-          <div style="margin-bottom:12px;opacity:0.6;display:flex;justify-content:center;">${createSvgElement('messages-square', 32).outerHTML}</div>
-          <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--threads-fg);">${t('noThreads') || 'No discussions yet'}</div>
-          <div style="font-size:12px;line-height:1.5;">Select any text on this page to leave a comment, or click the <strong>+</strong> button beside any heading.</div>
+    render(this.threads.length === 0 ? html`
+      <div class="tc-panel__empty" data-testid="panel-empty">
+        <div class="tc-empty">
+          <strong>${t('noThreads')}</strong>
+          <span>${t('emptyHint')}</span>
         </div>
-      `;
-      panelBody.appendChild(emptyState);
-    } else {
-      for (const thread of normal) {
-        panelBody.appendChild(this.renderThreadCard(thread, true));
-      }
-      if (orphaned.length > 0) {
-        const group = document.createElement('div');
-        group.dataset.testid = 'orphaned-group';
-        const heading = document.createElement('div');
-        heading.className = 'tc-panel__group-title';
-        heading.textContent = t('orphaned');
-        group.appendChild(heading);
-        for (const thread of orphaned) group.appendChild(this.renderThreadCard(thread, true));
-        panelBody.appendChild(group);
-      }
-    }
+      </div>` : html`
+      ${repeat(normal, th => th.id, th => this.cardTemplate(th))}
+      ${orphaned.length > 0 ? html`
+        <div data-testid="orphaned-group">
+          <div class="tc-panel__group-title">${t('orphaned')}</div>
+          ${repeat(orphaned, th => th.id, th => this.cardTemplate(th))}
+        </div>` : ''}`, this.cardsEl);
 
-    // Update count
     const countEl = document.querySelector('.tc-panel__count');
     if (countEl) {
       const openCount = this.threads.filter(t => !t.resolved).length;
       countEl.textContent = openCount > 0 ? `(${openCount} ${t('openCount')})` : '';
     }
-  }
-
-  private renderThreadCard(thread: Thread, isSidebar = false): HTMLElement {
-    const threadEl = document.createElement('div');
-    threadEl.className = 'threads-thread' + (thread.resolved ? ' threads-thread--resolved' : '');
-    if (!isSidebar) {
-      threadEl.classList.add('threads-thread--inline');
-    }
-    threadEl.dataset.threadId = thread.id;
-
-    // Anchor quote badge for both sidebar and inline preview
-    const mark = document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${thread.id}"]`);
-    // An orphaned thread has no mark in the page: its stored quote is all that is left of the anchor.
-    const quoteText = mark?.textContent?.trim() || (thread.orphaned ? thread.anchor?.quote ?? '' : '');
-    if (quoteText) {
-      const quoteHeader = document.createElement('div');
-      quoteHeader.className = 'threads-thread__quote-badge';
-      quoteHeader.appendChild(createSvgElement('quote', 12));
-      const textSpan = document.createElement('span');
-      textSpan.className = 'threads-thread__quote-text';
-      textSpan.textContent = `"${quoteText}"`;
-      quoteHeader.appendChild(textSpan);
-
-      if (isSidebar) {
-        quoteHeader.title = 'Jump to highlight in text';
-        quoteHeader.addEventListener('click', (e) => {
-          e.stopPropagation();
-          mark?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          mark?.classList.add('threads-thread--flash');
-          setTimeout(() => mark?.classList.remove('threads-thread--flash'), 2000);
-        });
-      } else {
-        const openBtn = document.createElement('button');
-        openBtn.className = 'threads-thread__open-panel-btn';
-        openBtn.title = 'Open discussion in sidebar';
-        openBtn.innerHTML = `<span>Sidebar</span>${getThreadSvg('external-link', 11)}`;
-        openBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.closeAiDrawerIfOpen();
-          document.body.classList.add('tc-panel-open');
-          this.selectTab('threads');
-          const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${thread.id}"]`);
-          if (targetInPanel) {
-            targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetInPanel.classList.add('threads-thread--flash');
-            setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
-          }
-        });
-        quoteHeader.appendChild(openBtn);
-      }
-      threadEl.appendChild(quoteHeader);
-    }
-
-    // Render comments
-    const topLevelComments = thread.comments.filter(c => !c.parent_id);
-    const replyComments = thread.comments.filter(c => !!c.parent_id);
-
-    for (const comment of topLevelComments) {
-      const commentEl = this.renderCommentElement(thread.id, comment, false);
-      const replies = replyComments.filter(r => r.parent_id === comment.id);
-      if (replies.length > 0) {
-        const repliesContainer = document.createElement('div');
-        repliesContainer.className = 'threads-replies';
-        for (const reply of replies) {
-          repliesContainer.appendChild(this.renderCommentElement(thread.id, reply, true));
-        }
-        commentEl.appendChild(repliesContainer);
-      }
-      threadEl.appendChild(commentEl);
-    }
-
-    // Footer with summary, new comment, resolve/unresolve, and collapse toggle
-    const footer = document.createElement('div');
-    footer.className = 'threads-thread__footer';
-
-    const allCommentEls = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
-    const summaryEl = document.createElement('div');
-    summaryEl.className = 'threads-thread__summary';
-    summaryEl.textContent = this.buildCollapseSummary(allCommentEls);
-    footer.appendChild(summaryEl);
-
-    // "+ New Comment" button
-    const btn = document.createElement('button');
-    btn.className = 'threads-new-comment-btn';
-    btn.appendChild(createSvgElement('plus', 13));
-    btn.appendChild(document.createTextNode(' ' + t('newComment')));
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.openReplyEditor(threadEl, thread.id, null);
-    });
-    footer.appendChild(btn);
-
-    // Resolve / Unresolve button
-    const resolveBtn = document.createElement('button');
-    resolveBtn.className = 'threads-resolve-btn';
-    resolveBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;padding:4px 8px;margin-left:auto;color:' + (thread.resolved ? 'var(--threads-fg-muted)' : 'var(--threads-hl-green-strong)') + ';display:inline-flex;align-items:center;gap:4px;font-family:var(--threads-font);';
-    resolveBtn.appendChild(createSvgElement(thread.resolved ? 'x' : 'check', 13));
-    resolveBtn.appendChild(document.createTextNode(thread.resolved ? ' ' + (t('unresolve') || 'Unresolve') : ' ' + (t('resolve') || 'Resolve')));
-    resolveBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      try {
-        const identity = getIdentityPayload();
-        await api.resolveThread(thread.id, { resolved_by: identity.author });
-        await this.loadThreads();
-      } catch (err) {
-        console.error('[threads] Failed to toggle resolve:', err);
-      }
-    });
-    if (canShowFor('resolve-thread', { threadAuthor: thread.comments[0]?.authorKey, drafted: !!thread.draft })) footer.appendChild(resolveBtn);
-
-    // Collapse toggle button
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'threads-collapse-btn';
-    toggleBtn.appendChild(createSvgElement('chevron-up', 14));
-    toggleBtn.title = t('collapseThread');
-    toggleBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isCollapsed = threadEl.classList.toggle('threads-thread--collapsed');
-      toggleBtn.innerHTML = '';
-      toggleBtn.appendChild(createSvgElement(isCollapsed ? 'chevron-down' : 'chevron-up', 14));
-      toggleBtn.title = isCollapsed ? t('expandThread') : t('collapseThread');
-    });
-    footer.appendChild(toggleBtn);
-
-    threadEl.appendChild(footer);
-    return threadEl;
-  }
-
-  private renderCommentElement(threadId: string, comment: Comment, isReply = false): HTMLElement {
-    const commentEl = document.createElement('div');
-    commentEl.className = 'threads-comment' + (isReply ? ' threads-comment--reply' : '');
-    commentEl.dataset.commentId = comment.id;
-    if (comment.parent_id) commentEl.dataset.parentId = comment.parent_id;
-    commentEl.dataset.author = comment.author;
-    commentEl.dataset.date = comment.date;
-    if (comment.edited_at) commentEl.dataset.edited = comment.edited_at;
-
-    // Avatar column
-    const avatarCol = document.createElement('div');
-    avatarCol.className = 'threads-comment__avatar-col';
-    const authorInfo = this.resolveAuthor(comment.author);
-    if (authorInfo?.avatarUrl) {
-      const avatar = document.createElement('img');
-      avatar.className = 'threads-comment__avatar';
-      avatar.src = authorInfo.avatarUrl;
-      avatar.alt = authorInfo.name || comment.author;
-      avatarCol.appendChild(avatar);
-    } else {
-      const avatarPlaceholder = document.createElement('div');
-      avatarPlaceholder.className = 'threads-comment__avatar';
-      avatarPlaceholder.style.cssText = 'display:flex;align-items:center;justify-content:center;background:var(--threads-surface-muted);color:var(--threads-fg-muted);border-radius:50%;font-size:11px;font-weight:600;';
-      avatarPlaceholder.textContent = (comment.author || '?').charAt(0).toUpperCase();
-      avatarCol.appendChild(avatarPlaceholder);
-    }
-    commentEl.appendChild(avatarCol);
-
-    // Meta header
-    const meta = document.createElement('div');
-    meta.className = 'threads-comment__meta';
-
-    const authorStrong = document.createElement('strong');
-    authorStrong.textContent = authorInfo?.name || comment.author;
-    meta.appendChild(authorStrong);
-
-    const dot = document.createTextNode(' · ');
-    meta.appendChild(dot);
-
-    const dateSpan = document.createElement('span');
-    dateSpan.textContent = comment.date;
-    meta.appendChild(dateSpan);
-
-    // Actions
-    const actions = document.createElement('div');
-    actions.className = 'threads-comment__actions';
-
-    // Reply button
-    const replyBtn = document.createElement('button');
-    replyBtn.className = 'threads-comment-reply-btn';
-    replyBtn.appendChild(createSvgElement('reply', 13));
-    replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
-    replyBtn.title = t('replyToComment');
-    replyBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const parentThreadEl = commentEl.closest('.threads-thread') as HTMLElement;
-      if (parentThreadEl) {
-        this.openReplyEditor(parentThreadEl, threadId, comment.id);
-      }
-    });
-    actions.appendChild(replyBtn);
-
-    // Delete button
-    if (canShowFor('delete-comment', deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id))) {
-    const delBtn = document.createElement('button');
-    delBtn.className = 'threads-delete-btn';
-    delBtn.appendChild(createSvgElement('trash', 13));
-    delBtn.title = t('deleteComment');
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.askDelete({ type: 'comment', id: comment.id, threadId });
-    });
-    actions.appendChild(delBtn);
-    }
-
-    meta.appendChild(actions);
-    commentEl.appendChild(meta);
-
-    // Body
-    const body = document.createElement('div');
-    body.className = 'threads-comment__body';
-    const paragraphs = comment.body.split(/\n\n+/);
-    for (const pText of paragraphs) {
-      const p = document.createElement('p');
-      p.textContent = pText;
-      body.appendChild(p);
-    }
-    commentEl.appendChild(body);
-
-    return commentEl;
   }
 
   // ─── Floating action button ──────────────────────────────────────
@@ -1328,6 +1049,8 @@ export class ThreadsApp extends LitElement {
           m.remove();
         });
         document.querySelectorAll(`.threads-thread[data-thread-id="${target.id}"]`).forEach(el => el.remove());
+        this.instances.get(target.id)?.remove();
+        this.instances.delete(target.id);
       } else {
         await api.deleteComment(target.threadId!, target.id);
       }
