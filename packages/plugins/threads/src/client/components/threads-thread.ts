@@ -265,6 +265,7 @@ export class ThreadsThread extends LitElement {
       .canDelete=${canDeleteComment(this.canShow, this.thread, comment.id)}
       .canReact=${this.canReact}
       .canReply=${this.canReply}
+      variant=${this.variant}
       reply-to=${replyTo ? this.nameOf(replyTo) : ''}
       data-comment-id=${comment.id}
       exportparts=${COMMENT_PARTS}

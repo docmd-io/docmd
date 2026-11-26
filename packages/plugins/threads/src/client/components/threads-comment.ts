@@ -5,6 +5,7 @@ import { t } from '../lib/i18n';
 import { avatar, avatarStyles } from '../lib/avatar';
 import { getThreadSvg } from '../lib/icons';
 import { dispatchRequest, type RequestDetail } from '../lib/request';
+import { formatDateTime } from '../lib/format-date';
 import { QUICK_REACTIONS, plainReactionViews, type AuthorView, type ReactionView, type Viewer } from '../lib/reactions';
 import type { Comment } from '../../types';
 import { baseStyles } from './tokens';
@@ -38,7 +39,8 @@ const REACTION_PARTS = ['base', 'chip', 'chip-emoji', 'chip-count', 'who', 'opti
  * null), `viewer` (`{ key, name }`), `reactions` (reaction views with profile links; the comment's own
  * reactions without links when absent), `reactionOptions` (`{ options, restricted, pickerSrc,
  * emojiDataSrc }`, passed to `threads-reactions`), `can-edit`, `can-delete`, `can-react`, `can-reply`
- * (booleans the app computes), `reply-to` (name shown as "replying to X"), `editing`.
+ * (booleans the app computes), `reply-to` (name shown as "replying to X"), `editing`, `variant` (`inline`: one
+ * meta line, `panel`: the name above the date).
  * Events: `threads-reply` `{ commentId }`; `threads-edit` `{ commentId, body, waitUntil }` (request: the
  * comment leaves edit mode when it resolves); `threads-delete` `{ commentId }`; `threads-react`
  * `{ commentId, emoji, waitUntil }` (re-emitted from its reactions bar).
@@ -52,6 +54,10 @@ export class ThreadsComment extends LitElement {
     .avatar-col { flex: none; padding-top: 2px; }
     .main { flex: 1; min-width: 0; }
     .meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 2px; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
+    /* In the page the meta is one line: name, then date and flags set off by a dot. In the panel the name has its own line, the date and flags are the second. */
+    :host(:not([variant='panel'])) .meta > :not(.author):not(.draft)::before { content: '\\00b7' / ''; margin-inline-end: 8px; }
+    :host([variant='panel']) .meta { gap: 0 8px; line-height: 1.3; }
+    :host([variant='panel']) .meta > .author { flex: 1 0 100%; }
     .author { font-weight: 600; font-size: var(--_font-size-sm); color: var(--_fg-strong); }
     a.author { text-decoration: none; }
     a.author:hover { color: var(--_accent-strong); text-decoration: underline; text-underline-offset: 2px; }
@@ -82,6 +88,7 @@ export class ThreadsComment extends LitElement {
   @property({ type: Boolean, attribute: 'can-reply' }) canReply = false;
   @property({ attribute: 'reply-to' }) replyTo = '';
   @property({ type: Boolean, reflect: true }) editing = false;
+  @property({ reflect: true }) variant: 'inline' | 'panel' = 'inline';
 
   private emit(type: string, detail: object): void {
     this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }));
@@ -155,7 +162,7 @@ export class ThreadsComment extends LitElement {
               ${href
                 ? html`<a class="author" part="author" href=${href} rel="nofollow noopener ugc">${shownName}</a>`
                 : html`<span class="author" part="author">${shownName}</span>`}
-              <time part="date" datetime=${c.date}>${c.date}</time>
+              <time part="date" datetime=${c.date} title=${c.date}>${formatDateTime(c.date)}</time>
               ${c.edited_at ? html`<span part="edited" title=${c.edited_at}>${t('edited')}</span>` : nothing}
               ${c.draft || c.pendingEdit ? html`<span class="draft" part="draft">${t('unpublished')}</span>` : nothing}
             </div>

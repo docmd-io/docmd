@@ -3,12 +3,12 @@
  *
  * Comments are `threads-comment` elements (shadow DOM) inside the thread's card. The seeded threads carry an
  * anchor, so each has a card in the article. A comment's parts: `meta` (author, date, "edited"), `body`.
- * Published comments show the build's rendered HTML (markdown-it); the server's date is a plain `YYYY-MM-DD`.
+ * Published comments show the build's rendered HTML (markdown-it); the date reads in the page language and keeps the stored `YYYY-MM-DD` as its title.
  */
 
 import { test, expect } from "@playwright/test";
 import { Actor } from "./screenplay.ts";
-import { cleanThreads, inlineCard, setAuthor, seedAndReload, waitForReload } from "./helpers.ts";
+import { cleanThreads, inlineCard, openPanel, panelCard, setAuthor, seedAndReload, waitForReload } from "./helpers.ts";
 
 const ANCHOR = { quote: "verify core engine" };
 
@@ -53,7 +53,7 @@ test.describe("comment display", () => {
     await expect(body).toContainText("This is the comment body text");
   });
 
-  test("date is displayed on the comment", async () => {
+  test("the date reads in the page language and its title holds the stored date", async () => {
     const { id: threadId } = await seedAndReload(user.page, {
       author: "TestUser",
       body: "Date display test",
@@ -63,10 +63,26 @@ test.describe("comment display", () => {
     const thread = inlineCard(user.page, threadId);
     await expect(thread).toBeVisible({ timeout: 5_000 });
 
-    // Server-rendered meta should contain a date (format: YYYY-MM-DD)
-    const meta = thread.locator('[part~="meta"]').first();
-    // Should contain a date pattern like 2026-03-09
-    await expect(meta).toHaveText(/\d{4}-\d{2}-\d{2}/);
+    const date = thread.locator('[part~="date"]').first();
+    // The text is a readable date ("Mar 9, 2026"), not the stored YYYY-MM-DD, which is the tooltip
+    await expect(date).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    await expect(date).toHaveAttribute("title", /^\d{4}-\d{2}-\d{2}$/);
+    await expect(date).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test("a comment in the panel has its name on one line and its date below", async () => {
+    const { id: threadId } = await seedAndReload(user.page, {
+      author: "TestUser",
+      body: "Meta layout test",
+      anchor: ANCHOR,
+    });
+    await openPanel(user.page);
+    const card = panelCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    const author = card.locator('[part~="author"]').first().boundingBox();
+    const date = card.locator('[part~="date"]').first().boundingBox();
+    const [a, d] = [await author, await date];
+    expect(a && d && d.y >= a.y + a.height - 1, "the date sits below the name").toBe(true);
   });
 
   test("the author is a named part of the comment", async () => {
