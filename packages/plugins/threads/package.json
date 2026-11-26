@@ -52,6 +52,7 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@docmd/api": "workspace:*",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.11",
