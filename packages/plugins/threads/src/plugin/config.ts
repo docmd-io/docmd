@@ -1,5 +1,6 @@
 import { ThreadsError } from './errors.js';
 import { DEFAULT_REACTION_EMOJI, isSingleEmoji } from '../shared/emoji.js';
+import { isHttpUrl } from '../shared/profile-link.js';
 
 export interface ThreadsOptions {
   sidebar: boolean;
@@ -11,6 +12,11 @@ export interface ThreadsOptions {
   limits: { maxCommentChars: number; commentsPerMinute: number };
   /** The emoji offered on every comment, and whether others are refused. */
   reactions: { emoji: string[]; restricted: boolean };
+  /**
+   * Where a person's name links to: an absolute http(s) URL with `{id}` for the identity key, e.g.
+   * `https://github.com/{id}`. `null` (default): no automatic links.
+   */
+  profileUrl: string | null;
   /** Git sync of published reviews; used under `docmd serve` only. `null` is off. */
   git: null | {
     branch: string;
@@ -139,6 +145,15 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
   const restricted = rx.restricted ?? false;
   if (typeof restricted !== 'boolean') bad('reactions.restricted', 'must be a boolean');
 
+  let profileUrl: string | null = null;
+  if (raw.profileUrl !== undefined && raw.profileUrl !== null) {
+    const u = raw.profileUrl;
+    if (typeof u !== 'string' || !u.includes('{id}') || !isHttpUrl(u.split('{id}').join('x'))) {
+      bad('profileUrl', 'must be an absolute http or https URL containing {id}');
+    }
+    profileUrl = u as string;
+  }
+
   return {
     sidebar: optionalBoolean(raw, 'sidebar', false),
     autoPublish,
@@ -148,6 +163,7 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
       commentsPerMinute: positiveInteger(lim, 'limits', 'commentsPerMinute', 10),
     },
     reactions: { emoji: [...(list as string[])], restricted: restricted as boolean },
+    profileUrl,
     git,
   };
 }

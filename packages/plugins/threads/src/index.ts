@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { setup as setupContainers } from './plugin/containers.js';
+import { loadAuthorsFile } from './plugin/authors.js';
 import { setup as setupHighlightRule } from './plugin/highlight-rule.js';
 import { actions } from './plugin/actions.js';
 import { checkStartup, startPullLoop, type ExecFile } from './plugin/git-sync.js';
@@ -79,23 +80,11 @@ function resolveOptions(options: unknown): ThreadsOptions {
 export function generateScripts(config: any, options?: any): { headScriptsHtml: string; bodyScriptsHtml: string } {
   // S-7: parse authors.json, never inline the raw file text. scriptLiteral
   // escapes </script, <!--, U+2028, U+2029 so the JSON is safe inside <script>.
-  let authors: unknown = {};
-  try {
-    const srcDir = config.src || 'docs';
-    const authorsPath = path.resolve(srcDir, '.threads', 'authors.json');
-    if (fs.existsSync(authorsPath)) {
-      const parsed = JSON.parse(fs.readFileSync(authorsPath, 'utf8'));
-      // Runtime schema is a plain object — coerce arrays/primitives to {}.
-      authors = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
-    }
-  } catch (err: any) {
-    console.error(`[threads] Failed to parse .threads/authors.json: ${err.message}. Using empty authors.`);
-    authors = {};
-  }
+  const authors = loadAuthorsFile(config.src || 'docs');
 
-  const { sidebar, autoPublish, permissions, reactions } = resolveOptions(options);
+  const { sidebar, autoPublish, permissions, reactions, profileUrl } = resolveOptions(options);
   // Only what the client reads: the resolve rule, never the admin list.
-  const clientConfig = { sidebar, autoPublish, permissions: { resolve: permissions.resolve }, reactions };
+  const clientConfig = { sidebar, autoPublish, permissions: { resolve: permissions.resolve }, reactions, profileUrl };
   const i18nStrings = loadPluginStrings(config._activeLocale?.id || 'en');
 
   return {

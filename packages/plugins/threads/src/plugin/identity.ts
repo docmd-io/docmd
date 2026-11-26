@@ -2,6 +2,7 @@ import type { ActionContext } from '@docmd/api';
 import { ThreadsError } from './errors.js';
 import { getOptions } from './config.js';
 import { readAuthors } from './authors.js';
+import { isHttpUrl } from '../shared/profile-link.js';
 import type { Caller } from '../types.js';
 
 type Payload = Record<string, unknown> | null | undefined;
@@ -101,7 +102,32 @@ export function payloadProfile(payload: Record<string, unknown>): { key: string;
 /** The author key an `upsert-author` payload names, or null when it names none. */
 export const claimedAuthorKey = (payload: Payload): string | null => str(payload?.authorKey);
 
-/** The profile a serve caller sets with `upsert-author`: a name, and an avatar that defaults to the current one when none is sent (an empty one clears it). */
-export function headerProfile(payload: Record<string, unknown>, caller: Caller): { name: string; avatarUrl: string } {
-  return { name: payload.name as string, avatarUrl: typeof payload.avatarUrl === 'string' ? payload.avatarUrl.trim() : caller.avatarUrl };
+const LINK_MAX = 2048;
+
+/**
+ * The `link` an `upsert-author` payload carries: absent keeps the current setting (undefined),
+ * `null` means automatic, `false` turns linking off, a string is the author's own http(s) URL
+ * (at most 2048 characters). Anything else is `threads/invalid`.
+ */
+export function linkFromPayload(payload: Record<string, unknown>): string | false | null | undefined {
+  const link = payload.link;
+  if (link === undefined || link === null || link === false) return link;
+  if (typeof link === 'string' && link.length <= LINK_MAX && isHttpUrl(link)) return link;
+  throw new ThreadsError('invalid', `threads:upsert-author: link must be null, false or an http(s) URL of at most ${LINK_MAX} characters`);
+}
+
+/** The link an author entry ends up with: `sent` (see linkFromPayload) over `current`; `null` clears it. */
+export const nextLink = (sent: string | false | null | undefined, current: string | false | undefined): string | false | undefined =>
+  sent === undefined ? current : sent === null ? undefined : sent;
+
+/**
+ * The profile a serve caller sets with `upsert-author`: a name, and an avatar that defaults to the current one when none is sent (an empty one clears it).
+ * `link` is the resolved setting (see nextLink); undefined leaves the entry without one.
+ */
+export function headerProfile(payload: Record<string, unknown>, caller: Caller, link?: string | false): { name: string; avatarUrl: string; link?: string | false } {
+  return {
+    name: payload.name as string,
+    avatarUrl: typeof payload.avatarUrl === 'string' ? payload.avatarUrl.trim() : caller.avatarUrl,
+    ...(link === undefined ? {} : { link }),
+  };
 }

@@ -1,6 +1,10 @@
 // Import createDepthTrackingContainer from the parser package
 import { createDepthTrackingContainer } from '@docmd/parser';
 import { parseReactions } from './parser.js';
+import { loadAuthorsFile } from './authors.js';
+import { normalizeOptions } from './config.js';
+import { profileHref } from '../shared/profile-link.js';
+import type { AuthorsMap } from '../types.js';
 
 interface ThreadInfo {
   id: string;
@@ -15,6 +19,46 @@ interface CommentInfo {
   author: string;
   date: string;
   editedAt: string | null;
+  authorKey: string | null;
+}
+
+/** What turns a name into a profile link at build time: the site's authors map and `profileUrl` pattern. */
+interface LinkContext {
+  authors: AuthorsMap;
+  profileUrl: string | null;
+}
+
+const profileUrlOf = new WeakMap<object, string | null>();
+
+/**
+ * The link context of one render, read from the render env's site config (`env.config`: the
+ * `plugins.threads` options, and `src`, the docs folder that holds `.threads/authors.json`).
+ * Null (names stay plain text) when the env carries no `src`: without the docs folder the authors
+ * file cannot be found, and guessing could link a person who turned linking off. An invalid
+ * `profileUrl` is treated as none; the page scripts report it.
+ */
+function linkContext(env: { config?: { src?: unknown; plugins?: { threads?: unknown } } } | undefined): LinkContext | null {
+  const config = env?.config;
+  if (!config || typeof config.src !== 'string') return null;
+  const raw = config.plugins?.threads;
+  let profileUrl: string | null;
+  if (typeof raw === 'object' && raw !== null && profileUrlOf.has(raw)) {
+    profileUrl = profileUrlOf.get(raw) as string | null;
+  } else {
+    try {
+      profileUrl = normalizeOptions(raw).profileUrl;
+    } catch {
+      profileUrl = null;
+    }
+    if (typeof raw === 'object' && raw !== null) profileUrlOf.set(raw, profileUrl);
+  }
+  return { authors: loadAuthorsFile(config.src), profileUrl };
+}
+
+/** A person's name as HTML: linked to their profile when the context and key give a URL, plain otherwise. */
+function nameHtml(escape: (s: string) => string, name: string, key: string | null, ctx: LinkContext | null): string {
+  const href = ctx ? profileHref(key, ctx.authors, ctx.profileUrl) : null;
+  return href ? `<a href="${escape(href)}" rel="nofollow noopener ugc">${escape(name)}</a>` : escape(name);
 }
 
 function smartDedent(str: string): string {
@@ -134,7 +178,7 @@ interface AnchorBlockState {
   tShift: number[];
   eMarks: number[];
   line: number;
-  env: { isInsideContainer?: boolean };
+  env: { isInsideContainer?: boolean; config?: { src?: unknown; plugins?: { threads?: unknown } } };
   push(type: string, tag: string, nesting: number): { content: string };
 }
 
@@ -204,7 +248,15 @@ function setupReactionsContainer(md: AnchorMarkdown): void {
     const lines: string[] = [];
     for (let i = startLine + 1; i < nextLine; i++) lines.push(state.src.slice(state.bMarks[i], state.eMarks[i]));
     const esc = md.utils.escapeHtml;
-    const items = parseReactions(lines).map((r) => `<li>${esc(r.emoji)} ${r.reactors.map((p) => esc(p.name)).join(', ')}</li>`);
+    const ctx = linkContext(state.env);
+    const items = parseReactions(lines).map((r) => {
+      const names = r.reactors.map((p) => {
+        // A person with an authors.json entry is shown under their current name, as in the page's own view.
+        const current = ctx && p.key !== null && Object.hasOwn(ctx.authors, p.key) ? ctx.authors[p.key]?.name : undefined;
+        return nameHtml(esc, current || p.name, p.key, ctx);
+      });
+      return `<li>${esc(r.emoji)} ${names.join(', ')}</li>`;
+    });
     const token = state.push('html_block', '', 0);
     token.content = `<div class="threads-reactions"><ul>${items.join('')}</ul></div>\n`;
     state.line = nextLine + 1;
@@ -252,7 +304,7 @@ export function parseCommentInfo(info: string): CommentInfo {
 
   // Format with ID, optional reply-to, optional edited
   const fullMatch = trimmed.match(
-    /^(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?(?:\s+by\s+\S+)?(?:\s+review\s+\S+)?$/
+    /^(\S+)\s+"([^"]+)"\s+"([^"]+)"(?:\s+reply-to\s+(\S+))?(?:\s+edited\s+"([^"]+)")?(?:\s+by\s+(\S+))?(?:\s+review\s+\S+)?$/
   );
   if (fullMatch) {
     return {
@@ -261,6 +313,7 @@ export function parseCommentInfo(info: string): CommentInfo {
       date: fullMatch[3],
       parentId: fullMatch[4] || null,
       editedAt: fullMatch[5] || null,
+      authorKey: fullMatch[6] || null,
     };
   }
 
@@ -275,6 +328,7 @@ export function parseCommentInfo(info: string): CommentInfo {
       author: editedMatch[1],
       date: editedMatch[2],
       editedAt: editedMatch[3],
+      authorKey: null,
     };
   }
 
@@ -287,10 +341,11 @@ export function parseCommentInfo(info: string): CommentInfo {
       author: simpleMatch[1],
       date: simpleMatch[2],
       editedAt: null,
+      authorKey: null,
     };
   }
 
-  return { id: null, parentId: null, author: 'unknown', date: '', editedAt: null };
+  return { id: null, parentId: null, author: 'unknown', date: '', editedAt: null, authorKey: null };
 }
 
 /**
@@ -324,7 +379,7 @@ export function setup(md: any): void {
 
   // 3. comment - individual comment
   setupSafeCommentContainer(md);
-  md.renderer.rules.custom_comment_open = (tokens: any[], idx: number) => {
+  md.renderer.rules.custom_comment_open = (tokens: any[], idx: number, _options: unknown, env: any) => {
     const info = tokens[idx].info.trim();
     const parsed = parseCommentInfo(info);
 
@@ -342,7 +397,7 @@ export function setup(md: any): void {
     return (
       `<div class="threads-comment${replyClass}"${idAttr}${parentAttr} data-author="${safeAuthor}" data-date="${safeDate}"${editedAttr}>` +
       `<div class="threads-comment__avatar-col"></div>` +
-      `<div class="threads-comment__meta"><strong>${safeAuthor}</strong> &middot; ${safeDate}</div>` +
+      `<div class="threads-comment__meta"><strong>${nameHtml(md.utils.escapeHtml, parsed.author, parsed.authorKey, linkContext(env))}</strong> &middot; ${safeDate}</div>` +
       `<div class="threads-comment__body">\n`
     );
   };

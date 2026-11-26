@@ -89,7 +89,10 @@ export function createDraftStore(
         const title = typeof j.review?.title === 'string' ? j.review.title : null;
         const summary = typeof j.review?.summary === 'string' ? j.review.summary : null;
         const p = j.profile;
-        const profile = p && typeof p.name === 'string' && typeof p.avatarUrl === 'string' ? { name: p.name, avatarUrl: p.avatarUrl } : undefined;
+        const profile =
+          p && typeof p.name === 'string' && typeof p.avatarUrl === 'string'
+            ? { name: p.name, avatarUrl: p.avatarUrl, ...(p.link === false || typeof p.link === 'string' ? { link: p.link as string | false } : {}) }
+            : undefined;
         return { version: 1, mode, review: { id, updatedAt, title, summary }, ops: j.ops, ...(profile ? { profile } : {}) };
       }
     } catch {

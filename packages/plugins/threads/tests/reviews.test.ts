@@ -939,3 +939,42 @@ test('an author key or name the parser cannot read back is refused without write
     assert.equal(pageThreads(FILE).flatMap((t) => t.comments).find((c) => c.id === ok.commentId)!.authorKey, key);
   }
 });
+
+test('a pending profile carries its link into authors.json with the review, and a link-only change is a profile change', async () => {
+  await fill('k-alice', [COMMENT]);
+  await withProfile('k-alice', { ...PROFILE, link: 'https://me.example/alice' });
+  await publish(ALICE, ctx() as never, deps());
+  assert.deepEqual(readAuthors()['k-alice'], { ...PROFILE, link: 'https://me.example/alice' });
+  assert.equal((await store().load('k-alice')).profile, undefined, 'the written profile is cleared');
+
+  // only the link changed: the journal holds a profile and no ops, and publishing writes it alone
+  await withProfile('k-alice', { ...PROFILE, link: false });
+  const result = await publish(ALICE, ctx() as never, deps());
+  assert.deepEqual(result.skipped, []);
+  assert.deepEqual(readAuthors()['k-alice'], { ...PROFILE, link: false });
+  assert.equal((await store().load('k-alice')).profile, undefined);
+
+  // the link removed again (automatic)
+  await withProfile('k-alice', PROFILE);
+  await publish(ALICE, ctx() as never, deps());
+  assert.deepEqual(readAuthors()['k-alice'], PROFILE);
+});
+
+test('a profile whose link is edited while the publish runs stays in the journal with the newer link', async () => {
+  await fill('k-alice', [COMMENT]);
+  await withProfile('k-alice', { ...PROFILE, link: false });
+  const newer = { ...PROFILE, link: 'https://me.example/alice' };
+  let edited = false;
+  const during: Partial<TestCtx> = {
+    async writeFile(rel: string, content: string) {
+      fs.writeFileSync(safePath(project.root, rel), content);
+      if (!edited) {
+        edited = true;
+        await withProfile('k-alice', newer);
+      }
+    },
+  };
+  await publish(ALICE, ctx(during) as never, deps());
+  assert.equal(readAuthors()['k-alice'].link, false, 'the value read at the start was written');
+  assert.deepEqual((await store().load('k-alice')).profile, newer, 'a difference in the link alone keeps the pending profile');
+});

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeOptions } from '../src/plugin/config.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
-const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, limits: { maxCommentChars: 5000, commentsPerMinute: 10 }, reactions: { emoji: ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'], restricted: false }, git: null };
+const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, limits: { maxCommentChars: 5000, commentsPerMinute: 10 }, reactions: { emoji: ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'], restricted: false }, profileUrl: null, git: null };
 
 test('absent, true and empty options all normalise to the defaults', () => {
   for (const raw of [{}, undefined, true]) {
@@ -112,6 +112,14 @@ test('invalid values throw threads/config', () => {
     [{ reactions: { emoji: [7] } }, /plugins\.threads\.reactions\.emoji entry 0/],
     [{ reactions: { emoji: ['👍', '🎉', '👍'] } }, /plugins\.threads\.reactions\.emoji must not repeat an emoji/],
     [{ reactions: { restricted: 'yes' } }, /plugins\.threads\.reactions\.restricted must be a boolean/],
+    [{ profileUrl: 5 }, /plugins\.threads\.profileUrl must be an absolute http or https URL containing \{id\}/],
+    [{ profileUrl: '' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'https://github.com/' }, /plugins\.threads\.profileUrl must be an absolute http or https URL containing \{id\}/],
+    [{ profileUrl: '/users/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'users/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'javascript:alert({id})' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'ftp://host/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'mailto:{id}@x.io' }, /plugins\.threads\.profileUrl must be an absolute/],
     [{ permissions: { resolve: 'nobody' } }, /plugins\.threads\.permissions\.resolve must be 'anyone' or 'author'/],
   ];
   for (const [raw, naming] of cases) {
@@ -121,5 +129,13 @@ test('invalid values throw threads/config', () => {
         e instanceof ThreadsError && e.code === 'config' && e.message.startsWith('threads/config:') && naming.test(e.message),
       JSON.stringify(raw),
     );
+  }
+});
+
+test('profileUrl: null by default, null kept, http and https patterns kept as written', () => {
+  assert.equal(normalizeOptions({}).profileUrl, null);
+  assert.equal(normalizeOptions({ profileUrl: null }).profileUrl, null);
+  for (const url of ['https://github.com/{id}', 'http://intranet/u/{id}/profile', 'https://{id}.example.com/', 'https://x.io/?user={id}&a={id}']) {
+    assert.equal(normalizeOptions({ profileUrl: url }).profileUrl, url);
   }
 });

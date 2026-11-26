@@ -5,7 +5,7 @@ import type { ActionContext } from '@docmd/api';
 import { safePath } from '@docmd/utils';
 import { docsRootOf } from './reviews.js';
 import { lockFor } from './lock.js';
-import type { AuthorsMap } from '../types.js';
+import type { Author, AuthorsMap } from '../types.js';
 
 type RootCtx = Pick<ActionContext, 'projectRoot' | 'config' | 'docsRootOf'>;
 
@@ -19,6 +19,43 @@ async function readAuthorsRaw(ctx: RootCtx): Promise<string | null> {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw e;
   }
+}
+
+interface LoadedAuthors {
+  mtimeMs: number;
+  size: number;
+  authors: AuthorsMap;
+}
+const loaded = new Map<string, LoadedAuthors>();
+
+/**
+ * The authors map of `<srcDir>/.threads/authors.json` for the build: the page scripts and the
+ * build-time comment and reactions rules read it for every page, so it is parsed once per
+ * process and again only when the file's modification time or size changes. {} when the file
+ * is missing or not a JSON object (one log line per bad version of the file). The result is
+ * shared: callers must not change it.
+ */
+export function loadAuthorsFile(srcDir: string): AuthorsMap {
+  const file = path.resolve(srcDir, '.threads', 'authors.json');
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(file);
+  } catch {
+    loaded.delete(file);
+    return {};
+  }
+  const hit = loaded.get(file);
+  if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) return hit.authors;
+  let authors: AuthorsMap = {};
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    // Runtime schema is a plain object: arrays and primitives count as empty.
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) authors = parsed as AuthorsMap;
+  } catch (err) {
+    console.error(`[threads] Failed to parse .threads/authors.json: ${(err as Error).message}. Using empty authors.`);
+  }
+  loaded.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, authors });
+  return authors;
 }
 
 /** The authors map; {} when the file does not exist. */
@@ -49,7 +86,7 @@ export const authorsFileOf = (ctx: RootCtx): string => path.relative(ctx.project
  * Set one entry as a locked read-modify-write. Returns the undo: it puts the file back as it was
  * (removing it when it did not exist), for a publish that fails after this write.
  */
-export function setAuthorEntry(ctx: RootCtx, key: string, entry: { name: string; avatarUrl: string }): Promise<() => Promise<void>> {
+export function setAuthorEntry(ctx: RootCtx, key: string, entry: Author): Promise<() => Promise<void>> {
   const lock = lockFor(`${docsRootOf(ctx)}#authors`);
   return lock.withLock(async () => {
     const before = await readAuthorsRaw(ctx);

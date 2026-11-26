@@ -1,5 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { after } from 'node:test';
 import { MarkdownIt } from './helpers.ts';
 import { setup } from '../src/plugin/containers.ts';
 
@@ -299,4 +303,117 @@ test('thread without anchor renders no anchor element', () => {
 
 test('::: anchor outside a thread is not turned into an anchor blockquote', () => {
   lacks(md.render('::: anchor\nplain\n:::\n'), 'threads-anchor');
+});
+
+// ---------------------------------------------------------------------------
+// Profile links in the build-time HTML (names only; the Markdown never stores a link)
+// ---------------------------------------------------------------------------
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'threads-containers-'));
+after(() => fs.rmSync(root, { recursive: true, force: true }));
+const writeAuthors = (authors: unknown): string => {
+  const src = fs.mkdtempSync(path.join(root, 'site-'));
+  fs.mkdirSync(path.join(src, '.threads'));
+  fs.writeFileSync(path.join(src, '.threads', 'authors.json'), JSON.stringify(authors));
+  return src;
+};
+const REL = 'rel="nofollow noopener ugc"';
+
+const linkedPage = `::: threads
+  ::: thread t-l
+    ::: comment c-l1 "Alice Smith" "2026-07-01" by alice
+      First
+
+      ::: reactions
+        - 👍 Alice Smith {alice}, Bob {bob}, Walt {walt}
+        - 🎉 Old Timer, Quiet {quiet}
+      :::
+    :::
+
+    ::: comment c-l2 "Bob" "2026-07-02" by bob
+      Second
+    :::
+
+    ::: comment c-l3 "Walt" "2026-07-03" by walt
+      Third
+    :::
+
+    ::: comment c-l4 "No Key" "2026-07-04"
+      Fourth
+    :::
+  :::
+:::
+`;
+const siteAuthors = {
+  alice: { name: 'Alice Smith', avatarUrl: '' },
+  bob: { name: 'Bob', avatarUrl: '', link: 'https://bob.example/~bob?a=1&b="2"' },
+  walt: { name: 'Walt', avatarUrl: '', link: false },
+  quiet: { name: 'Quiet Renamed', avatarUrl: '', link: false },
+};
+const render = (src: string, env: Record<string, unknown>) => md.render(linkedPage, env);
+
+test('build links: comment authors and reactors link by the pattern, a custom link, or not at all', () => {
+  const src = writeAuthors(siteAuthors);
+  const html = render(src, { config: { src, plugins: { threads: { profileUrl: 'https://github.com/{id}' } } } });
+  has(html, `<strong><a href="https://github.com/alice" ${REL}>Alice Smith</a></strong>`);
+  has(html, `<strong><a href="https://bob.example/~bob?a=1&amp;b=&quot;2&quot;" ${REL}>Bob</a></strong>`);
+  has(html, '<strong>Walt</strong>');
+  has(html, '<strong>No Key</strong>');
+  has(html, `<li>👍 <a href="https://github.com/alice" ${REL}>Alice Smith</a>, <a href="https://bob.example/~bob?a=1&amp;b=&quot;2&quot;" ${REL}>Bob</a>, Walt</li>`);
+  has(html, `<li>🎉 Old Timer, Quiet Renamed</li>`);
+});
+
+test('build links: a custom link works with no profileUrl, and without one the others stay plain', () => {
+  const src = writeAuthors(siteAuthors);
+  const html = render(src, { config: { src } });
+  has(html, `<a href="https://bob.example/~bob?a=1&amp;b=&quot;2&quot;" ${REL}>Bob</a>`);
+  lacks(html, 'github.com');
+  has(html, '<strong>Alice Smith</strong>');
+});
+
+test('build links: names stay plain when the render env carries no site config or no docs folder', () => {
+  const src = writeAuthors(siteAuthors);
+  for (const env of [{}, { config: undefined }, { config: { base: '/', strict: false } }, { config: { plugins: { threads: { profileUrl: 'https://github.com/{id}' } } } }]) {
+    const html = render(src, env);
+    lacks(html, '<a ');
+    has(html, '<strong>Alice Smith</strong>');
+    has(html, '<li>👍 Alice Smith, Bob, Walt</li>');
+  }
+});
+
+test('build links: an invalid profileUrl is treated as none and does not break the render', () => {
+  const src = writeAuthors({});
+  const html = render(src, { config: { src, plugins: { threads: { profileUrl: 'javascript:{id}' } } } });
+  lacks(html, '<a ');
+  has(html, '<strong>Alice Smith</strong>');
+});
+
+test('build links: identity keys are never in the output, and names are escaped inside links', () => {
+  const src = writeAuthors({ 'k"ey': { name: 'Q <i>', avatarUrl: '' } });
+  const page = `::: threads
+  ::: thread t-x
+    ::: comment c-x "<b>Eve</b>" "2026-07-01" by k"ey
+      Body
+
+      ::: reactions
+        - 👍 <b>Eve</b> {k"ey}, Other {secret-key-1}
+      :::
+    :::
+  :::
+:::
+`;
+  const plain = md.render(page, { config: { src } });
+  lacks(plain, '<b>Eve</b>');
+  for (const secret of ['secret-key-1', 'k"ey', 'k&quot;ey', '{', '}']) lacks(plain.slice(plain.indexOf('threads-reactions')), secret);
+
+  // With a pattern the key is in the link target only, never in the visible text
+  const html = md.render(page, { config: { src, plugins: { threads: { profileUrl: 'https://p.example/{id}' } } } });
+  lacks(html, '<b>Eve</b>');
+  has(html, 'href="https://p.example/k%22ey"');
+  has(html, 'href="https://p.example/secret-key-1"');
+  const visible = html.replace(/ href="[^"]*"/g, '').replace(/ data-[a-z-]+="[^"]*"/g, '');
+  lacks(visible, 'secret-key-1');
+  lacks(visible, 'k%22ey');
+  has(html, '>&lt;b&gt;Eve&lt;/b&gt;</a></strong>');
+  has(html, '>Q &lt;i&gt;</a>');
 });

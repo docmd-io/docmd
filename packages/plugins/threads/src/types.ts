@@ -1,6 +1,11 @@
 export interface Author {
   name: string;
   avatarUrl: string;
+  /**
+   * Where the name links to. Absent: automatic (the site's `profileUrl` pattern, or no link when
+   * that is unset). A string: the author's own http(s) link. `false`: no link anywhere.
+   */
+  link?: string | false;
 }
 
 export interface AuthorsMap {
@@ -138,7 +143,7 @@ export interface Journal {
    * The caller's own author entry, waiting for their next publish (set only under serve with git
    * sync on; a later edit replaces it). Absent on journals that never had one.
    */
-  profile?: { name: string; avatarUrl: string };
+  profile?: { name: string; avatarUrl: string; link?: string | false };
 }
 
 export type DraftMode = 'auto' | 'collect';

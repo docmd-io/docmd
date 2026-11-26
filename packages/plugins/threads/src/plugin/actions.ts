@@ -12,19 +12,21 @@ import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
 import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
-import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
+import { claimedAuthorKey, findCaller, headerProfile, linkFromPayload, nextLink, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
 import { hasCaller } from './reactors.js';
 import { isSingleEmoji } from '../shared/emoji.js';
-import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
+import type { Author, AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
-async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
+async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string, link?: string | false | null): Promise<void> {
   await updateAuthors(ctx, (authors) => {
-    const existing = authors[authorKey] || { name: '', avatarUrl: '' };
+    const existing: Author = authors[authorKey] || { name: '', avatarUrl: '' };
+    const next = nextLink(link, existing.link);
     authors[authorKey] = {
       name: name || existing.name || authorKey,
       avatarUrl: avatarUrl || existing.avatarUrl || '',
+      ...(next === undefined ? {} : { link: next }),
     };
   });
 }
@@ -182,19 +184,20 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
   'threads:upsert-author': async (payload, ctx): Promise<{ ok: boolean }> => {
     const caller = await begin(ctx, payload, 'threads:upsert-author', ctx.mode === 'serve' ? ['name'] : ['authorKey', 'name']);
     assertCan(caller, 'upsert-author', { authorKey: claimedAuthorKey(payload) }, getOptions(ctx).permissions);
+    const link = linkFromPayload(payload);
     if (caller.source === 'header') {
       // The key is the trusted identity: only the caller's own entry changes.
       if (gitOn(ctx)) {
         // With git the working tree stays clean between publishes: the profile waits in the journal and goes out with the next publish.
-        const profile = headerProfile(payload, caller);
-        await getStore(ctx).transact(caller.key, (j) => void (j.profile = profile));
+        const published = (await readAuthors(ctx))[caller.key]?.link;
+        await getStore(ctx).transact(caller.key, (j) => void (j.profile = headerProfile(payload, caller, nextLink(link, j.profile ? j.profile.link : published))));
         return { ok: true };
       }
-      await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller)));
+      await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller, nextLink(link, authors[caller.key]?.link))));
       return { ok: true };
     }
     const profile = profileFromPayload(payload);
-    await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl);
+    await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl, link);
     return { ok: true };
   },
 

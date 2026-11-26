@@ -662,8 +662,8 @@ test('plugin surface: descriptor, hooks and action names', () => {
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });
-  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false}';
-  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false}};'));
+  const DEFAULT_CONFIG = '"sidebar":false,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false},"profileUrl":null';
+  assert.ok(scripts.bodyScriptsHtml.includes('window.__threads_config={"sidebar":true,"autoPublish":{"seconds":180,"startOn":true},"permissions":{"resolve":"anyone"},"reactions":{"emoji":["👍","👎","😄","🎉","😕","❤️","🚀","👀"],"restricted":false},"profileUrl":null};'));
   for (const opts of [{}, undefined]) {
     const out = plugin.generateScripts({ src: path.join(project.root, 'docs') }, opts);
     assert.ok(out.bodyScriptsHtml.includes(`window.__threads_config={${DEFAULT_CONFIG}};`));

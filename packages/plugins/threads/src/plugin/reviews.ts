@@ -672,7 +672,7 @@ type Profile = NonNullable<Journal['profile']>;
 
 /** Drop the journal's profile when it is still the one that was written (edited again meanwhile: it stays). */
 function clearProfile(j: Journal, written: Profile): void {
-  if (j.profile?.name === written.name && j.profile.avatarUrl === written.avatarUrl) delete j.profile;
+  if (j.profile?.name === written.name && j.profile.avatarUrl === written.avatarUrl && j.profile.link === written.link) delete j.profile;
 }
 
 /**
