@@ -5,6 +5,7 @@ type Call = { action: string; payload: Record<string, unknown> };
 const calls: Call[] = [];
 const storage = new Map<string, string>();
 let prompts = 0;
+let identityNeeded = 0;
 const g = globalThis as Record<string, unknown>;
 const saved: Record<string, unknown> = {};
 let reject: unknown = null;
@@ -16,7 +17,7 @@ const STUBS: Record<string, unknown> = {
       return {};
     },
   },
-  document: { body: { dataset: { sourceFile: 'docs/index.md' } } },
+  document: { body: { dataset: { sourceFile: 'docs/index.md' } }, dispatchEvent: () => { identityNeeded++; return true; } },
   localStorage: {
     getItem: (k: string) => storage.get(k) ?? null,
     setItem: (k: string, v: string) => void storage.set(k, v),
@@ -45,6 +46,7 @@ beforeEach(() => {
   calls.length = 0;
   storage.clear();
   prompts = 0;
+  identityNeeded = 0;
   reject = null;
 });
 
@@ -84,14 +86,11 @@ test('fetchThreads without a stored identity sends only the file and never promp
   assert.equal(prompts, 0);
 });
 
-test('a mutation without a stored identity prompts once and sends the prompted identity', async () => {
-  await api.deleteThread('t-1');
-  assert.equal(prompts, 1);
-  assert.equal(calls[0].payload.author, 'Prompted');
-  assert.equal(calls[0].payload.authorKey, 'prompted');
-  await api.deleteComment('t-1', 'c-1');
-  assert.equal(prompts, 1, 'the prompted name is stored');
-  assert.equal(calls[1].payload.authorKey, 'prompted');
+test('a mutation without a stored identity never prompts: it asks for the identity panel and is rejected', async () => {
+  await assert.rejects(api.deleteThread('t-1'), (e: unknown) => e instanceof Error && (e as { code?: string }).code === 'threads/identity-required');
+  assert.equal(prompts, 0);
+  assert.equal(identityNeeded, 1);
+  assert.equal(calls.length, 0, 'nothing is sent');
 });
 
 const page = { file: 'docs/index.md' };
@@ -104,6 +103,18 @@ test('whoami sends the page and exactly the stored identity, or no identity with
   await api.whoami();
   assert.deepEqual(calls[1], { action: 'threads:whoami', payload: page });
   assert.equal(prompts, 0);
+});
+
+test('upsertAuthor sends the profile link only when given one: null, false or a URL', async () => {
+  await api.upsertAuthor('k', 'Ann', 'u');
+  await api.upsertAuthor('k', 'Ann', 'u', null);
+  await api.upsertAuthor('k', 'Ann', 'u', false);
+  await api.upsertAuthor(null, 'Ann', 'u', 'https://example.org/ann');
+  assert.equal('link' in calls[0].payload, false, 'left out keeps the stored link');
+  assert.equal(calls[1].payload.link, null);
+  assert.equal(calls[2].payload.link, false);
+  assert.equal(calls[3].payload.link, 'https://example.org/ann');
+  assert.equal('authorKey' in calls[3].payload, false);
 });
 
 test('upsertAuthor sends no authorKey when given null, the key otherwise', async () => {
@@ -165,6 +176,7 @@ test('listReviews sends {} and updateReview the identity plus the title; a forbi
 });
 
 test('a threads/<code>: <text> rejection becomes a ThreadsClientError; any other rejection passes through', async () => {
+  identify();
   reject = new Error('threads/invalid: first line\nsecond line');
   await assert.rejects(api.publishReview(), (e: unknown) => {
     assert.ok(e instanceof api.ThreadsClientError);

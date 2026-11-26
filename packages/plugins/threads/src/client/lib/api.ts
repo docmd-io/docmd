@@ -42,11 +42,16 @@ export async function fetchAuthors(): Promise<AuthorsMap> {
   }
 }
 
-export async function upsertAuthor(authorKey: string | null, name: string, avatarUrl: string): Promise<void> {
+/** `link` is the Profile link setting: null = automatic, false = no link, a string = the author's own link; left out keeps the stored one. */
+export async function upsertAuthor(authorKey: string | null, name: string, avatarUrl: string, link?: string | false | null): Promise<void> {
   // A header identity names itself; the server rejects a client-sent key.
-  const payload = authorKey === null
-    ? { ...pageFile(), name, avatarUrl }
-    : { ...pageFile(), authorKey, name, avatarUrl };
+  const payload = {
+    ...pageFile(),
+    ...(authorKey === null ? {} : { authorKey }),
+    name,
+    avatarUrl,
+    ...(link === undefined ? {} : { link }),
+  };
   await docmd.call('threads:upsert-author', payload);
 }
 

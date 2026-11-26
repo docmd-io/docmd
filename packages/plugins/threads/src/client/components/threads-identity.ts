@@ -7,7 +7,7 @@ import {
   getGithub, setGithub,
   getAvatarUrl, setAvatarUrl,
   computeAvatarUrl,
-  computeAuthorKey, setAuthorKey,
+  computeAuthorKey, getAuthorKey, setAuthorKey,
   getIdentityMode, setHeaderProfile,
   IDENTITY_NEEDED_EVENT,
 } from '../lib/identity';
@@ -15,13 +15,14 @@ import { avatar, avatarStyles } from '../lib/avatar';
 import { baseStyles } from './tokens';
 import { fieldStyles } from './fields';
 import './threads-button';
-import { upsertAuthor, ThreadsClientError } from '../lib/api';
+import { upsertAuthor, fetchAuthors, ThreadsClientError } from '../lib/api';
+import { choiceFromLink, linkFromChoice, type LinkChoice } from '../lib/profile-link-setting';
 
 /**
  * The person's avatar button in the page header and the profile panel it opens (name, GitHub user, e-mail
  * for the avatar). No public properties: it reads and writes through `lib/identity.ts`. The panel also
  * opens by itself when a write needs a name (the `threads-identity-needed` event on `document`).
- * Parts: `button`, `avatar`, `panel`, `field`, `input`, `error`, `save`, `cancel`.
+ * Parts: `button`, `avatar`, `panel`, `field`, `input`, `link` (the Profile link radio group), `link-url`, `error`, `save`, `cancel`.
  */
 @customElement('threads-identity')
 export class ThreadsIdentity extends LitElement {
@@ -66,6 +67,9 @@ export class ThreadsIdentity extends LitElement {
     label { display: flex; flex-direction: column; gap: 4px; font-size: var(--_font-size-sm); font-weight: 500; }
     .hint { margin: 0; font-size: 11px; color: var(--_fg-muted); line-height: 1.4; }
     .hint--error { color: var(--_danger); }
+    fieldset.link { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    fieldset.link legend { padding: 0; margin-bottom: 4px; font-size: var(--_font-size-sm); font-weight: 500; }
+    fieldset.link label { flex-direction: row; align-items: center; gap: 6px; font-weight: 400; }
     .actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 2px; }
   `];
 
@@ -75,6 +79,10 @@ export class ThreadsIdentity extends LitElement {
   @state() private avatarUrl = '';
   @state() private panelOpen = false;
   @state() private error: string | null = null;
+  @state() private linkChoice: LinkChoice = 'none';
+  @state() private linkUrl = '';
+  /** The stored `link` has been read; until then, and until the person touches the setting, the save leaves it alone. */
+  private linkTouched = false;
 
   private outsideClickHandler = (e: MouseEvent) => {
     if (!e.composedPath().includes(this)) {
@@ -120,11 +128,56 @@ export class ThreadsIdentity extends LitElement {
   private togglePanel(): void {
     this.panelOpen = !this.panelOpen;
     this.error = null;
+    if (this.panelOpen) void this.loadLink();
+  }
+
+  /** Whether the site's profile URL pattern can apply to this person: it needs an identity key from the server. */
+  private get autoAvailable(): boolean {
+    const url = (window.__threads_config as { profileUrl?: unknown } | undefined)?.profileUrl;
+    return typeof url === 'string' && url !== '' && getIdentityMode().mode === 'header';
+  }
+
+  private myKey(): string | null {
+    const me = getIdentityMode();
+    return me.mode === 'header' ? me.payload.authorKey : getAuthorKey();
+  }
+
+  /** Show the stored setting: read this person's entry from authors.json. */
+  private async loadLink(): Promise<void> {
+    this.linkTouched = false;
+    const key = this.myKey();
+    let link: string | false | undefined;
+    if (key !== null) {
+      const authors = await fetchAuthors();
+      if (!this.panelOpen || this.linkTouched) return;
+      link = Object.hasOwn(authors, key) ? authors[key]?.link : undefined;
+    }
+    this.linkChoice = choiceFromLink(link, this.autoAvailable);
+    this.linkUrl = typeof link === 'string' ? link : '';
+  }
+
+  private pickLink(choice: LinkChoice): void {
+    this.linkTouched = true;
+    this.linkChoice = choice;
+    this.error = null;
+  }
+
+  /** The `link` to save: undefined when the setting was not touched. A bad custom URL stops the save. */
+  private linkToSave(): { ok: true; value: string | false | null | undefined } | { ok: false } {
+    if (!this.linkTouched) return { ok: true, value: undefined };
+    return linkFromChoice(this.linkChoice, this.linkUrl, this.autoAvailable);
   }
 
   private async handleSave(): Promise<void> {
     const me = getIdentityMode();
     const nameInput = this.renderRoot.querySelector<HTMLInputElement>('#identity-name');
+    const urlInput = this.renderRoot.querySelector<HTMLInputElement>('#identity-link-url');
+    if (urlInput) this.linkUrl = urlInput.value;
+    const link = this.linkToSave();
+    if (!link.ok) {
+      this.error = t('linkInvalid');
+      return;
+    }
 
     // A header identity owns its key: the name and avatar edit the profile only.
     if (me.mode === 'header') {
@@ -136,7 +189,7 @@ export class ThreadsIdentity extends LitElement {
       setEmail(emailVal);
       if (emailVal) this.avatarUrl = await computeAvatarUrl(emailVal, '');
       try {
-        await upsertAuthor(null, this.name, this.avatarUrl);
+        await upsertAuthor(null, this.name, this.avatarUrl, link.value);
       } catch (err) {
         // The server is the authority on the profile: keep the panel open and say why (e.g. threads/forbidden).
         this.error = err instanceof ThreadsClientError ? err.text : (err instanceof Error ? err.message : String(err));
@@ -177,7 +230,7 @@ export class ThreadsIdentity extends LitElement {
 
     // Sync to server authors.json
     try {
-      await upsertAuthor(authorKey, this.name, this.avatarUrl);
+      await upsertAuthor(authorKey, this.name, this.avatarUrl, link.value);
     } catch (err) {
       // The name is saved here already; say that the server did not take the profile.
       this.error = err instanceof ThreadsClientError ? err.text : (err instanceof Error ? err.message : String(err));
@@ -197,6 +250,11 @@ export class ThreadsIdentity extends LitElement {
   private handleCancel(): void {
     this.panelOpen = false;
     this.error = null;
+  }
+
+  private linkRadio(choice: LinkChoice, text: string) {
+    return html`<label><input type="radio" name="link-choice" .checked=${this.linkChoice === choice}
+      @change=${() => this.pickLink(choice)} />${text}</label>`;
   }
 
   override render() {
@@ -229,6 +287,18 @@ export class ThreadsIdentity extends LitElement {
             <input id="identity-email" class="field" part="field input" type="email"
               .value=${this.email} placeholder="you@example.com" />
           </label>
+          <fieldset class="link" part="link">
+            <legend>${t('profileLink')}</legend>
+            ${this.autoAvailable ? this.linkRadio('auto', t('linkAutomatic')) : nothing}
+            ${this.linkRadio('custom', t('linkCustom'))}
+            ${this.linkChoice === 'custom' ? html`
+              <input id="identity-link-url" class="field" part="field input link-url" type="url" inputmode="url"
+                .value=${this.linkUrl} placeholder=${t('linkUrlPlaceholder')} aria-label=${t('linkCustom')}
+                @input=${(e: Event) => { this.linkUrl = (e.target as HTMLInputElement).value; }} />
+            ` : nothing}
+            ${this.linkRadio('none', t('linkNone'))}
+            <p class="hint">${t('linkHint')}</p>
+          </fieldset>
           ${this.error ? html`<p class="hint hint--error" part="error" data-testid="identity-error" role="alert">${this.error}</p>` : nothing}
           <p class="hint">${t('avatarHint')}</p>
           <div class="actions">

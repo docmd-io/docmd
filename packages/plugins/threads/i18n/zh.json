@@ -112,5 +112,12 @@
   "emptyHint": "选中本页任意文字即可发表评论，或点击标题旁的“新讨论”。",
   "sidebar": "侧边栏",
   "openInSidebar": "在侧边栏中打开讨论",
-  "jumpToHighlight": "跳转到文中的高亮"
+  "jumpToHighlight": "跳转到文中的高亮",
+  "profileLink": "个人资料链接",
+  "linkAutomatic": "自动",
+  "linkCustom": "自定义链接",
+  "linkNone": "无链接",
+  "linkUrlPlaceholder": "https://example.com/you",
+  "linkInvalid": "请输入以 http:// 或 https:// 开头的链接",
+  "linkHint": "您的姓名链接到的位置。自定义链接不会被验证。"
 }

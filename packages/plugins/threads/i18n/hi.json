@@ -112,5 +112,12 @@
   "emptyHint": "टिप्पणी करने के लिए इस पृष्ठ पर कोई भी टेक्स्ट चुनें, या किसी शीर्षक के पास नई चर्चा पर क्लिक करें।",
   "sidebar": "साइडबार",
   "openInSidebar": "चर्चा साइडबार में खोलें",
-  "jumpToHighlight": "टेक्स्ट में हाइलाइट पर जाएँ"
+  "jumpToHighlight": "टेक्स्ट में हाइलाइट पर जाएँ",
+  "profileLink": "प्रोफ़ाइल लिंक",
+  "linkAutomatic": "स्वचालित",
+  "linkCustom": "कस्टम लिंक",
+  "linkNone": "कोई लिंक नहीं",
+  "linkUrlPlaceholder": "https://example.com/you",
+  "linkInvalid": "http:// या https:// से शुरू होने वाला लिंक दर्ज करें",
+  "linkHint": "आपका नाम कहाँ लिंक होगा। कस्टम लिंक सत्यापित नहीं किया जाता।"
 }

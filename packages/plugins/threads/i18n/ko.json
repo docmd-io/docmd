@@ -115,5 +115,12 @@
   "emptyHint": "댓글을 남기려면 이 페이지의 텍스트를 선택하거나 제목 옆의 새 스레드를 클릭하세요.",
   "sidebar": "사이드바",
   "openInSidebar": "사이드바에서 토론 열기",
-  "jumpToHighlight": "본문의 강조 표시로 이동"
+  "jumpToHighlight": "본문의 강조 표시로 이동",
+  "profileLink": "프로필 링크",
+  "linkAutomatic": "자동",
+  "linkCustom": "사용자 지정 링크",
+  "linkNone": "링크 없음",
+  "linkUrlPlaceholder": "https://example.com/you",
+  "linkInvalid": "http:// 또는 https://로 시작하는 링크를 입력하세요",
+  "linkHint": "이름이 연결될 곳입니다. 사용자 지정 링크는 확인되지 않습니다."
 }

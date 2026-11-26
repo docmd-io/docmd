@@ -112,5 +112,12 @@
   "emptyHint": "Select any text on this page to leave a comment, or click New Thread beside any heading.",
   "sidebar": "Sidebar",
   "openInSidebar": "Open discussion in sidebar",
-  "jumpToHighlight": "Jump to highlight in text"
+  "jumpToHighlight": "Jump to highlight in text",
+  "profileLink": "Profile link",
+  "linkAutomatic": "Automatic",
+  "linkCustom": "Custom link",
+  "linkNone": "No link",
+  "linkUrlPlaceholder": "https://example.com/you",
+  "linkInvalid": "Enter a link that starts with http:// or https://",
+  "linkHint": "Where your name links to. A custom link is not verified."
 }
