@@ -708,3 +708,14 @@ test('bodies with a container fence are refused on add-thread, add-comment and e
   // Colons that are not a fence line stay fine
   await addComment(t.id, { body: 'ratio a ::: b and ::not a fence' });
 });
+
+test('toggle-reaction treats the picker spelling (with a redundant variation selector) as the quick row emoji', async () => {
+  const react = (emoji: string) => call<Reaction[]>('threads:toggle-reaction', as(ALICE, { threadId: 't-thread1', commentId: 'c1-1', emoji }));
+  const { result: first } = await react('👍️');
+  assert.deepEqual(first.map((r) => r.emoji), ['👍']);
+  assert.ok(journalOps('alice').some((o) => o.kind === 'toggle-reaction' && o.emoji === '👍'));
+  // The quick row's spelling cancels the picker's toggle: one chip, not two
+  const { result: second } = await react('👍');
+  assert.equal(second.some((r) => normalizeSame(r.emoji, '👍')), false);
+});
+const normalizeSame = (a: string, b: string) => a.replaceAll('️', '') === b.replaceAll('️', '');

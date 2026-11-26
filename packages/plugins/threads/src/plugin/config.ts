@@ -1,5 +1,5 @@
 import { ThreadsError } from './errors.js';
-import { DEFAULT_REACTION_EMOJI, isSingleEmoji } from '../shared/emoji.js';
+import { DEFAULT_REACTION_EMOJI, isSingleEmoji, normalizeEmoji } from '../shared/emoji.js';
 import { isHttpUrl } from '../shared/profile-link.js';
 
 export interface ThreadsOptions {
@@ -141,6 +141,8 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
   list.forEach((e, i) => {
     if (!isSingleEmoji(e)) bad('reactions.emoji', `entry ${i} must be a single emoji`);
   });
+  // One spelling each, so a list entry matches what the picker and the quick row send.
+  list.forEach((e, i) => { list[i] = normalizeEmoji(e); });
   if (new Set(list).size !== list.length) bad('reactions.emoji', 'must not repeat an emoji');
   const restricted = rx.restricted ?? false;
   if (typeof restricted !== 'boolean') bad('reactions.restricted', 'must be a boolean');

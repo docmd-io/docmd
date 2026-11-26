@@ -15,7 +15,7 @@ import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, linkFromPayload, nextLink, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
 import { hasCaller } from './reactors.js';
-import { isSingleEmoji } from '../shared/emoji.js';
+import { normalizeEmoji } from '../shared/emoji.js';
 import type { Author, AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
@@ -381,9 +381,11 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:toggle-reaction': async (payload, ctx): Promise<Reaction[]> => {
     const caller = await begin(ctx, payload, 'threads:toggle-reaction', ['file', 'threadId', 'commentId', 'emoji']);
-    const { threadId, commentId, emoji } = payload;
-    // One emoji only: anything else would reach the markdown line (commas, line breaks).
-    if (!isSingleEmoji(emoji)) throw new ThreadsError('invalid', 'threads:toggle-reaction: emoji must be a single emoji');
+    const { threadId, commentId } = payload;
+    // One emoji only: anything else would reach the markdown line (commas, line breaks). It is stored
+    // in its one spelling, so the picker's 👍️ and the quick row's 👍 are the same reaction.
+    const emoji = normalizeEmoji(payload.emoji);
+    if (emoji === null) throw new ThreadsError('invalid', 'threads:toggle-reaction: emoji must be a single emoji');
     const { reactions: allowed } = getOptions(ctx);
     const view = await transact(ctx, caller, payload, (tx) => {
       const target = findComment(findThread(tx.view, threadId), commentId);
@@ -393,7 +395,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
         : undefined;
       // A restricted site refuses new reactions outside its list, but never traps an old one: taking
       // back the caller's own reaction (published, or drafted and now cancelled) is always allowed.
-      if (allowed.restricted && !allowed.emoji.includes(emoji) && !pending && !hasCaller(target.reactions.find((r) => r.emoji === emoji), caller)) {
+      if (allowed.restricted && !allowed.emoji.includes(emoji) && !pending && !hasCaller(target.reactions.find((r) => normalizeEmoji(r.emoji) === emoji), caller)) {
         throw new ThreadsError('reaction-not-allowed', `threads:toggle-reaction: ${emoji} is not one of the allowed reactions`);
       }
       if (pending) drop(tx, [pending]);

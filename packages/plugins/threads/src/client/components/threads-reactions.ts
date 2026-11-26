@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { t } from '../lib/i18n';
 import { dispatchRequest, requestErrorMessage } from '../lib/request';
+import { normalizeEmoji } from '../../shared/emoji';
 import { emojiPickerI18n } from '../lib/emoji-picker-i18n';
 import { loadPickerModule } from '../lib/picker-loader';
 import { placePopover } from '../lib/popover-position';
@@ -179,7 +180,8 @@ export class ThreadsReactions extends LitElement {
       e.stopPropagation();
       const detail = (e as CustomEvent<{ unicode?: string; emoji?: { unicode?: string } }>).detail;
       const unicode = detail?.unicode ?? detail?.emoji?.unicode;
-      if (typeof unicode === 'string') void this.react(unicode);
+      const emoji = normalizeEmoji(unicode);
+      if (emoji !== null) void this.react(emoji);
     });
     // A data file that cannot be fetched (or no usable IndexedDB) rejects here: say so and let the next click retry.
     picker.database.ready().catch((err: unknown) => {
