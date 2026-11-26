@@ -129,7 +129,6 @@ export interface GitClientOptions {
 
 export interface GitClient {
   readonly cwd: string;
-  exec(args: string[], extraEnv?: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string }>;
   isInstalled(): Promise<boolean>;
   isRepository(): Promise<boolean>;
   getRoot(): Promise<string>;
@@ -404,14 +403,29 @@ export function sanitizeRemote(remote: string): string {
     throw new TypeError('Expected git remote to be a string');
   }
   const trimmed = remote.trim();
-  if (!trimmed || trimmed.startsWith('-')) {
+  if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('-')) {
     throw new Error(`Invalid git remote: "${remote}" cannot start with a dash or be empty`);
   }
   if (trimmed.startsWith('--upload-pack') || trimmed.startsWith('--receive-pack')) {
     throw new Error(`Forbidden git remote argument: "${remote}"`);
   }
-  if (trimmed.includes('://') || trimmed.startsWith('git@')) {
-    if (!/^(https?|git|ssh):\/\/[^\s"';]+$/i.test(trimmed) && !/^git@[^\s"';]+:[^\s"';]+$/i.test(trimmed)) {
+  if (trimmed.startsWith('git@')) {
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1 || colonIdx === 4 || colonIdx === trimmed.length - 1) {
+      throw new Error(`Invalid git remote URL: "${remote}"`);
+    }
+    const host = trimmed.slice(4, colonIdx);
+    const repoPath = trimmed.slice(colonIdx + 1);
+    if (!/^[a-zA-Z0-9_.-]+$/.test(host) || /[\s"';`$<>|&]/.test(repoPath)) {
+      throw new Error(`Invalid git remote URL: "${remote}"`);
+    }
+  } else if (trimmed.includes('://')) {
+    try {
+      const parsed = new URL(trimmed);
+      if (!['http:', 'https:', 'git:', 'ssh:'].includes(parsed.protocol) || /[\s"';`$<>|&]/.test(trimmed)) {
+        throw new Error();
+      }
+    } catch {
       throw new Error(`Invalid git remote URL: "${remote}"`);
     }
   } else if (!/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
@@ -428,7 +442,7 @@ export function sanitizeBranch(branch: string): string {
     throw new TypeError('Expected git branch to be a string');
   }
   const trimmed = branch.trim();
-  if (!trimmed || trimmed.startsWith('-') || !/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
+  if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('-') || !/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
     throw new Error(`Invalid git branch name: "${branch}"`);
   }
   return trimmed;
@@ -443,7 +457,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
   const runExec: ExecFile = options.execFile || defaultExecFile;
   const tokenEnvVar = options.tokenEnvVar || options.auth?.envTokenVar || 'DOCMD_GIT_TOKEN';
 
-  const exec = async (args: string[], extraEnv: NodeJS.ProcessEnv = {}): Promise<{ stdout: string; stderr: string }> => {
+  const runGit = async (args: string[], extraEnv: NodeJS.ProcessEnv = {}): Promise<{ stdout: string; stderr: string }> => {
     for (const arg of args) {
       if (typeof arg !== 'string') {
         throw new TypeError('Git argument must be a string');
@@ -478,11 +492,9 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       return cwd;
     },
 
-    exec,
-
     async isInstalled(): Promise<boolean> {
       try {
-        await exec(['--version']);
+        await runGit(['--version']);
         return true;
       } catch {
         return false;
@@ -491,7 +503,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
 
     async isRepository(): Promise<boolean> {
       try {
-        const { stdout } = await exec(['rev-parse', '--is-inside-work-tree']);
+        const { stdout } = await runGit(['rev-parse', '--is-inside-work-tree']);
         return stdout.trim() === 'true';
       } catch {
         return false;
@@ -499,27 +511,27 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
     },
 
     async getRoot(): Promise<string> {
-      const { stdout } = await exec(['rev-parse', '--show-toplevel']);
+      const { stdout } = await runGit(['rev-parse', '--show-toplevel']);
       return stdout.trim();
     },
 
     async getCurrentBranch(): Promise<string> {
       try {
-        const { stdout } = await exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+        const { stdout } = await runGit(['rev-parse', '--abbrev-ref', 'HEAD']);
         const branch = stdout.trim();
         if (branch && branch !== 'HEAD') return branch;
       } catch { /* ignore */ }
-      const { stdout } = await exec(['rev-parse', '--short', 'HEAD']);
+      const { stdout } = await runGit(['rev-parse', '--short', 'HEAD']);
       return stdout.trim();
     },
 
     async getHeadCommit(): Promise<string> {
-      const { stdout } = await exec(['rev-parse', 'HEAD']);
+      const { stdout } = await runGit(['rev-parse', 'HEAD']);
       return stdout.trim();
     },
 
     async getStatus(): Promise<GitStatusResult> {
-      const { stdout } = await exec(['status', '--porcelain=v1', '-b']);
+      const { stdout } = await runGit(['status', '--porcelain=v1', '-b']);
       const lines = stdout.split('\n').filter(Boolean);
 
       let branch = '';
@@ -577,7 +589,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
 
     async getRemoteUrl(remote: string = 'origin'): Promise<string> {
       const safeRemote = sanitizeRemote(remote);
-      const { stdout } = await exec(['remote', 'get-url', safeRemote]);
+      const { stdout } = await runGit(['remote', 'get-url', '--', safeRemote]);
       return stdout.trim();
     },
 
@@ -594,7 +606,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       const safeRemote = sanitizeRemote(remote);
       const safeBranch = sanitizeBranch(branch);
       const authArgs = getAuthCLIArgs();
-      await exec([...authArgs, 'fetch', safeRemote, `+refs/heads/${safeBranch}:refs/remotes/${safeRemote}/${safeBranch}`]);
+      await runGit([...authArgs, 'fetch', '--', safeRemote, `+refs/heads/${safeBranch}:refs/remotes/${safeRemote}/${safeBranch}`]);
     },
 
     async pull(remote: string = 'origin', branch: string = 'main', pullOpts: PullOptions = {}): Promise<void> {
@@ -602,18 +614,18 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       const safeBranch = sanitizeBranch(branch);
       await this.fetch(safeRemote, safeBranch);
       if (pullOpts.resetHard) {
-        await exec(['reset', '--hard', `${safeRemote}/${safeBranch}`]);
+        await runGit(['reset', '--hard', `${safeRemote}/${safeBranch}`]);
       } else if (pullOpts.rebase) {
-        await exec(['rebase', `${safeRemote}/${safeBranch}`]);
+        await runGit(['rebase', `${safeRemote}/${safeBranch}`]);
       } else {
-        await exec(['merge', '--ff-only', `${safeRemote}/${safeBranch}`]);
+        await runGit(['merge', '--ff-only', `${safeRemote}/${safeBranch}`]);
       }
     },
 
     async stage(files: string | string[]): Promise<void> {
       const fileList = Array.isArray(files) ? files : [files];
       if (fileList.length === 0) return;
-      await exec(['add', '--', ...fileList]);
+      await runGit(['add', '--', ...fileList]);
     },
 
     async commit(message: string, commitOpts: CommitOptions = {}): Promise<string> {
@@ -633,7 +645,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
         extraEnv.GIT_COMMITTER_EMAIL = commitOpts.committer.email;
       }
 
-      await exec(args, extraEnv);
+      await runGit(args, extraEnv);
       return this.getHeadCommit();
     },
 
@@ -641,9 +653,10 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       const safeRemote = sanitizeRemote(remote);
       const safeBranch = sanitizeBranch(branch);
       const authArgs = getAuthCLIArgs();
-      const args = [...authArgs, 'push', safeRemote, `HEAD:refs/heads/${safeBranch}`];
+      const args = [...authArgs, 'push'];
       if (pushOpts.force) args.push('--force');
       if (pushOpts.setUpstream) args.push('-u');
+      args.push('--', safeRemote, `HEAD:refs/heads/${safeBranch}`);
 
       const maxRetries = pushOpts.maxRetries ?? 3;
       let attempt = 0;
@@ -652,7 +665,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       while (attempt < maxRetries) {
         attempt++;
         try {
-          await exec(args);
+          await runGit(args);
           return;
         } catch (err: any) {
           lastError = err;
@@ -675,7 +688,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
         args.push('--', logOpts.filePath);
       }
 
-      const { stdout } = await exec(args);
+      const { stdout } = await runGit(args);
       const lines = stdout.trim().split('\n').filter(Boolean);
 
       return lines.map((line) => {
@@ -703,7 +716,7 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
       if (files && files.length > 0) {
         args.push('--', ...files);
       }
-      const { stdout } = await exec(args);
+      const { stdout } = await runGit(args);
       return stdout;
     }
   };
