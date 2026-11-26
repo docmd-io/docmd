@@ -2,7 +2,6 @@
  * Basic UI tests - adapted from old devtalk.e2e.spec.ts "basic UI" describe block.
  *
  * Changes from old plugin:
- * - No sidebar panel/toggle button (inline-only architecture)
  * - threads-app replaces devtalk-app as root element
  * - "New Thread" button replaces sidebar toggle
  * - Threads rendered server-side with .threads-* classes

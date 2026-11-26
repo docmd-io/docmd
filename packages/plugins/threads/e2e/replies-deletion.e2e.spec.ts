@@ -3,7 +3,6 @@
  * and devtalk.e2e.spec.ts "discussions" block.
  *
  * Changes from old plugin:
- * - No sidebar panel; threads are inline server-rendered cards
  * - Reply button on thread footer (not an always-visible reply textarea)
  * - Delete confirmation via sl-dialog#delete-dialog (same as before)
  * - Seeding via docmd.call() instead of HTTP API
@@ -231,8 +230,9 @@ test.describe("comment editing", () => {
     const commentId = comments[0].id;
 
     // Attempt to edit with empty body - the API should reject it or the guard should prevent it
-    try {
-      await user.page.evaluate(
+    // An empty body is rejected by the server
+    await expect(
+      user.page.evaluate(
         async ({ threadId, commentId }) => {
           const file = document.body.dataset["sourceFile"];
           await docmd.call("threads:edit-comment", {
@@ -244,10 +244,8 @@ test.describe("comment editing", () => {
           });
         },
         { threadId, commentId },
-      );
-    } catch {
-      // Expected - empty body should be rejected
-    }
+      ),
+    ).rejects.toThrow();
 
     // Verify original body unchanged
     const threads = await user.page.evaluate(async () => {

@@ -109,7 +109,11 @@ export interface ActionContext {
   mode: 'dev' | 'serve';
   /** The caller of this action/event. Always present when dispatched by an action host. */
   caller: ActionCaller;
-  /** Same as `ServerHandle.rebuild`, for rebuilds the handler needs beyond its own writes (which the host rebuilds automatically in serve mode). */
+  /**
+   * Same as `ServerHandle.rebuild`, for rebuilds the handler needs beyond its own writes (which the host rebuilds automatically in serve mode).
+   * Under `docmd dev` in a workspace (several projects in one dev server) this always rejects, because there is no per-project rebuild.
+   * The workspace watcher rebuilds and reloads on file changes, so write the source files and let the watcher pick them up, and catch the rejection if the handler may run there.
+   */
   requestRebuild(files?: string[]): Promise<void>;
 }
 
@@ -151,7 +155,11 @@ export interface ServerHandle {
   mode: 'dev' | 'serve';
   projectRoot: string;
   config: ActionContext['config'];
-  /** Rebuild the given source files (absolute or project-relative); no argument = full rebuild. Resolves after the build containing them finishes; rejects if that build failed. */
+  /**
+   * Rebuild the given source files (absolute or project-relative); no argument = full rebuild. Resolves after the build containing them finishes; rejects if that build failed.
+   * Under `docmd dev` in a workspace (several projects in one dev server) this always rejects, because there is no per-project rebuild.
+   * The workspace watcher rebuilds and reloads on file changes, so write the source files and let the watcher pick them up instead of calling `rebuild`.
+   */
   rebuild(files?: string[]): Promise<void>;
   /** Push `{type:'event', name, data}` to every open client. */
   broadcast(event: string, data: unknown): void;

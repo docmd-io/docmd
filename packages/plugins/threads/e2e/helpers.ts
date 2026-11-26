@@ -326,3 +326,18 @@ export async function emptyOpenReview(page: Page): Promise<void> {
     expect(left).toBe(0);
   }).toPass({ timeout: 10_000 });
 }
+
+/**
+ * Await a `page.evaluate` that may lose the race against the dev server's reload (a write makes
+ * the page reload, which can destroy the evaluate's context before it replies). Only that
+ * error is tolerated; any other rejection, such as a failed action, is rethrown. Callers assert
+ * the outcome themselves (poll the journal or the served page).
+ */
+export async function tolerateReload<T>(call: Promise<T>): Promise<T | undefined> {
+  try {
+    return await call;
+  } catch (e) {
+    if (e instanceof Error && /Execution context was destroyed|Target (page, context or browser )?has been closed/i.test(e.message)) return undefined;
+    throw e;
+  }
+}

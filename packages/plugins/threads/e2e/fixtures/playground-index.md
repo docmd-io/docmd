@@ -35,6 +35,7 @@ Verification content.
 - [Official Documentation](https://docs.docmd.io)
 - [GitHub Repository](https://github.com/docmd-io/docmd)
 - [Report an Issue](https://github.com/docmd-io/docmd/issues)
+- [Linked page](/linked/)
 
 ## 🧪 Developer Checklist
 - [ ] **Parser:** Does the Markdown output match the HTML in `packages/parser/src/html-renderer.js`?

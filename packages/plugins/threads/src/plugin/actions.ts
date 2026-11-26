@@ -8,11 +8,11 @@ import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
-import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, readManifest, summarize } from './reviews.js';
+import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
-import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
+import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
 async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
@@ -370,9 +370,10 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
   'threads:discard-review': async (payload, ctx): Promise<{ discarded: true }> => {
     const caller = await begin(ctx, payload, 'threads:discard-review', ['reviewId']);
     if (typeof payload.reviewId !== 'string') throw new ThreadsError('invalid', 'threads:discard-review: reviewId must be a string');
-    const manifest = await readManifest(ctx, payload.reviewId);
-    assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
-    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx) });
+    // The check runs inside discard, under the lock, on the manifest read there.
+    const authorize = (manifest: ReviewManifest | null) =>
+      assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
+    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx), authorize });
   },
 };
 

@@ -7,7 +7,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
 import type { Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -62,8 +62,8 @@ const draftedIds = (page: Page): Promise<string[]> =>
  * evaluate's context before its reply: the journal, polled until it shows the draft, is the proof.
  */
 async function addThread(page: Page, quote: string, body: string): Promise<string> {
-  await page
-    .evaluate(
+  await tolerateReload(
+    page.evaluate(
       async ({ quote, body, identity }) =>
         docmd.call("threads:add-thread", {
           file: document.body.dataset["sourceFile"],
@@ -72,8 +72,8 @@ async function addThread(page: Page, quote: string, body: string): Promise<strin
           ...identity,
         }),
       { quote, body, identity },
-    )
-    .catch(() => null);
+    ),
+  );
   let id = "";
   await expect.poll(async () => (id = (await draftedIds(page))[0] ?? ""), { message: "the draft in the journal" }).not.toBe("");
   return id;
@@ -81,7 +81,7 @@ async function addThread(page: Page, quote: string, body: string): Promise<strin
 
 /** Publish the caller's review and wait for the journal to empty. */
 async function publish(page: Page): Promise<void> {
-  await page.evaluate((id) => docmd.call("threads:publish-review", id), identity).catch(() => null);
+  await tolerateReload(page.evaluate((id) => docmd.call("threads:publish-review", id), identity));
   await expect.poll(() => draftedIds(page), { message: "the journal after publishing" }).toEqual([]);
 }
 

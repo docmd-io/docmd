@@ -1,8 +1,9 @@
 /**
  * Starts the e2e site on the workspace build of docmd, with the threads plugin enabled.
- * The site lives in $THREADS_E2E_SITE, a temp dir set by playwright.config.ts: one page
- * seeded from `fixtures/playground-index.md` (the specs expect its threads and rewrite it
- * as they run) and a docmd.config.json. It stays out of the repo because docmd skips
+ * The site lives in $THREADS_E2E_SITE, a temp dir set by playwright.config.ts: two pages
+ * (index, seeded from `fixtures/playground-index.md`, which the specs expect to carry its
+ * threads and rewrite as they run, and links to the linked page; linked, seeded from
+ * `fixtures/linked-page.md`) and a docmd.config.json. It stays out of the repo because docmd skips
  * gitignored sources and plugin actions only write inside the project root.
  * Run by playwright.config.ts as its webServer; port is the first CLI argument.
  */
@@ -29,6 +30,7 @@ if (!fs.existsSync(docmd)) {
 fs.rmSync(site, { recursive: true, force: true });
 fs.mkdirSync(safePath(site, "docs"), { recursive: true });
 fs.copyFileSync(path.join(here, "fixtures/playground-index.md"), safePath(site, "docs/index.md"));
+fs.copyFileSync(path.join(here, "fixtures/linked-page.md"), safePath(site, "docs/linked.md"));
 const config = { title: "threads e2e", src: "docs", out: "site", plugins: { threads: {} } };
 fs.writeFileSync(safePath(site, "docmd.config.json"), JSON.stringify(config, null, 2));
 

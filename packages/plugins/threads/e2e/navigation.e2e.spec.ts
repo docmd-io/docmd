@@ -3,7 +3,6 @@
  * "SPA navigation" block.
  *
  * Changes from old plugin:
- * - No sidebar panel
  * - No heading discuss buttons
  * - Threads are inline, not in a sidebar
  * - Navigation restores threads by triggering loadThreads + scanRenderedHighlights
@@ -24,6 +23,16 @@ test.beforeEach(async ({ page }) => {
   await setAuthor(page, "TestUser");
 });
 
+/** Click the in-site link to the linked page; no page.goto, so a full reload would show as a lost marker. */
+async function clickToLinkedPage(user: Actor): Promise<void> {
+  await user.page.evaluate(() => {
+    (window as unknown as Record<string, unknown>)["__spaMarker"] = true;
+  });
+  await user.page.locator("#main-content").getByRole("link", { name: "Linked page", exact: true }).click();
+  await expect(user.page).toHaveURL(/\/linked\/?$/);
+  await expect(user.page.locator('.threads-thread[data-thread-id="t-linked1"]')).toBeAttached({ timeout: 10_000 });
+}
+
 test.describe("SPA navigation", () => {
   test("threads-app is present after page load", async () => {
     await user.perform(NavigateTo.path("/"));
@@ -33,17 +42,23 @@ test.describe("SPA navigation", () => {
 
   test("New Thread button is reinjected after SPA navigation", async () => {
     await user.perform(NavigateTo.path("/"));
+    await clickToLinkedPage(user);
 
+    // Client-side navigation: the document was not reloaded.
+    expect(await user.page.evaluate(() => (window as unknown as Record<string, unknown>)["__spaMarker"])).toBe(true);
+    await expect(user.page.locator("threads-app")).toBeAttached();
     const btn = user.page.locator(".threads-new-thread-btn").first();
     await expect(btn).toBeVisible({ timeout: 5_000 });
   });
 
   test("threads are page-scoped (pre-existing threads from markdown)", async () => {
-    // The playground index.md has threads defined in markdown
     await user.perform(NavigateTo.path("/"));
+    await expect(user.page.locator('.threads-thread[data-thread-id="t-thread1"]')).toBeAttached();
 
-    const threadsOnIndex = await user.page.locator(".threads-thread[data-thread-id]").count();
-    // The index page has pre-defined threads
-    expect(threadsOnIndex).toBeGreaterThan(0);
+    await clickToLinkedPage(user);
+
+    // The linked page shows its own thread and none of the first page's.
+    await expect(user.page.locator(".threads-thread[data-thread-id]")).toHaveCount(1);
+    await expect(user.page.locator('.threads-thread[data-thread-id="t-thread1"]')).toHaveCount(0);
   });
 });

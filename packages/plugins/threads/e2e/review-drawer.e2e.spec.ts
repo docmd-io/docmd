@@ -7,7 +7,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, mainOf, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, mainOf, setAuthor } from "./helpers.ts";
 import type { Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -51,8 +51,8 @@ const draftedIds = (page: Page): Promise<string[]> =>
  * its reply arrives: the journal, polled until it shows the draft, is the source of the id, and the reload is ours.
  */
 async function addThread(page: Page, quote: string, body: string): Promise<string> {
-  await page
-    .evaluate(
+  await tolerateReload(
+    page.evaluate(
       async ({ quote, body, identity }) =>
         docmd.call("threads:add-thread", {
           file: document.body.dataset["sourceFile"],
@@ -61,8 +61,8 @@ async function addThread(page: Page, quote: string, body: string): Promise<strin
           ...identity,
         }),
       { quote, body, identity },
-    )
-    .catch(() => null);
+    ),
+  );
   let id = "";
   await expect.poll(async () => (id = (await draftedIds(page))[0] ?? ""), { message: "the draft in the journal" }).not.toBe("");
   await page.reload();
@@ -72,7 +72,7 @@ async function addThread(page: Page, quote: string, body: string): Promise<strin
 
 /** Publish the caller's review (the journal empties), then reload for the page the markdown write rebuilds. */
 async function publish(page: Page): Promise<void> {
-  await page.evaluate((id) => docmd.call("threads:publish-review", id), identity).catch(() => null);
+  await tolerateReload(page.evaluate((id) => docmd.call("threads:publish-review", id), identity));
   await expect.poll(() => draftedIds(page), { message: "the journal after publishing" }).toEqual([]);
 }
 

@@ -6,7 +6,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
 
 const site = process.env["THREADS_E2E_SITE"]!;
 const index = safePath(site, "docs/index.md");
@@ -42,8 +42,8 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   const quote = (await para.textContent())!.trim().split(" ").slice(0, 3).join(" ");
   // The dev server may reload the page after a write (when the author profile file changes) and the reload can beat
   // the evaluate's reply: read the thread id from the journal instead, then reload ourselves.
-  await page
-    .evaluate(
+  await tolerateReload(
+    page.evaluate(
       async ({ quote }) =>
         docmd.call("threads:add-thread", {
           file: document.body.dataset["sourceFile"],
@@ -53,8 +53,8 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
           body: "to be discarded",
         }),
       { quote },
-    )
-    .catch(() => null);
+    ),
+  );
   let threadId = "";
   await expect
     .poll(async () => (threadId = await page.evaluate(async (id) => ((await docmd.call("threads:whoami", id)).journal?.ops.find((op: { kind: string }) => op.kind === "add-thread") as { threadId?: string } | undefined)?.threadId ?? "", identity)))

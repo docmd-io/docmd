@@ -847,6 +847,12 @@ export interface DiscardDeps {
   /** The same sync `publish` uses, so both share one lock. */
   sync: Sync;
   now?: () => number;
+  /**
+   * Permission check, run under the lock on the manifest as read there (null when the review has
+   * no manifest, i.e. the caller's own open one) and again on the manifest read after any git
+   * reset. It throws to refuse; a refused discard changes nothing.
+   */
+  authorize?: (manifest: ReviewManifest | null) => void;
 }
 
 /**
@@ -859,10 +865,11 @@ export async function discard(
   caller: Caller,
   ctx: ActionContext,
   reviewId: string,
-  { store, sync, now = Date.now }: DiscardDeps,
+  { store, sync, now = Date.now, authorize }: DiscardDeps,
 ): Promise<{ discarded: true }> {
   return sync.withLock(async () => {
     const manifest = await readManifest(ctx, reviewId);
+    authorize?.(manifest);
     if (!manifest) {
       const journal = await store.load(caller.key);
       if (journal.review.id !== reviewId) throw new ThreadsError('not-found', `review ${reviewId} not found`);
@@ -879,6 +886,7 @@ export async function discard(
         // With git the checkout was just reset to the remote head: read the manifest as it is there.
         const current = await readManifest(ctx, reviewId);
         if (!current) throw new ThreadsError('not-found', `review ${reviewId} not found`);
+        authorize?.(current);
         if (current.state === 'discarded') throw new ThreadsError('invalid', `review ${reviewId} is already discarded`);
         const discardSkipped: Array<{ opId: string; reason: string }> = [];
         const results: Array<{ file: string; original: string; next: string }> = [];

@@ -3,7 +3,6 @@
  * "thread behavior" block.
  *
  * Changes from old plugin:
- * - No sidebar panel with visual resolve/unresolve buttons on server-rendered cards
  * - Resolve functionality exists at API level (threads:resolve-thread); it drafts the
  *   toggle in the caller's journal until threads:publish-review writes it
  * - Resolved threads get .threads-thread--resolved class (opacity: 0.55)

@@ -707,7 +707,7 @@ export async function devWorkspace(
           // Workspace dev has no per-project rebuild entry point: its watcher
           // rebuilds and reloads. Plugins calling requestRebuild get this error.
           rebuild: async () => {
-            throw new Error('Rebuild is not available in workspace dev');
+            throw new Error('Rebuild is not available in workspace dev: write the source files and the workspace watcher will rebuild and reload');
           },
         });
       } catch (err: any) {
