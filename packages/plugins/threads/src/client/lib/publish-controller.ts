@@ -5,6 +5,7 @@
  * injected so tests drive everything by hand.
  */
 import { ThreadsClientError } from './api';
+import { tCount } from './plural';
 import { widgetState, type PublishTimer, type WidgetState } from './mode';
 import type { DiscardOutcome } from './discard-controller';
 import type { DraftMode, Journal, PublishResult, WhoAmI } from '../../types';
@@ -126,7 +127,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
       await refresh();
       if (result.skipped.length > 0) {
         const n = result.skipped.length;
-        const skipped = t(n === 1 ? 'skippedOpsOne' : 'skippedOps').replace('{n}', String(n));
+        const skipped = tCount('skippedOps', n, t);
         // A failed refresh left its own error: keep it beside the skipped line.
         error = error ? `${error}. ${skipped}` : skipped;
       }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import type { Comment } from '../src/types';
 import {
   buildCommentTree, summaryText, chooseBodyHtml, canEditComment, canDeleteComment, deleteScope, colorAt, emojiLang, pickerUrls,
-  type SummaryLabels,
 } from '../src/client/lib/thread-view.ts';
 
 const c = (id: string, over: Partial<Comment> = {}): Comment => ({
@@ -80,33 +79,55 @@ test('tree: a comment that is its own parent is top-level', () => {
 // summaryText
 // ---------------------------------------------------------------------------
 
-const labels: SummaryLabels = { one: 'comment', other: 'comments', by: 'by', and: 'and', more: 'more' };
+import { readFileSync } from 'node:fs';
+import { tCount, isOne } from '../src/client/lib/plural.ts';
+
+const load = (lang: string): Record<string, string> => JSON.parse(readFileSync(new URL(`../i18n/${lang}.json`, import.meta.url), 'utf8'));
+const trFor = (lang: string) => { const d = load(lang); return (k: string) => d[k] ?? k; };
+const en = trFor('en');
 
 test('summary: singular for one comment, plural for every other count including zero', () => {
-  assert.equal(summaryText(1, ['Ann'], labels), '1 comment by Ann');
-  assert.equal(summaryText(0, [], labels), '0 comments');
-  assert.equal(summaryText(2, ['Ann', 'Ann'], labels), '2 comments by Ann');
-  assert.equal(summaryText(11, ['Ann'], labels), '11 comments by Ann');
+  assert.equal(summaryText(1, ['Ann'], en, 'en'), '1 comment by Ann');
+  assert.equal(summaryText(0, [], en, 'en'), '0 comments');
+  assert.equal(summaryText(2, ['Ann', 'Ann'], en, 'en'), '2 comments by Ann');
+  assert.equal(summaryText(11, ['Ann'], en, 'en'), '11 comments by Ann');
 });
 
 test('summary: no authors leaves the count alone', () => {
-  assert.equal(summaryText(3, [], labels), '3 comments');
-  assert.equal(summaryText(3, ['', '  '], labels), '3 comments');
+  assert.equal(summaryText(3, [], en, 'en'), '3 comments');
+  assert.equal(summaryText(3, ['', '  '], en, 'en'), '3 comments');
+  assert.equal(summaryText(1, [], en, 'en'), '1 comment');
 });
 
 test('summary: first names only, distinct, in order of first comment', () => {
-  assert.equal(summaryText(3, ['Ann Lee', 'Bo Chan', 'Ann Lee'], labels), '3 comments by Ann and Bo');
+  assert.equal(summaryText(3, ['Ann Lee', 'Bo Chan', 'Ann Lee'], en, 'en'), '3 comments by Ann and Bo');
 });
 
 test('summary: three authors list all three; more than three show three and the rest as a count', () => {
-  assert.equal(summaryText(3, ['Ann', 'Bo', 'Cy'], labels), '3 comments by Ann, Bo, and Cy');
-  assert.equal(summaryText(5, ['Ann', 'Bo', 'Cy', 'Di'], labels), '5 comments by Ann, Bo, Cy, and 1 more');
-  assert.equal(summaryText(9, ['Ann', 'Bo', 'Cy', 'Di', 'Ed', 'Flo'], labels), '9 comments by Ann, Bo, Cy, and 3 more');
+  assert.equal(summaryText(3, ['Ann', 'Bo', 'Cy'], en, 'en'), '3 comments by Ann, Bo, and Cy');
+  assert.equal(summaryText(5, ['Ann', 'Bo', 'Cy', 'Di'], en, 'en'), '5 comments by Ann, Bo, Cy, and 1 more');
+  assert.equal(summaryText(9, ['Ann', 'Bo', 'Cy', 'Di', 'Ed', 'Flo'], en, 'en'), '9 comments by Ann, Bo, Cy, and 3 more');
 });
 
-test('summary: uses the labels it is given', () => {
-  const fr: SummaryLabels = { one: 'commentaire', other: 'commentaires', by: 'de', and: 'et', more: 'autres' };
-  assert.equal(summaryText(2, ['Ann', 'Bo'], fr), '2 commentaires de Ann et Bo');
+test('summary: whole-sentence templates, so a language sets its own word order and list format', () => {
+  const fr = (k: string) => ({ commentSummaryBy: '{n} commentaires de {names}', commentSummaryByOne: '{n} commentaire de {names}' })[k] ?? k;
+  assert.equal(summaryText(2, ['Ann', 'Bo'], fr, 'fr'), '2 commentaires de Ann et Bo');
+  assert.equal(summaryText(1, ['Ann'], fr, 'fr'), '1 commentaire de Ann');
+  assert.equal(summaryText(3, ['Ann', 'Bo'], trFor('ko'), 'ko'), 'Ann 및 Bo의 댓글 3개');
+  assert.equal(summaryText(7, ['Ann', 'Bo', 'Cy', 'Di'], trFor('zh'), 'zh'), 'Ann、Bo、Cy和其他 1 人 的 7 条评论');
+});
+
+test('plural forms follow the language rules, not n === 1', () => {
+  assert.equal(isOne(1, 'en'), true);
+  assert.equal(isOne(0, 'en'), false);
+  assert.equal(isOne(0, 'hi'), true, 'hindi: 0 takes the one form');
+  assert.equal(isOne(1, 'ko'), false, 'korean has one form');
+  assert.equal(isOne(1, 'not a lang!'), true, 'a bad language tag falls back to English');
+  assert.equal(tCount('unpublishedCount', 1, en, 'en'), '1 unpublished comment');
+  assert.equal(tCount('unpublishedCount', 2, en, 'en'), '2 unpublished comments');
+  assert.equal(tCount('lostAnchor', 1, en, 'en'), '1 of your comments lost its anchor');
+  assert.equal(tCount('lostAnchor', 3, en, 'en'), '3 of your comments lost their anchor');
+  assert.equal(tCount('unpublishedCount', 0, trFor('hi'), 'hi'), '0 अप्रकाशित टिप्पणी');
 });
 
 // ---------------------------------------------------------------------------

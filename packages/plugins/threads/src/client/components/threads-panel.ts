@@ -3,6 +3,7 @@ import { property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { getThreadSvg } from '../lib/icons';
 import { t } from '../lib/i18n';
+import { tCount } from '../lib/plural';
 import { baseStyles } from './tokens';
 import { defineOnce } from './define';
 import './threads-button';
@@ -242,7 +243,7 @@ export class ThreadsPanel extends LitElement {
   private renderLauncher(fab: boolean) {
     const label = this.open ? t('closePanel') : t('openThreadsPanel');
     const unpublishedLabel = this.unpublished > 0
-      ? t(this.unpublished === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(this.unpublished))
+      ? tCount('unpublishedCount', this.unpublished)
       : '';
     return html`<button class="launcher ${fab ? 'fab' : 'strip'}" part="launcher" type="button"
       aria-label=${label} title=${label} aria-expanded=${String(this.open)}
@@ -291,7 +292,7 @@ export class ThreadsPanel extends LitElement {
             <div class="header" part="header">
               <div class="title" part="title">
                 <span>${t('threads')}</span>
-                ${this.openCount > 0 ? html`<span class="count" part="count">(${this.openCount} ${t('openCount')})</span>` : nothing}
+                ${this.openCount > 0 ? html`<span class="count" part="count">${t('openCount').replace('{n}', String(this.openCount))}</span>` : nothing}
               </div>
               <div class="actions">
                 <threads-button part="new" variant="ghost" size="sm" icon="plus" label=${t('newThread')}

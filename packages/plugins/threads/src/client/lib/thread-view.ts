@@ -1,4 +1,6 @@
 import type { Comment, Thread } from '../../types';
+import { t } from './i18n';
+import { pageLang, tCount } from './plural';
 import { deleteCommentTarget, type ShowAction, type ShowTarget } from './can-show';
 
 /** Pure view logic of a thread card: the comment tree, the collapsed summary, which body HTML to show, and which buttons. DOM-free. */
@@ -73,36 +75,37 @@ export function buildCommentTree(comments: readonly Comment[]): TreeNode[] {
   return tops;
 }
 
-export interface SummaryLabels {
-  /** "comment" */
-  one: string;
-  /** "comments" */
-  other: string;
-  by: string;
-  and: string;
-  more: string;
-}
-
-/** Names shown before "and N more". */
+/** Names listed before "and N more". */
 const MAX_NAMES = 3;
 
 /**
- * "3 comments by Alice, Bob, and Carol": the count with the singular or plural noun, then the first
- * names of the distinct authors in order of first comment. Up to three names are listed; with more,
- * the first three and "and N more".
+ * "3 comments by Alice, Bob, and Carol": the count, then the first names of the distinct authors in
+ * order of first comment. Up to three names are listed; with more, the first three and "N more".
+ * Every sentence is one translated template (`commentSummary[By][One]`; `namesMore` is the "N more" list item), and the name
+ * list follows the language's own list format, so word order and conjunctions are the translator's.
  */
-export function summaryText(count: number, authorNames: readonly string[], labels: SummaryLabels): string {
+export function summaryText(count: number, authorNames: readonly string[], tr: (key: string) => string = t, lang: string = pageLang()): string {
   const names: string[] = [];
   for (const full of authorNames) {
     const first = full.trim().split(/\s+/)[0];
     if (first && !names.includes(first)) names.push(first);
   }
-  let by = '';
-  if (names.length === 1) by = ` ${labels.by} ${names[0]}`;
-  else if (names.length === 2) by = ` ${labels.by} ${names[0]} ${labels.and} ${names[1]}`;
-  else if (names.length === 3) by = ` ${labels.by} ${names[0]}, ${names[1]}, ${labels.and} ${names[2]}`;
-  else if (names.length > MAX_NAMES) by = ` ${labels.by} ${names.slice(0, MAX_NAMES).join(', ')}, ${labels.and} ${names.length - MAX_NAMES} ${labels.more}`;
-  return `${count} ${count === 1 ? labels.one : labels.other}${by}`;
+  if (!names.length) return tCount('commentSummary', count, tr, lang);
+  const shown = names.slice(0, MAX_NAMES);
+  const rest = names.length - shown.length;
+  // "N more" is one more item of the list, so the language's own separators and conjunction join it.
+  const items = rest > 0 ? [...shown, tr('namesMore').replace('{m}', String(rest))] : shown;
+  const list = formatList(items, lang);
+  return tCount('commentSummaryBy', count, tr, lang).replace('{names}', list);
+}
+
+/** Items joined in the page language ("a, b, and c"); plain commas where Intl.ListFormat is missing. */
+function formatList(items: string[], lang: string): string {
+  try {
+    return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).format(items);
+  } catch {
+    return items.join(', ');
+  }
 }
 
 /**

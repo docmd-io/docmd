@@ -313,11 +313,7 @@ export class ThreadsThread extends LitElement {
     const tree = buildCommentTree(thread.comments);
     const resolved = !!thread.resolved;
     const mayResolve = this.canShow('resolve-thread', { threadAuthor: thread.comments[0]?.authorKey, drafted: !!thread.draft });
-    const summary = summaryText(
-      thread.comments.length,
-      thread.comments.map((c) => this.nameOf(c)),
-      { one: t('commentCount'), other: t('commentsCount'), by: t('by'), and: t('and'), more: t('more') },
-    );
+    const summary = summaryText(thread.comments.length, thread.comments.map((c) => this.nameOf(c)));
     return html`
       <div class="card" part="card"
         @threads-reply=${this.onReply}
