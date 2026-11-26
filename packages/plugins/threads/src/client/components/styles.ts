@@ -1339,16 +1339,23 @@ export function injectComponentStyles(): void {
     body.tc-sidebar-active .threads-sidebar { display: none !important; }
     body.tc-sidebar-active .tc-has-sidebar { padding-right: 40px; }
 
+    /* Hide TOC when threads sidebar panel is open so the main content area has more room */
+    body.tc-panel-open .toc-sidebar,
+    body.tc-panel-open .summer-toc,
+    body.tc-panel-open .toc-container {
+      display: none !important;
+    }
+
     /* ========= Floating threads toggle / right-docked notch ========= */
     .threads-fab {
       position: fixed;
       top: 50%;
       right: 0;
-      transform: translateY(-50%) translateX(0);
-      opacity: 0.85;
+      transform: translateY(-50%);
+      opacity: 0.88;
       z-index: 2900;
       width: 38px;
-      height: 42px;
+      height: 44px;
       border-radius: 8px 0 0 8px;
       border: 1px solid var(--tc-border);
       border-right: none;
@@ -1359,11 +1366,11 @@ export function injectComponentStyles(): void {
       align-items: center;
       justify-content: center;
       box-shadow: -2px 2px 10px rgba(0, 0, 0, 0.08);
-      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, width 0.2s ease, color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+      transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
       padding: 0;
     }
     .threads-fab:hover {
-      transform: translateY(-50%) translateX(-4px);
+      width: 48px;
       opacity: 1;
       color: var(--tc-fg);
       border-color: var(--tc-ring);
@@ -1372,7 +1379,7 @@ export function injectComponentStyles(): void {
     body.tc-panel-open .threads-fab {
       opacity: 0;
       pointer-events: none;
-      transform: translateY(-50%) translateX(40px);
+      transform: translateY(-50%) translateX(48px);
     }
     .threads-fab__badge-wrap {
       position: absolute;

@@ -25,10 +25,11 @@ function formatDateTime(dateStr: string): string {
   const d = new Date(trimmed);
   if (isNaN(d.getTime())) return trimmed;
   const hasTime = trimmed.includes('T') || trimmed.includes(':');
+  const locale = (typeof document !== 'undefined' && document.documentElement.lang) || undefined;
   if (!hasTime) {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
   }
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -742,9 +743,12 @@ export class ThreadsApp extends LitElement {
             dateEl = document.createElement('span');
             dateEl.className = 'threads-comment__date';
             dateEl.textContent = dateFormatted;
+            if (rawDate) dateEl.title = rawDate;
             meta.appendChild(dateEl);
           } else if (dateEl.textContent) {
-            dateEl.textContent = formatDateTime(dateEl.textContent.trim());
+            const currentText = dateEl.textContent.trim();
+            dateEl.title = currentText;
+            dateEl.textContent = formatDateTime(currentText);
           }
         }
 
@@ -1441,6 +1445,7 @@ export class ThreadsApp extends LitElement {
     const dateSpan = document.createElement('span');
     dateSpan.className = 'threads-comment__date';
     dateSpan.textContent = formatDateTime(comment.date);
+    if (comment.date) dateSpan.title = comment.date;
     meta.appendChild(dateSpan);
 
     // Actions
