@@ -7,6 +7,7 @@ import { deleteCommentTarget } from '../lib/can-show';
 import { computeAnchor, getSelectionPosition, isWithinContent } from '../lib/selection';
 import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
+import { limitMessage } from '../lib/limit-message';
 import { createSvgElement, getThreadSvg } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
 import { threadIdFromHash } from '../lib/reviews-view';
@@ -214,6 +215,7 @@ export class ThreadsApp extends LitElement {
         await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
+        editor.message = limitMessage(err) ?? '';
         editor.submitting = false;
       }
     });
@@ -318,6 +320,7 @@ export class ThreadsApp extends LitElement {
         await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
+        editor.message = limitMessage(err) ?? '';
         editor.submitting = false;
       }
     });
@@ -778,6 +781,7 @@ export class ThreadsApp extends LitElement {
         await this.loadThreads();
       } catch (err) {
         console.error('[threads] Failed to add comment:', err);
+        editor.message = limitMessage(err) ?? '';
         editor.submitting = false;
       }
     });

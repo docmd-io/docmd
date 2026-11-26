@@ -6,6 +6,8 @@ export interface ThreadsOptions {
   autoPublish: false | { seconds: number; startOn: boolean };
   /** Who may change what under `docmd serve`: `admins` may do everything; `resolve` says who may resolve a thread. */
   permissions: { admins: string[]; resolve: 'anyone' | 'author' };
+  /** Guards against a runaway agent: the longest comment body (code points) and the most new threads plus comments per author key per minute. */
+  limits: { maxCommentChars: number; commentsPerMinute: number };
   /** Git sync of published reviews; used under `docmd serve` only. `null` is off. */
   git: null | {
     branch: string;
@@ -44,6 +46,12 @@ function section(raw: Record<string, unknown>, key: string): Record<string, unkn
 function positiveNumber(obj: Record<string, unknown>, path: string, key: string, def: number): number {
   const v = obj[key] ?? def;
   if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) bad(`${path}.${key}`, 'must be a positive number');
+  return v as number;
+}
+
+function positiveInteger(obj: Record<string, unknown>, path: string, key: string, def: number): number {
+  const v = obj[key] ?? def;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v <= 0) bad(`${path}.${key}`, 'must be a positive integer');
   return v as number;
 }
 
@@ -94,6 +102,8 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
   const resolve = perms.resolve ?? 'anyone';
   if (resolve !== 'anyone' && resolve !== 'author') bad('permissions.resolve', "must be 'anyone' or 'author'");
 
+  const lim = section(raw, 'limits');
+
   let git: ThreadsOptions['git'] = null;
   if (raw.git !== undefined && raw.git !== null) {
     const g = section(raw, 'git');
@@ -119,6 +129,10 @@ export function normalizeOptions(rawInput?: unknown): ThreadsOptions {
     sidebar: optionalBoolean(raw, 'sidebar', false),
     autoPublish,
     permissions: { admins: [...(admins as string[])], resolve: resolve as 'anyone' | 'author' },
+    limits: {
+      maxCommentChars: positiveInteger(lim, 'limits', 'maxCommentChars', 5000),
+      commentsPerMinute: positiveInteger(lim, 'limits', 'commentsPerMinute', 10),
+    },
     git,
   };
 }

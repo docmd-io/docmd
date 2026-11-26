@@ -74,6 +74,8 @@ const defaults: Record<string, string> = {
   reviewTitle: 'Review title',
   reviewSummary: 'Summary',
   saveFailed: 'Could not save the review',
+  limitChars: 'This comment is too long. Shorten it and try again.',
+  rateLimited: 'You are commenting too fast. Wait a minute and try again.',
 };
 
 /**

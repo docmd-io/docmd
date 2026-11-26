@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { ActionContext } from '@docmd/api';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
+import { guardWrite } from './limits.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
@@ -72,6 +73,9 @@ interface Payload {
   reviewId: string;
   [key: string]: unknown;
 }
+
+/** The rate limiter's clock; it reads the wall clock on every call so tests can mock Date. */
+const wallClock = () => Date.now();
 
 /** Validate that required string fields are present and non-empty. */
 function requireFields(action: string, payload: Record<string, unknown>, fields: string[]): void {
@@ -246,6 +250,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     const caller = await begin(ctx, payload, 'threads:add-thread', ['file', 'author', 'body']);
+    guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const threadId = generateThreadId();
     const anchor = anchorFrom(payload.anchor);
     const view = await transact(ctx, caller, payload, (tx) =>
@@ -257,6 +262,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:add-comment', ['file', 'threadId', 'author', 'body']);
+    guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const commentId = generateCommentId();
     const view = await transact(ctx, caller, payload, (tx) => {
       findThread(tx.view, payload.threadId);
@@ -271,6 +277,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:edit-comment', ['file', 'threadId', 'commentId', 'body']);
+    guardWrite(ctx, payload, caller, { rate: false, now: wallClock });
     const { threadId, commentId, body } = payload;
     const view = await transact(ctx, caller, payload, (tx) => {
       const target = findComment(findThread(tx.view, threadId), commentId);
