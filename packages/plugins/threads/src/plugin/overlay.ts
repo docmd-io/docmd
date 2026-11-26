@@ -87,13 +87,14 @@ function draftComment(
   parentId: string | null,
   body: string,
   at: string,
-  who: { name: string },
+  who: ReactionCaller,
 ): Comment {
   return {
     id,
     thread_id: threadId,
     parent_id: parentId,
     author: who.name,
+    authorKey: who.key,
     date: day(at),
     edited_at: null,
     body,

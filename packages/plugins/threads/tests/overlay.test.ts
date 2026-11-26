@@ -21,7 +21,7 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
     assert.equal(t.length, 2);
     assert.deepEqual(t[1], {
       id: 't-new', resolved: false, resolved_by: null, resolved_at: null, draft: true,
-      comments: [{ id: 'c-new', thread_id: 't-new', parent_id: null, author: 'Me', date: '2026-04-01', edited_at: null, body: 'hello', reactions: [], draft: true }],
+      comments: [{ id: 'c-new', thread_id: 't-new', parent_id: null, author: 'Me', authorKey: 'me', date: '2026-04-01', edited_at: null, body: 'hello', reactions: [], draft: true }],
     });
   }],
   ['add-thread with an anchor keeps its quote only', [{ ...base, kind: 'add-thread', threadId: 't-new', commentId: 'c-new', body: 'hello', anchor: { quote: 'some text', prefix: 'p', suffix: null, selector: null, offset: 3, blockText: null } }], (t) => {
@@ -31,6 +31,7 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
   ['add-comment', [{ ...base, kind: 'add-comment', threadId: 't-pub', commentId: 'c-3', parentId: 'c-1', body: 'reply' }], (t) => {
     assert.equal(t[0].comments.length, 3);
     assert.deepEqual([t[0].comments[2].author, t[0].comments[2].date, t[0].comments[2].parent_id], ['Me', '2026-04-01', 'c-1']);
+    assert.equal(t[0].comments[2].authorKey, 'me', 'a draft carries the caller key so profile links resolve before publish');
     assert.equal(t[0].comments[2].draft, true);
     assert.equal(Object.hasOwn(t[0].comments[0], 'draft'), false, 'published comments carry no draft key');
     assert.equal(Object.hasOwn(t[0], 'draft'), false, 'a thread carries no draft key');
