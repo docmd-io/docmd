@@ -725,8 +725,12 @@ export class ThreadsApp extends LitElement {
     const { threadId, commentId, emoji } = e.detail;
     e.detail.waitUntil((async () => {
       const reactions: Reaction[] = await api.toggleReaction(threadId, commentId, { emoji, author: getIdentityPayload().author });
-      const comment = this.threads.find((th) => th.id === threadId)?.comments.find((c) => c.id === commentId);
-      if (comment) comment.reactions = reactions;
+      // New objects, not an in-place change: a card whose thread is the same object would not re-render.
+      this.threads = this.threads.map((th) => (th.id !== threadId ? th : {
+        ...th,
+        comments: th.comments.map((c) => (c.id === commentId ? { ...c, reactions } : c)),
+      }));
+      this.renderCards(); // the thread's other copy (inline and panel) follows, with its pressed state
       void this.publishMount.widget?.refresh(); // the toggle is an unpublished change
       return toReactionViews(reactions, this.authorsMap, this.profileUrl);
     })());
