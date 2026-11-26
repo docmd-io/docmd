@@ -24,13 +24,14 @@
   --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #fafafa));
   --threads-fg: var(--summer-fg, var(--text-color, #1f1f20));
   --threads-fg-strong: var(--summer-fg, var(--text-heading, var(--threads-fg)));
-  --threads-fg-muted: var(--summer-fg-muted, var(--text-muted, #6b6b75));
+  /* The docmd muted colour is often 3.5 to 4:1 on a card; pulling it toward the text colour keeps secondary text at 4.5:1. */
+  --threads-fg-muted: color-mix(in oklab, var(--summer-fg-muted, var(--text-muted, #6b6b75)) 35%, var(--threads-fg));
   --threads-border: var(--summer-border, var(--border-color, #e4e4e7));
   --threads-border-strong: var(--summer-border-strong, color-mix(in oklab, var(--threads-fg) 25%, var(--threads-surface)));
 
   /* Colour: accent, danger, draft, focus */
   --threads-accent: var(--summer-accent, var(--link-color, #068ad5));
-  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 75%, black);
+  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 65%, black);
   --threads-accent-soft: var(--summer-accent-soft, color-mix(in oklab, var(--threads-accent) 14%, transparent));
   --threads-on-accent: #ffffff;
   --threads-danger: color-mix(in oklab, var(--summer-rose, #dc2626) 85%, black);
@@ -79,11 +80,10 @@
   --threads-surface: var(--summer-surface, var(--bg-color, #18181b));
   --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #202024));
   --threads-fg: var(--summer-fg, var(--text-color, #d4d4d8));
-  --threads-fg-muted: var(--summer-fg-muted, var(--text-muted, #94949e));
   --threads-border: var(--summer-border, var(--border-color, #27272a));
   --threads-accent: var(--summer-accent, var(--link-color, #38bdf8));
-  /* Dark accents are bright: use them as text as they are, with near-black text on buttons. */
-  --threads-accent-strong: var(--threads-accent);
+  /* Themes' dark accents can be mid-tone (a blue at 3.5:1 on its tint): lighten them for text, with near-black text on buttons. */
+  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 65%, white);
   --threads-on-accent: #0b0b0c;
   /* Summer's rose is about 3.7:1 on its dark surface. */
   --threads-danger: #f87171;

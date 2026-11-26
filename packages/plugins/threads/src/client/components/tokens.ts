@@ -12,7 +12,7 @@ export const tokens = css`
     --_surface-muted: var(--threads-surface-muted, #fafafa);
     --_fg: var(--threads-fg, #1f1f20);
     --_fg-strong: var(--threads-fg-strong, #1f1f20);
-    --_fg-muted: var(--threads-fg-muted, #6b6b75);
+    --_fg-muted: var(--threads-fg-muted, #5c5c66);
     --_border: var(--threads-border, #e4e4e7);
     --_border-strong: var(--threads-border-strong, #bcbcc2);
     --_accent: var(--threads-accent, #068ad5);

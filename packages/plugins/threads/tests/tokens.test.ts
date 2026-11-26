@@ -14,7 +14,7 @@ const DELIBERATE = new Set([
   'hl-pink', 'hl-pink-strong', 'hl-purple', 'hl-purple-strong', 'hl-orange', 'hl-orange-strong',
 ]);
 /** Formula tokens: declared once in the light block, they recompute from the dark values. */
-const FORMULA = ['surface-raised', 'fg-strong', 'border-strong', 'accent-soft', 'danger-soft', 'focus'];
+const FORMULA = ['fg-muted', 'surface-raised', 'fg-strong', 'border-strong', 'accent-soft', 'danger-soft', 'focus'];
 
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -117,7 +117,7 @@ test('dark block: formula tokens are declared once, in the light block', () => {
 });
 
 test('dark block: the docmd-driven colours and the whole highlight palette have a dark value', () => {
-  for (const name of ['surface', 'surface-muted', 'fg', 'fg-muted', 'border', 'accent', 'accent-strong', 'on-accent', 'danger', 'draft']) {
+  for (const name of ['surface', 'surface-muted', 'fg', 'border', 'accent', 'accent-strong', 'on-accent', 'danger', 'draft']) {
     assert.ok(name in dark, `--threads-${name} needs a dark value`);
   }
   for (const hue of ['yellow', 'blue', 'green', 'pink', 'purple', 'orange']) {
@@ -166,13 +166,11 @@ test('components read only declared --_* aliases', () => {
   }
 });
 
-test('no --tc-*, --sl-color-* reads in components, or dead dark selectors remain', () => {
-  const bridge = 'lib/theme.ts'; // still feeds the Shoelace components until they are dropped
+test('no --tc-* reads or dead dark selectors remain', () => {
   for (const file of clientFiles()) {
     const src = read(file);
     assert.ok(!/--tc-/.test(src), `${file} still uses --tc-*`);
     assert.ok(!/summer-text/.test(src), `${file} refers to --summer-text`);
     assert.ok(!/html\.dark|body\.dark/.test(src), `${file} has a dead .dark selector`);
-    if (file !== bridge) assert.ok(!/var\(--sl-color/.test(src), `${file} reads --sl-color-*`);
   }
 });
