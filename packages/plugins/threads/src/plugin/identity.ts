@@ -21,7 +21,11 @@ const keyOf = (identity: string): string => {
 };
 
 /** True when a trimmed identity has no whitespace and has characters on both sides of an `@`. */
-export const isEmailShaped = (identity: string): boolean => /^\S+@\S+$/.test(identity.trim());
+export const isEmailShaped = (identity: string): boolean => {
+  const trimmed = identity.trim();
+  const at = trimmed.indexOf('@');
+  return at > 0 && at < trimmed.length - 1 && !/\s/.test(trimmed);
+};
 
 let warnedEmailIdentity = false;
 
