@@ -1,4 +1,4 @@
-import { LitElement, html, nothing } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { t } from '../lib/i18n';
 import {
@@ -9,12 +9,65 @@ import {
   computeAvatarUrl,
   computeAuthorKey, setAuthorKey,
   getIdentityMode, setHeaderProfile,
+  IDENTITY_NEEDED_EVENT,
 } from '../lib/identity';
+import { avatar, avatarStyles } from '../lib/avatar';
+import { baseStyles } from './tokens';
+import { fieldStyles } from './fields';
+import './threads-button';
 import { upsertAuthor, ThreadsClientError } from '../lib/api';
 
+/**
+ * The person's avatar button in the page header and the profile panel it opens (name, GitHub user, e-mail
+ * for the avatar). No public properties: it reads and writes through `lib/identity.ts`. The panel also
+ * opens by itself when a write needs a name (the `threads-identity-needed` event on `document`).
+ * Parts: `button`, `avatar`, `panel`, `field`, `input`, `error`, `save`, `cancel`.
+ */
 @customElement('threads-identity')
 export class ThreadsIdentity extends LitElement {
-  override createRenderRoot() { return this; }
+  static override styles = [baseStyles, avatarStyles, fieldStyles, css`
+    :host { position: relative; display: flex; align-items: center; }
+    .button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      overflow: hidden;
+      border: 2px solid var(--_border);
+      border-radius: 50%;
+      background: var(--_surface);
+      cursor: pointer;
+    }
+    .button:hover { border-color: var(--_accent); }
+    .button:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; }
+    .panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 1000;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 260px;
+      padding: 14px;
+      border: 1px solid var(--_border);
+      border-radius: var(--_radius-lg);
+      background: var(--_surface);
+      color: var(--_fg);
+      box-shadow: var(--_shadow-lg);
+      font-size: var(--_font-size);
+      line-height: var(--_line-height);
+    }
+    .preview { display: flex; justify-content: center; margin-bottom: 4px; }
+    .preview .avatar { border: 2px solid var(--_border); }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: var(--_font-size-sm); font-weight: 500; }
+    .hint { margin: 0; font-size: 11px; color: var(--_fg-muted); line-height: 1.4; }
+    .hint--error { color: var(--_danger); }
+    .actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 2px; }
+  `];
 
   @state() private name = '';
   @state() private email = '';
@@ -24,9 +77,15 @@ export class ThreadsIdentity extends LitElement {
   @state() private error: string | null = null;
 
   private outsideClickHandler = (e: MouseEvent) => {
-    if (!this.contains(e.target as Node)) {
+    if (!e.composedPath().includes(this)) {
       this.panelOpen = false;
     }
+  };
+
+  /** A write found no name: show the panel with the reason. */
+  private identityNeededHandler = () => {
+    this.panelOpen = true;
+    this.error = t('identityRequired');
   };
 
   override connectedCallback(): void {
@@ -49,11 +108,13 @@ export class ThreadsIdentity extends LitElement {
     }
 
     document.addEventListener('mousedown', this.outsideClickHandler);
+    document.addEventListener(IDENTITY_NEEDED_EVENT, this.identityNeededHandler);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener('mousedown', this.outsideClickHandler);
+    document.removeEventListener(IDENTITY_NEEDED_EVENT, this.identityNeededHandler);
   }
 
   private togglePanel(): void {
@@ -63,14 +124,14 @@ export class ThreadsIdentity extends LitElement {
 
   private async handleSave(): Promise<void> {
     const me = getIdentityMode();
-    const nameInput = this.querySelector<HTMLInputElement>('#identity-name');
+    const nameInput = this.renderRoot.querySelector<HTMLInputElement>('#identity-name');
 
     // A header identity owns its key: the name and avatar edit the profile only.
     if (me.mode === 'header') {
       const val = nameInput?.value.trim();
       if (val) this.name = val;
       // The email only picks the avatar; it never changes the key.
-      const emailVal = this.querySelector<HTMLInputElement>('#identity-email')?.value.trim() ?? '';
+      const emailVal = this.renderRoot.querySelector<HTMLInputElement>('#identity-email')?.value.trim() ?? '';
       this.email = emailVal;
       setEmail(emailVal);
       if (emailVal) this.avatarUrl = await computeAvatarUrl(emailVal, '');
@@ -87,8 +148,8 @@ export class ThreadsIdentity extends LitElement {
       return;
     }
 
-    const emailInput = this.querySelector<HTMLInputElement>('#identity-email');
-    const githubInput = this.querySelector<HTMLInputElement>('#identity-github');
+    const emailInput = this.renderRoot.querySelector<HTMLInputElement>('#identity-email');
+    const githubInput = this.renderRoot.querySelector<HTMLInputElement>('#identity-github');
 
     if (nameInput) {
       const val = nameInput.value.trim();
@@ -117,10 +178,13 @@ export class ThreadsIdentity extends LitElement {
     // Sync to server authors.json
     try {
       await upsertAuthor(authorKey, this.name, this.avatarUrl);
-    } catch {
-      // Server may not be available (e.g. static site); ignore
+    } catch (err) {
+      // The name is saved here already; say that the server did not take the profile.
+      this.error = err instanceof ThreadsClientError ? err.text : (err instanceof Error ? err.message : String(err));
+      return;
     }
 
+    this.error = null;
     this.panelOpen = false;
   }
 
@@ -137,68 +201,42 @@ export class ThreadsIdentity extends LitElement {
 
   override render() {
     const header = getIdentityMode().mode === 'header';
-    const initial = this.name ? this.name.charAt(0).toUpperCase() : '?';
 
     return html`
-      <button
-        class="threads-identity-btn"
-        title=${t('discussionIdentity')}
-        @click=${this.togglePanel}
-      >
-        ${this.avatarUrl
-          ? html`<img class="threads-identity-avatar" src=${this.avatarUrl} alt=${this.name} />`
-          : html`<span class="threads-identity-initial">${initial}</span>`
-        }
+      <button class="button" part="button" type="button" title=${t('discussionIdentity')}
+        aria-label=${t('discussionIdentity')} aria-expanded=${String(this.panelOpen)}
+        @click=${this.togglePanel}>
+        ${avatar({ src: this.avatarUrl, name: this.name, size: 28 })}
       </button>
 
       ${this.panelOpen ? html`
-        <div class="threads-identity-panel">
-          <div class="threads-identity-preview">
-            ${this.avatarUrl
-              ? html`<img class="threads-identity-preview-img" src=${this.avatarUrl} alt=${this.name} />`
-              : html`<div class="threads-identity-preview-placeholder">${initial}</div>`
-            }
-          </div>
-          <label class="threads-identity-label">
+        <div class="panel" part="panel">
+          <div class="preview">${avatar({ src: this.avatarUrl, name: this.name, size: 64 })}</div>
+          <label>
             ${t('displayName')}
-            <input
-              id="identity-name"
-              class="threads-identity-input"
-              type="text"
-              .value=${this.name}
-              placeholder=${t('yourName')}
-            />
+            <input id="identity-name" class="field" part="field input" type="text"
+              .value=${this.name} placeholder=${t('yourName')} />
           </label>
           ${header ? nothing : html`
-          <label class="threads-identity-label">
+          <label>
             ${t('githubUsername')}
-            <input
-              id="identity-github"
-              class="threads-identity-input"
-              type="text"
-              .value=${this.github}
-              placeholder="octocat"
-            />
+            <input id="identity-github" class="field" part="field input" type="text"
+              .value=${this.github} placeholder="octocat" />
           </label>
           `}
-          <label class="threads-identity-label">
+          <label>
             ${t('gravatarEmail')}
-            <input
-              id="identity-email"
-              class="threads-identity-input"
-              type="email"
-              .value=${this.email}
-              placeholder="you@example.com"
-            />
+            <input id="identity-email" class="field" part="field input" type="email"
+              .value=${this.email} placeholder="you@example.com" />
           </label>
-          ${this.error ? html`<p class="threads-identity-hint" data-testid="identity-error" role="alert">${this.error}</p>` : nothing}
-          <p class="threads-identity-hint">${t('avatarHint')}</p>
-          <div class="threads-identity-actions">
-            <button class="threads-identity-cancel" @click=${this.handleCancel}>${t('cancel')}</button>
-            <button class="threads-identity-save" @click=${this.handleSave}>${t('save')}</button>
+          ${this.error ? html`<p class="hint hint--error" part="error" data-testid="identity-error" role="alert">${this.error}</p>` : nothing}
+          <p class="hint">${t('avatarHint')}</p>
+          <div class="actions">
+            <threads-button part="cancel" size="sm" @click=${this.handleCancel}>${t('cancel')}</threads-button>
+            <threads-button part="save" size="sm" variant="primary" @click=${this.handleSave}>${t('save')}</threads-button>
           </div>
         </div>
-      ` : ''}
+      ` : nothing}
     `;
   }
 }

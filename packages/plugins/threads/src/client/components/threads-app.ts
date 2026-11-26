@@ -1,4 +1,4 @@
-import { LitElement, html, render } from 'lit';
+import { LitElement, html, nothing, render } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
@@ -22,8 +22,10 @@ import './threads-editor';
 import './threads-identity';
 import './threads-publish-widget';
 import './threads-reviews-panel';
+import './threads-panel';
 import './threads-thread';
 import type { ThreadsReviewsPanel } from './threads-reviews-panel';
+import type { ThreadsPanel, PanelTab } from './threads-panel';
 import type { ThreadsThread } from './threads-thread';
 import type { ReactionOptions } from './threads-comment';
 import type { ThreadsPublishWidget } from './threads-publish-widget';
@@ -76,8 +78,8 @@ export class ThreadsApp extends LitElement {
   private bodies = new Map<string, string>();
   /** The cards replaced the server markup (the threads loaded at least once on this page). */
   private hydrated = false;
-  /** The panel's card list (rendered with Lit into the panel body until the panel is its own element). */
-  private cardsEl: HTMLElement | null = null;
+  /** Where the panel's cards end: they are rendered before this marker, so the reviews panel and publish widget appended after it stay. */
+  private cardsEnd: Comment | null = null;
 
   /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
   private identityReady: Promise<void> = Promise.resolve();
@@ -87,11 +89,8 @@ export class ThreadsApp extends LitElement {
   private pendingBlockEl: HTMLElement | null = null;
   private deleteTarget: { type: 'thread' | 'comment'; id: string; threadId?: string } | null = null;
   private inlineEditorEl: HTMLElement | null = null;
-  /** The drawer panel: the review section mounts into it. Null when no panel exists (nothing is mounted then). */
-  private panelEl: HTMLElement | null = null;
-  /** The drawer's tab. Reviews exists only while the socket is live; the tab buttons are created with the review section. */
-  private panelTab: 'threads' | 'reviews' = 'threads';
-  private tabsEl: HTMLElement | null = null;
+  /** The panel: its cards, the reviews panel and the publish widget are its children. */
+  private panelEl: ThreadsPanel | null = null;
   /** The last unpublished count the review section reported. */
   private unpublishedCount = 0;
   /** The `#thread-<id>` of the open URL has been revealed (or there is none); reset on a hash change and a page mount. */
@@ -101,16 +100,17 @@ export class ThreadsApp extends LitElement {
     isConnected: () => this.isConnected,
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
-      // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
-      if (!this.panelEl) return el; // no drawer to show it in: nothing to refresh
+      // The review section: pinned to the bottom of the panel, mounted whether or not the panel is open.
+      if (!this.panelEl) return el; // no panel to show it in: nothing to refresh
+      el.slot = 'footer';
       this.panelEl.appendChild(el);
-      this.mountTabs();
+      this.panelEl.showTabs = true;
       void el.refresh();
       return el;
     },
     remove: (el) => {
       el.remove();
-      this.unmountTabs();
+      if (this.panelEl) this.panelEl.showTabs = false; // the panel falls back to the Threads tab itself
     },
   });
 
@@ -154,8 +154,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('reviews-changed', this.handleReviewsChanged);
     document.addEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
 
-    // Always initialize sidebar column so the panel is available for FAB toggle
-    this.initSidebarColumn();
+    this.initPanel();
 
     // Who the caller is decides which buttons render and whether a name is ever asked: learn it first.
     this.identityReady = initIdentity(api.whoami).then(() => { this.identityKnown = true; });
@@ -164,7 +163,6 @@ export class ThreadsApp extends LitElement {
       this.injectIdentityButton();
       this.loadThreads();
       this.injectNewThreadButton();
-      this.injectFab();
       this.mountPublishWidget();
     });
 
@@ -174,7 +172,7 @@ export class ThreadsApp extends LitElement {
         void this.identityReady.then(() => {
           this.loadThreads();
           this.injectNewThreadButton();
-          this.updateFabBadge();
+          this.updatePanelState();
         });
       });
     }
@@ -446,7 +444,7 @@ export class ThreadsApp extends LitElement {
   };
 
   private reviewsPanel(): ThreadsReviewsPanel | null {
-    return document.querySelector<ThreadsReviewsPanel>('.tc-panel__body threads-reviews-panel');
+    return this.panelEl?.querySelector<ThreadsReviewsPanel>('threads-reviews-panel') ?? null;
   }
 
   /** `#thread-<id>` in the URL: scroll the thread's highlight (or inline card) into view and flash it once. An unknown id does nothing. */
@@ -496,7 +494,7 @@ export class ThreadsApp extends LitElement {
     // The cards replace the server markup only when there is data to build them from; on a failed load
     // the server cards stay visible and readable.
     if (loaded) this.hydrate();
-    this.updateFabBadge();
+    this.updatePanelState();
     void this.publishMount.widget?.refresh();
     this.handleDeepLink();
   }
@@ -507,17 +505,7 @@ export class ThreadsApp extends LitElement {
     // Publishing empties the open review: the review it made is new in the Reviews tab.
     if (count < 1 && this.unpublishedCount > 0) void this.reviewsPanel()?.refresh();
     this.unpublishedCount = count;
-    const label = t(count === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(count));
-    for (const host of document.querySelectorAll<HTMLElement>('.threads-fab, .tc-sidebar-toggle')) {
-      host.querySelector('.tc-unpublished-marker')?.remove();
-      if (count < 1) continue;
-      const marker = document.createElement('span');
-      marker.className = 'tc-unpublished-marker';
-      marker.textContent = String(count);
-      marker.title = label;
-      marker.setAttribute('aria-label', label);
-      host.appendChild(marker);
-    }
+    if (this.panelEl) this.panelEl.unpublished = count;
   };
 
   /** The publish widget exists only against a live server. */
@@ -653,13 +641,14 @@ export class ThreadsApp extends LitElement {
 
   /** The panel's card for a thread, if rendered. */
   private panelCard(threadId: string): ThreadsThread | null {
-    return this.cardsEl?.querySelector<ThreadsThread>(`threads-thread[data-thread-id="${CSS.escape(threadId)}"]`) ?? null;
+    return this.panelEl?.querySelector<ThreadsThread>(`threads-thread[data-thread-id="${CSS.escape(threadId)}"]`) ?? null;
   }
 
   private cardTemplate(thread: Thread) {
     const p = this.cardProps(thread);
     return html`<threads-thread
       variant="panel"
+      slot=${thread.orphaned ? 'orphans' : nothing}
       .thread=${p.thread}
       .bodies=${p.bodies}
       .authors=${p.authors}
@@ -677,13 +666,16 @@ export class ThreadsApp extends LitElement {
 
   /** Bring a thread into view in the panel: open it, show the Threads tab, scroll to the card and flash it. */
   private revealInPanel(threadId: string): void {
-    this.closeAiDrawerIfOpen();
-    document.body.classList.add('tc-panel-open');
-    this.selectTab('threads');
-    const card = this.panelCard(threadId);
-    if (!card) return;
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    card.flash = true;
+    const panel = this.panelEl;
+    if (!panel) return;
+    panel.open = true;
+    panel.tab = 'threads';
+    void panel.updateComplete.then(() => {
+      const card = this.panelCard(threadId);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.flash = true;
+    });
   }
 
   /** The card's quote was clicked: scroll to the highlight in the text and flash it. */
@@ -775,223 +767,81 @@ export class ThreadsApp extends LitElement {
     this.inlineEditorEl = null;
   }
 
-  // ─── Sidebar column ──────────────────────────────────────────────
+  // ─── The panel ───────────────────────────────────────────────────
 
-  /**
-   * Create the fixed right sidebar column with toggle strip + panel.
-   * Only called when sidebar config is enabled.
-   */
-  private initSidebarColumn(): void {
-    if (document.querySelector('.tc-sidebar-column')) {
-      this.panelEl = document.querySelector<HTMLElement>('.tc-panel');
-      return;
-    }
-
-    if (this.sidebarEnabled) {
-      // Activate permanent sidebar mode via body class
-      document.body.classList.add('tc-sidebar-active', 'tc-has-sidebar');
-    }
-
-    // Create sidebar column
-    const column = document.createElement('div');
-    column.className = 'tc-sidebar-column';
-
-    // Toggle strip (collapsed state)
-    const toggle = document.createElement('button');
-    toggle.className = 'tc-sidebar-toggle';
-    toggle.title = t('openThreadsPanel');
-    toggle.appendChild(createSvgElement('messages-square', 18));
-    toggle.addEventListener('click', () => {
-      this.closeAiDrawerIfOpen();
-      document.body.classList.add('tc-panel-open');
-      this.populateSidebarPanel(true);
-    });
-    column.appendChild(toggle);
-
-    // Panel (expanded state)
-    const panel = document.createElement('div');
-    panel.className = 'tc-panel';
+  /** Put the one `threads-panel` on the page (sidebar mode from the config, else floating) and hear what it reports. */
+  private initPanel(): void {
+    const existing = document.querySelector<ThreadsPanel>('threads-panel');
+    const panel = existing ?? document.createElement('threads-panel');
     this.panelEl = panel;
-
-    // Panel header
-    const header = document.createElement('div');
-    header.classList.add('tc-panel__header');
-    
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'tc-panel__title';
-    const titleSpan = document.createElement('span');
-    titleSpan.textContent = t('threads');
-    const countSpan = document.createElement('span');
-    countSpan.className = 'tc-panel__count';
-    titleDiv.appendChild(titleSpan);
-    titleDiv.appendChild(countSpan);
-    
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'tc-panel__header-actions';
-
-    const newThreadBtn = document.createElement('button');
-    newThreadBtn.className = 'tc-panel__new-btn';
-    newThreadBtn.title = t('newThread') || 'Start new discussion';
-    newThreadBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--threads-fg-muted);padding:4px;display:inline-flex;align-items:center;margin-right:4px;border-radius:4px;';
-    newThreadBtn.appendChild(createSvgElement('plus', 16));
-    newThreadBtn.addEventListener('click', () => {
-      const content = getContentArea();
-      const firstHeading = content?.querySelector('h1, h2, h3, h4, p');
-      if (firstHeading) {
-        firstHeading.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        this.startNewThread(firstHeading);
-      }
-    });
-    actionsDiv.appendChild(newThreadBtn);
-
-    const cBtn = document.createElement('button');
-    cBtn.className = 'tc-panel__close-btn';
-    cBtn.title = t('closePanel');
-    cBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--threads-fg-muted);padding:4px;display:inline-flex;align-items:center;border-radius:4px;';
-    cBtn.appendChild(createSvgElement('x', 16));
-    cBtn.addEventListener('click', () => {
-      document.body.classList.remove('tc-panel-open');
-    });
-    actionsDiv.appendChild(cBtn);
-
-    header.appendChild(titleDiv);
-    header.appendChild(actionsDiv);
-    panel.appendChild(header);
-
-    // Panel body (thread cards go here)
-    const body = document.createElement('div');
-    body.className = 'tc-panel__body';
-    const cards = document.createElement('div');
-    cards.className = 'tc-panel__cards';
-    body.appendChild(cards);
-    this.cardsEl = cards;
-    panel.appendChild(body);
-
-    column.appendChild(panel);
-    document.body.appendChild(column);
-  }
-
-  /** The Threads / Reviews tab buttons, between the drawer's header and body. Only a live drawer has them. */
-  private mountTabs(): void {
-    if (!this.panelEl || this.tabsEl) return;
-    const tabs = document.createElement('div');
-    tabs.className = 'tc-panel__tabs';
-    tabs.setAttribute('role', 'tablist');
-    for (const [id, label] of [['threads', t('threads')], ['reviews', t('reviews')]] as const) {
-      const btn = document.createElement('button');
-      btn.className = 'tc-panel__tab';
-      btn.dataset.tab = id;
-      btn.dataset.testid = `tab-${id}`;
-      btn.textContent = label;
-      btn.setAttribute('role', 'tab');
-      btn.setAttribute('aria-selected', String(id === this.panelTab));
-      btn.addEventListener('click', () => this.selectTab(id));
-      tabs.appendChild(btn);
+    panel.mode = this.sidebarEnabled ? 'sidebar' : 'floating';
+    if (existing) {
+      this.cardsEnd = Array.from(panel.childNodes).find((n): n is Comment => n.nodeType === Node.COMMENT_NODE) ?? null;
+    } else {
+      this.cardsEnd = document.createComment('');
+      panel.appendChild(this.cardsEnd);
+      panel.addEventListener('threads-panel-toggle', this.onPanelToggle as EventListener);
+      panel.addEventListener('threads-tab-change', this.onTabChange as EventListener);
+      panel.addEventListener('threads-new-thread', this.onNewThreadFromPanel);
+      document.body.appendChild(panel);
     }
-    this.panelEl.insertBefore(tabs, this.panelEl.querySelector('.tc-panel__body'));
-    this.tabsEl = tabs;
   }
 
-  private unmountTabs(): void {
-    this.tabsEl?.remove();
-    this.tabsEl = null;
-    if (this.panelTab === 'reviews') this.selectTab('threads');
-  }
+  /** Opening the panel closes docmd's AI drawer (they share the right edge) and reads the review list afresh. */
+  private onPanelToggle = (e: CustomEvent<{ open: boolean }>): void => {
+    if (!e.detail.open) return;
+    this.closeAiDrawerIfOpen();
+    if (this.panelEl?.tab === 'reviews') void this.reviewsPanel()?.refresh();
+  };
 
-  /** Show a tab. Choosing Reviews reads the list afresh. */
-  private selectTab(tab: 'threads' | 'reviews'): void {
-    this.panelTab = tab;
-    this.populateSidebarPanel(tab === 'reviews');
-  }
-
-  /**
-   * Show the Threads tab (the cards) or the Reviews tab in the panel body.
-   * `refreshReviews`: re-read an already mounted Reviews tab (a user opened it); other callers leave its list alone.
-   */
-  private populateSidebarPanel(refreshReviews = false): void {
-    const panelBody = document.querySelector('.tc-panel__body');
-    if (!panelBody || !this.cardsEl) return;
-
-    this.tabsEl?.querySelectorAll<HTMLElement>('.tc-panel__tab').forEach(b =>
-      b.setAttribute('aria-selected', String(b.dataset.tab === this.panelTab)));
-
-    const existing = panelBody.querySelector<ThreadsReviewsPanel>('threads-reviews-panel');
-    if (this.panelTab === 'reviews') {
-      this.cardsEl.hidden = true;
-      if (existing) {
-        if (refreshReviews) void existing.refresh();
-        return;
-      }
-      const reviews = document.createElement('threads-reviews-panel');
-      // A link to the URL already open fires no hashchange: reveal the thread again.
-      reviews.addEventListener('reveal-thread', (e) => {
-        e.preventDefault();
-        this.deepLinkDone = false;
-        this.handleDeepLink();
-      });
-      panelBody.appendChild(reviews);
+  /** Show the Reviews tab (the list is created with the tab and read afresh) or the Threads tab. */
+  private onTabChange = (e: CustomEvent<{ tab: PanelTab }>): void => {
+    const panel = this.panelEl;
+    if (!panel) return;
+    if (e.detail.tab !== 'reviews') {
+      this.reviewsPanel()?.remove();
       return;
     }
+    const existing = this.reviewsPanel();
+    if (existing) {
+      void existing.refresh();
+      return;
+    }
+    const reviews = document.createElement('threads-reviews-panel');
+    reviews.slot = 'reviews';
+    reviews.authors = this.authorsMap;
+    reviews.profileUrl = this.profileUrl;
+    // A link to the URL already open fires no hashchange: reveal the thread again.
+    reviews.addEventListener('reveal-thread', (ev) => {
+      ev.preventDefault();
+      this.deepLinkDone = false;
+      this.handleDeepLink();
+    });
+    panel.appendChild(reviews);
+  };
 
-    existing?.remove();
-    this.cardsEl.hidden = false;
-    this.renderPanelCards();
-  }
+  /** The panel's plus: a new thread on the page's first block of text. */
+  private onNewThreadFromPanel = (): void => {
+    const firstHeading = getContentArea()?.querySelector('h1, h2, h3, h4, p');
+    if (!firstHeading) return;
+    firstHeading.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    this.startNewThread(firstHeading);
+  };
 
-  /** Render the panel's cards (and the empty state, orphan group and count) from the current data. */
+  /** Render the panel's cards from the current data: unresolved threads, then orphans in their own slot. */
   private renderPanelCards(): void {
-    if (!this.cardsEl) return;
+    const panel = this.panelEl;
+    if (!panel || !this.cardsEnd) return;
     const normal = this.threads.filter(th => !th.orphaned);
     const orphaned = this.threads.filter(th => th.orphaned);
-
-    render(this.threads.length === 0 ? html`
-      <div class="tc-panel__empty" data-testid="panel-empty">
-        <div class="tc-empty">
-          <strong>${t('noThreads')}</strong>
-          <span>${t('emptyHint')}</span>
-        </div>
-      </div>` : html`
-      ${repeat(normal, th => th.id, th => this.cardTemplate(th))}
-      ${orphaned.length > 0 ? html`
-        <div data-testid="orphaned-group">
-          <div class="tc-panel__group-title">${t('orphaned')}</div>
-          ${repeat(orphaned, th => th.id, th => this.cardTemplate(th))}
-        </div>` : ''}`, this.cardsEl);
-
-    const countEl = document.querySelector('.tc-panel__count');
-    if (countEl) {
-      const openCount = this.threads.filter(t => !t.resolved).length;
-      countEl.textContent = openCount > 0 ? `(${openCount} ${t('openCount')})` : '';
+    render(html`${repeat(normal, th => th.id, th => this.cardTemplate(th))}${repeat(orphaned, th => th.id, th => this.cardTemplate(th))}`,
+      panel, { renderBefore: this.cardsEnd });
+    const reviews = this.reviewsPanel();
+    if (reviews) {
+      reviews.authors = this.authorsMap;
+      reviews.profileUrl = this.profileUrl;
     }
-  }
-
-  // ─── Floating action button ──────────────────────────────────────
-
-  private injectFab(): void {
-    if (document.querySelector('.threads-fab')) return;
-
-    const fab = document.createElement('button');
-    fab.className = 'threads-fab';
-    fab.title = t('jumpToThreads');
-    fab.appendChild(createSvgElement('messages-square', 18));
-
-    const badge = document.createElement('span');
-    badge.className = 'threads-fab__badge';
-    badge.style.display = 'none';
-    fab.appendChild(badge);
-
-    fab.addEventListener('click', () => {
-      const isOpen = document.body.classList.contains('tc-panel-open');
-      if (isOpen) {
-        document.body.classList.remove('tc-panel-open');
-      } else {
-        this.closeAiDrawerIfOpen();
-        document.body.classList.add('tc-panel-open');
-        this.populateSidebarPanel(true);
-      }
-    });
-
-    document.body.appendChild(fab);
+    this.updatePanelState();
   }
 
   private closeAiDrawerIfOpen(): void {
@@ -1003,16 +853,11 @@ export class ThreadsApp extends LitElement {
     }
   }
 
-  private updateFabBadge(): void {
-    const badge = document.querySelector('.threads-fab__badge') as HTMLElement | null;
-    if (!badge) return;
-    const count = this.threads.filter(t => !t.resolved).length;
-    if (count > 0) {
-      badge.textContent = String(count);
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
-    }
+  /** The launcher's open-thread count and the empty state. */
+  private updatePanelState(): void {
+    if (!this.panelEl) return;
+    this.panelEl.openCount = this.threads.filter(th => !th.resolved).length;
+    this.panelEl.empty = this.threads.length === 0;
   }
 
   // ─── Delete confirmation ──────────────────────────────────────────
