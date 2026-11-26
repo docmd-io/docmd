@@ -551,6 +551,34 @@ async function buildWorkspaceProject(
   }
 }
 
+/**
+ * The docs source directory (absolute) of one workspace project: its own
+ * config's `src`, resolved against the project directory. Null when the
+ * project's config cannot be loaded. Plugin actions use it (through
+ * `ctx.docsRootOf`) to keep their data next to the docs of the page that
+ * called them.
+ */
+export async function loadProjectDocsRoot(
+  project: ProjectEntry,
+  workspaceConfig: WorkspaceRootConfig,
+  cwd: string = process.cwd()
+): Promise<string | null> {
+  const projectDir = path.resolve(cwd, project.src);
+  // The same global defaults buildWorkspaceProject passes, so a root-level `src` applies here too.
+  const globalDefaults: Record<string, unknown> = {};
+  for (const key of Object.keys(workspaceConfig)) {
+    if (!['workspace', 'projects', 'out', '_resolvedPath'].includes(key) && !key.startsWith('_')) {
+      globalDefaults[key] = workspaceConfig[key];
+    }
+  }
+  try {
+    const config = await loadConfig('docmd.config.js', { cwd: projectDir, isDev: true, quiet: true, _globalDefaults: globalDefaults });
+    return path.resolve(projectDir, config.src);
+  } catch {
+    return null;
+  }
+}
+
 /* ── Dev Server Wrapper ────────────────────────────────────── */
 
 /**
@@ -581,6 +609,15 @@ export async function devWorkspace(
 
   let host: import('../server/action-host.js').ActionHost | undefined;
 
+  // Subproject directory → docs source directory, read by the action dispatcher on every call.
+  const docsRoots = new Map<string, string>();
+  const refreshDocsRoot = async (project: ProjectEntry) => {
+    const docsRoot = await loadProjectDocsRoot(project, workspaceConfig, CWD);
+    if (docsRoot) docsRoots.set(path.resolve(CWD, project.src), docsRoot);
+    else docsRoots.delete(path.resolve(CWD, project.src));
+  };
+  for (const project of workspaceConfig.workspace!.projects) await refreshDocsRoot(project);
+
   function broadcastReload() {
     host?.broadcastReload();
   }
@@ -608,6 +645,7 @@ export async function devWorkspace(
           verifyClient: createOriginVerify(networkIp ? [networkIp] : []),
           getWorkerPool: () => undefined,
           resolvePaths: [CWD],
+          workspaceDocsRoots: docsRoots,
           // Workspace dev has no per-project rebuild entry point: its watcher
           // rebuilds and reloads. Plugins calling requestRebuild get this error.
           rebuild: async () => {
@@ -710,6 +748,7 @@ export async function devWorkspace(
           if (isConfigUpdate) {
             lastConfigRebuildAt = Date.now();
             signatureTracker.reset();
+            await refreshDocsRoot(project);
           } else {
             lastContentRebuildAt = Date.now();
           }

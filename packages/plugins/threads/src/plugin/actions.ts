@@ -182,7 +182,7 @@ async function recordProfile(ctx: ActionContext, caller: Caller, payload: Payloa
   if (profile) await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl);
 }
 
-export const actions: Record<string, (payload: Payload, ctx: ActionContext) => Promise<unknown>> = {
+const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise<unknown>> = {
   'threads:get-authors': async (_payload, ctx): Promise<AuthorsMap> => readAuthors(ctx),
 
   'threads:upsert-author': async (payload, ctx): Promise<{ ok: boolean }> => {
@@ -328,3 +328,19 @@ export const actions: Record<string, (payload: Payload, ctx: ActionContext) => P
   'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
     publish(resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
 };
+
+/**
+ * Every action works in the docs root of the page that called it: the client sends that page as
+ * `file`, and under a workspace the host maps it to its subproject's docs folder. The root is
+ * resolved once per call, so the journal, manifests, authors.json and lock all agree.
+ */
+export const actions: typeof handlers = Object.fromEntries(
+  Object.entries(handlers).map(([name, handler]) => [
+    name,
+    (payload: Payload, ctx: ActionContext) => {
+      const file = typeof payload?.file === 'string' && payload.file ? payload.file : undefined;
+      const root = docsRootOf(ctx, file);
+      return handler(payload, { ...ctx, docsRootOf: () => root });
+    },
+  ]),
+);
