@@ -6,14 +6,22 @@ const BLOCK_ELEMENTS = new Set([
   "H4", "H5", "H6", "SECTION", "ARTICLE", "ASIDE", "DT", "DD", "FIGCAPTION",
 ]);
 
+/** Selectors for the page's content area, in priority order; the first match wins. */
+export const CONTENT_AREA_SELECTORS = [
+  ".summer-content",
+  "[data-docmd-content]",
+  ".docmd-content",
+  ".main-content",
+  "article",
+  "main",
+] as const;
+
 export function getContentArea(): HTMLElement | null {
-  // docmd content area selectors (try multiple)
-  return (
-    document.querySelector<HTMLElement>("[data-docmd-content]") ||
-    document.querySelector<HTMLElement>(".docmd-content") ||
-    document.querySelector<HTMLElement>("article") ||
-    document.querySelector<HTMLElement>("main")
-  );
+  for (const selector of CONTENT_AREA_SELECTORS) {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (el) return el;
+  }
+  return null;
 }
 
 export function isWithinContent(node: Node): boolean {

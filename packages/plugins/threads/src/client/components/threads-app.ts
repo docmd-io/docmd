@@ -1,10 +1,10 @@
 import { LitElement, html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import type { Thread, Comment, Anchor, AuthorsMap, Reaction } from '../../types';
+import type { Thread, Comment, Anchor, AuthorsMap } from '../../types';
 import * as api from '../lib/api';
-import { initIdentity, getIdentityPayload, getIdentityMode, getAuthorKey, getAuthor, canShowFor } from '../lib/identity';
-import { deleteCommentTarget, type ShowTarget } from '../lib/can-show';
-import { computeAnchor, getSelectionPosition, isWithinContent } from '../lib/selection';
+import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
+import { deleteCommentTarget } from '../lib/can-show';
+import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent } from '../lib/selection';
 import { initThemeBridge } from '../lib/theme';
 import { t } from '../lib/i18n';
 import { limitMessage } from '../lib/limit-message';
@@ -13,30 +13,6 @@ import { createPublishMount } from '../lib/publish-mount';
 import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 import { hideRawSidebars } from '../lib/raw-sidebars';
-
-/**
- * Format raw ISO or timestamp string into an understandable, human-readable date & time.
- * E.g., '2026-11-19T10:00:00Z' -> 'Nov 19, 2026, 10:00 AM'
- * '2026-11-26' -> 'Nov 26, 2026'
- */
-function formatDateTime(dateStr: string): string {
-  if (!dateStr) return '';
-  const trimmed = dateStr.trim();
-  const d = new Date(trimmed);
-  if (isNaN(d.getTime())) return trimmed;
-  const hasTime = trimmed.includes('T') || trimmed.includes(':');
-  const locale = (typeof document !== 'undefined' && document.documentElement.lang) || undefined;
-  if (!hasTime) {
-    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-  return d.toLocaleDateString(locale, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 import './threads-popover';
 import './threads-inline-editor';
@@ -52,8 +28,6 @@ import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 
 /** Text under these is never a target when highlighting drafts after a load: thread cards, the panel, scripts. */
 const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, script, style';
-
-const EMOJI_PRESETS = ['\u{1F44D}', '\u{1F44E}', '\u{1F602}', '\u{1F389}', '\u{1F914}', '\u{2764}\u{FE0F}', '\u{1F680}', '\u{1F440}'];
 
 @customElement('threads-app')
 export class ThreadsApp extends LitElement {
@@ -88,12 +62,10 @@ export class ThreadsApp extends LitElement {
     create: () => {
       const el = document.createElement('threads-publish-widget') as ThreadsPublishWidget;
       // The review section: pinned to the bottom of the drawer, mounted whether or not the drawer is open.
-      if (!this.panelEl) this.initSidebarColumn();
-      if (this.panelEl) {
-        this.panelEl.appendChild(el);
-        this.mountTabs();
-        void el.refresh();
-      }
+      if (!this.panelEl) return el; // no drawer to show it in: nothing to refresh
+      this.panelEl.appendChild(el);
+      this.mountTabs();
+      void el.refresh();
       return el;
     },
     remove: (el) => {
@@ -155,18 +127,6 @@ export class ThreadsApp extends LitElement {
   }
 
   /**
-   * Find the content area of the page.
-   */
-  private getContentArea(): Element | null {
-    return document.querySelector('.summer-content')
-      || document.querySelector('[data-docmd-content]')
-      || document.querySelector('.docmd-content')
-      || document.querySelector('.main-content')
-      || document.querySelector('article')
-      || document.querySelector('main');
-  }
-
-  /**
    * Create the identity button and place it in the page header.
    * Done imperatively so Lit re-renders don't pull it back into threads-app.
    */
@@ -195,7 +155,7 @@ export class ThreadsApp extends LitElement {
       el.classList.remove('threads-heading-wrap');
     });
 
-    const contentArea = this.getContentArea();
+    const contentArea = getContentArea();
     if (!contentArea) return;
 
     const HEADING_TAGS = new Set(['H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
@@ -205,7 +165,6 @@ export class ThreadsApp extends LitElement {
     for (const heading of headings) {
       // Only target direct-ish headings inside the content area
       if (!HEADING_TAGS.has(heading.tagName)) continue;
-      if (heading.classList.contains('docmd-focus-title')) continue;
 
       heading.classList.add('threads-heading-wrap');
 
@@ -402,7 +361,7 @@ export class ThreadsApp extends LitElement {
       // In inline mode the highlight had put the thread's card after its block: it goes with the highlight.
       document.querySelectorAll(`.threads-thread--inline[data-thread-id="${CSS.escape(id)}"]`).forEach((el) => el.remove());
     }
-    const root = this.getContentArea() as HTMLElement | null;
+    const root = getContentArea() as HTMLElement | null;
     if (!root) return;
     for (const thread of add) this.wrapAnchorInMark(root, thread.anchor!.quote, thread.id, SKIP_WRAP);
   }
@@ -475,20 +434,6 @@ export class ThreadsApp extends LitElement {
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
     this.handleDeepLink();
-
-    // Re-sync all reaction bars in the DOM (in-page and sidebar)
-    for (const thread of this.threads) {
-      for (const comment of thread.comments) {
-        if (comment.id) {
-          this.updateCommentReactionsInDOM(thread.id, comment.id, comment.reactions || []);
-        }
-      }
-    }
-
-    // Keep open sidebar panel in sync with fresh thread data
-    if (document.body.classList.contains('tc-panel-open')) {
-      this.populateSidebarPanel(true);
-    }
   }
 
   /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
@@ -506,31 +451,9 @@ export class ThreadsApp extends LitElement {
       marker.textContent = String(count);
       marker.title = label;
       marker.setAttribute('aria-label', label);
-      const wrap = host.querySelector('.threads-fab__badge-wrap');
-      if (wrap) wrap.appendChild(marker);
-      else host.appendChild(marker);
+      host.appendChild(marker);
     }
-    this.updateFabBadge();
   };
-
-  /**
-   * Determine whether the delete action should be offered to the current user.
-   * Only the author of the comment (or thread) or an admin may delete.
-   */
-  private canDeleteComment(target: ShowTarget, commentAuthor?: string | null, commentAuthorKey?: string | null): boolean {
-    if (target.drafted) return true;
-    const idMode = getIdentityMode();
-    if (idMode.mode === 'header' && idMode.isAdmin) return true;
-    const currentKey = idMode.mode === 'header' ? idMode.payload.authorKey : getAuthorKey();
-    const currentName = idMode.mode === 'header' ? idMode.payload.author : getAuthor();
-    if (target.authorKey && currentKey && target.authorKey === currentKey) return true;
-    if (commentAuthorKey && currentKey && commentAuthorKey === currentKey) return true;
-    if (commentAuthor && currentName && commentAuthor.toLowerCase().trim() === currentName.toLowerCase().trim()) return true;
-    if (target.authorKeys && target.authorKeys.length > 0) {
-      if (currentKey && target.authorKeys.every(k => k === currentKey)) return true;
-    }
-    return false;
-  }
 
   /** The publish widget exists only against a live server. */
   private mountPublishWidget(): void {
@@ -550,40 +473,24 @@ export class ThreadsApp extends LitElement {
 
   /**
    * Scan the DOM for <mark class="threads-highlight" data-thread-id="..."> elements.
-   * Assigns semantic highlight colors (blue=published, orange=draft, green=resolved),
-   * moves thread cards inline after the block containing the highlight, and attaches click handlers.
+   * Assigns cycling highlight colors, moves thread cards inline after the block
+   * containing the highlight, and attaches click handlers.
    */
   private scanRenderedHighlights(): void {
     const marks = document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]');
     const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
+    let colorIndex = 0;
 
     for (const mark of marks) {
       const threadId = mark.dataset.threadId;
       if (!threadId) continue;
 
+      // 1. Assign cycling highlight color
+      const colorClass = ThreadsApp.HIGHLIGHT_COLORS[colorIndex % ThreadsApp.HIGHLIGHT_COLORS.length];
+      mark.classList.add(colorClass);
+      colorIndex++;
+
       const threadData = this.threads.find(t => t.id === threadId);
-
-      // Semantic highlight color:
-      // Draft -> Orange/Amber (pending publish / local changes)
-      // Resolved -> Green/Muted
-      // Published -> Blue (pushed to git / live active)
-      let hlClasses = ['threads-hl-published', 'threads-hl-blue'];
-      let borderClasses = ['threads-border-published', 'threads-border-blue'];
-
-      if (threadData?.draft) {
-        hlClasses = ['threads-hl-draft', 'threads-hl-orange'];
-        borderClasses = ['threads-border-draft', 'threads-border-orange'];
-      } else if (threadData?.resolved) {
-        hlClasses = ['threads-hl-resolved', 'threads-hl-green'];
-        borderClasses = ['threads-border-resolved', 'threads-border-green'];
-      }
-
-      for (const c of Array.from(mark.classList)) {
-        if (c.startsWith('threads-hl-')) mark.classList.remove(c);
-      }
-      for (const cls of hlClasses) {
-        mark.classList.add(cls);
-      }
 
       // 2. In inline mode, ensure the thread card exists right after the block
       if (!this.sidebarEnabled) {
@@ -594,12 +501,7 @@ export class ThreadsApp extends LitElement {
 
         if (threadEl) {
           threadEl.classList.add('threads-thread--inline');
-          for (const c of Array.from(threadEl.classList)) {
-            if (c.startsWith('threads-border-')) threadEl.classList.remove(c);
-          }
-          for (const cls of borderClasses) {
-            threadEl.classList.add(cls);
-          }
+          threadEl.classList.add(colorClass.replace('threads-hl-', 'threads-border-'));
 
           let blockEl: Element | null = mark;
           while (blockEl && blockEl !== document.body) {
@@ -635,7 +537,7 @@ export class ThreadsApp extends LitElement {
     this.injectReplyButtons();
 
     // 5. Hide the raw .threads-sidebar markdown-it renders for every threads block
-    hideRawSidebars(document, !this.sidebarEnabled);
+    hideRawSidebars(document);
 
     // 6. If sidebar mode or panel is open, populate the right sidebar panel
     if (this.sidebarEnabled || document.body.classList.contains('tc-panel-open')) {
@@ -645,114 +547,29 @@ export class ThreadsApp extends LitElement {
 
   /**
    * Enhance thread cards: nest replies under parents, add per-comment reply & delete buttons,
-   * reaction bars, quote styling consistency, and a "+ New Comment" footer button for top-level comments.
+   * and a "+ New Comment" footer button for top-level comments.
    */
   private injectReplyButtons(): void {
     const threads = document.querySelectorAll<HTMLElement>('.threads-thread[data-thread-id]');
     for (const threadEl of threads) {
+      // Skip if already enhanced
+      if (threadEl.querySelector('.threads-new-comment-btn')) continue;
+
       const threadId = threadEl.dataset.threadId;
       if (!threadId) continue;
 
-      // Enhance quote badge if server-rendered blockquote.threads-anchor
-      const anchorEl = threadEl.querySelector<HTMLElement>('blockquote.threads-anchor');
-      if (anchorEl && !anchorEl.querySelector('.threads-thread__quote-text')) {
-        const text = anchorEl.textContent?.trim() || '';
-        anchorEl.textContent = '';
-        anchorEl.className = 'threads-thread__quote-badge';
-        anchorEl.appendChild(createSvgElement('quote', 12));
-        const textSpan = document.createElement('span');
-        textSpan.className = 'threads-thread__quote-text';
-        textSpan.textContent = `"${text}"`;
-        anchorEl.appendChild(textSpan);
+      // Nest replies under their parent comments
+      this.nestReplies(threadEl);
 
-        const openBtn = document.createElement('button');
-        openBtn.className = 'threads-thread__open-panel-btn';
-        openBtn.title = 'Open discussion in sidebar';
-        openBtn.innerHTML = `<span>Sidebar</span>${getThreadSvg('external-link', 11)}`;
-        openBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.closeAiDrawerIfOpen();
-          document.body.classList.add('tc-panel-open');
-          this.selectTab('threads');
-          const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
-          if (targetInPanel) {
-            targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetInPanel.classList.add('threads-thread--flash');
-            setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
-          }
-        });
-        anchorEl.appendChild(openBtn);
-      }
-
-      // Apply semantic border color based on status
-      const thread = this.threads.find(th => th.id === threadId);
-      if (thread) {
-        for (const c of Array.from(threadEl.classList)) {
-          if (c.startsWith('threads-border-')) threadEl.classList.remove(c);
-        }
-        if (thread.draft) {
-          threadEl.classList.add('threads-border-draft', 'threads-border-orange');
-        } else if (thread.resolved) {
-          threadEl.classList.add('threads-border-resolved', 'threads-border-green');
-        } else {
-          threadEl.classList.add('threads-border-published', 'threads-border-blue');
-        }
-      }
-
-      // Skip footer/button injection if already enhanced
-      if (threadEl.querySelector('.threads-new-comment-btn')) {
-        // Still update reaction bars in case thread state changed
-        const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
-        for (const commentEl of allComments) {
-          const commentId = commentEl.dataset.commentId;
-          if (!commentId) continue;
-          const comm = thread?.comments.find(c => c.id === commentId);
-          if (comm) {
-            const rxBar = commentEl.querySelector('.threads-comment__reactions-bar');
-            if (rxBar) {
-              rxBar.replaceWith(this.renderReactionsBar(threadId, commentId, comm.reactions || []));
-            }
-          }
-        }
-        continue;
-      }
-
-      // Add per-comment reply, delete buttons, and reaction bars
+      // Add per-comment reply + delete buttons
       const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
       const totalComments = allComments.length;
       for (const commentEl of allComments) {
         const commentId = commentEl.dataset.commentId;
         if (!commentId) continue;
 
-        const meta = commentEl.querySelector<HTMLElement>('.threads-comment__meta');
-        if (meta) {
-          const authorEl = meta.querySelector('strong');
-          if (authorEl) authorEl.classList.add('threads-comment__author');
-          let dateEl = meta.querySelector<HTMLElement>('.threads-comment__date');
-          if (!dateEl) {
-            const rawDate = commentEl.dataset.date || meta.textContent?.replace(authorEl?.textContent || '', '').replace(/^[·\s·\s]+/, '').trim() || '';
-            const dateFormatted = formatDateTime(rawDate);
-            for (const node of Array.from(meta.childNodes)) {
-              if (node !== authorEl) node.remove();
-            }
-            const sep = document.createElement('span');
-            sep.className = 'threads-comment__sep';
-            sep.textContent = ' · ';
-            meta.appendChild(sep);
-
-            dateEl = document.createElement('span');
-            dateEl.className = 'threads-comment__date';
-            dateEl.textContent = dateFormatted;
-            if (rawDate) dateEl.title = rawDate;
-            meta.appendChild(dateEl);
-          } else if (dateEl.textContent) {
-            const rawDate = commentEl.dataset.date || dateEl.title || dateEl.textContent.trim();
-            if (rawDate) {
-              dateEl.title = rawDate;
-              dateEl.textContent = formatDateTime(rawDate);
-            }
-          }
-        }
+        const meta = commentEl.querySelector('.threads-comment__meta');
+        if (!meta) continue;
 
         // Inject avatar into the avatar column if not already present
         const avatarCol = commentEl.querySelector('.threads-comment__avatar-col');
@@ -768,82 +585,52 @@ export class ThreadsApp extends LitElement {
           }
         }
 
-        // Restructure comment children into .threads-comment__content for clean flex column
-        let contentCol = commentEl.querySelector<HTMLElement>('.threads-comment__content');
-        if (!contentCol) {
-          contentCol = document.createElement('div');
-          contentCol.className = 'threads-comment__content';
-          if (meta) contentCol.appendChild(meta);
-          const bodyEl = commentEl.querySelector('.threads-comment__body');
-          if (bodyEl) contentCol.appendChild(bodyEl);
-          commentEl.appendChild(contentCol);
-        }
+        // Skip if actions already added (re-render)
+        if (commentEl.querySelector('.threads-comment__actions')) continue;
 
         // Actions container - pushed to the right via margin-left: auto
-        if (meta && !commentEl.querySelector('.threads-comment__actions')) {
-          const actions = document.createElement('div');
-          actions.className = 'threads-comment__actions';
+        const actions = document.createElement('div');
+        actions.className = 'threads-comment__actions';
 
-          // Reply button
-          const replyBtn = document.createElement('button');
-          replyBtn.className = 'threads-comment-reply-btn';
-          replyBtn.appendChild(createSvgElement('reply', 13));
-          replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
-          replyBtn.title = t('replyToComment');
-          replyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openReplyEditor(threadEl, threadId, commentId);
-          });
-          actions.appendChild(replyBtn);
+        // Reply button
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'threads-comment-reply-btn';
+        replyBtn.appendChild(createSvgElement('reply', 13));
+        replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
+        replyBtn.title = t('replyToComment');
+        replyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openReplyEditor(threadEl, threadId, commentId);
+        });
+        actions.appendChild(replyBtn);
 
-          // Delete button: only when user is author or admin and canShowFor passes
-          let deletable = false;
-          const comm = thread?.comments.find(c => c.id === commentId);
-          const target = !thread
-            ? { authorKey: null }
-            : (totalComments === 1
-                ? { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) }
-                : deleteCommentTarget(thread.comments, commentId));
-          if (canShowFor('delete-comment', target)) {
-            deletable = this.canDeleteComment(target, comm?.author || commentEl.dataset.author, comm?.authorKey);
+        // Delete button: only when the server would accept it (a lone comment deletes the thread)
+        const thread = this.threads.find(th => th.id === threadId);
+        // No thread to check against (load failed): fail closed, like the multi-comment path.
+        let deletable: boolean;
+        if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
+        else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
+        else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
+        if (deletable) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'threads-delete-btn';
+        delBtn.appendChild(createSvgElement('trash', 13));
+        delBtn.title = t('deleteComment');
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (totalComments === 1) {
+            this.deleteTarget = { type: 'thread', id: threadId };
+          } else {
+            this.deleteTarget = { type: 'comment', id: commentId, threadId };
           }
-          if (deletable) {
-            const delBtn = document.createElement('button');
-            delBtn.className = 'threads-delete-btn';
-            delBtn.appendChild(createSvgElement('trash', 13));
-            delBtn.title = t('deleteComment');
-            delBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (totalComments === 1) {
-                this.deleteTarget = { type: 'thread', id: threadId };
-              } else {
-                this.deleteTarget = { type: 'comment', id: commentId, threadId };
-              }
-              const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-              if (dialog) dialog.open = true;
-            });
-            actions.appendChild(delBtn);
-          }
-
-          meta.appendChild(actions);
+          const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+          if (dialog) dialog.open = true;
+        });
+        actions.appendChild(delBtn);
         }
 
-        // Attach reactions bar
-        const rawReactions = commentEl.querySelector('.threads-reactions');
-        rawReactions?.remove();
-        const comm = thread?.comments.find(c => c.id === commentId);
-        const reactions = comm?.reactions || [];
-        const existingRxBar = commentEl.querySelector('.threads-comment__reactions-bar');
-        const rxBar = this.renderReactionsBar(threadId, commentId, reactions);
-        if (existingRxBar) {
-          existingRxBar.replaceWith(rxBar);
-        } else {
-          contentCol.appendChild(rxBar);
-        }
+        meta.appendChild(actions);
       }
-
-      // Nest replies under their parent comments after reactions are attached
-      this.nestReplies(threadEl);
 
       // Build collapse summary
       const allCommentsForSummary = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
@@ -952,9 +739,7 @@ export class ThreadsApp extends LitElement {
       if (!repliesContainer) {
         repliesContainer = document.createElement('div');
         repliesContainer.className = 'threads-replies';
-        const contentCol = parentEl.querySelector('.threads-comment__content');
-        if (contentCol) contentCol.appendChild(repliesContainer);
-        else parentEl.appendChild(repliesContainer);
+        parentEl.appendChild(repliesContainer);
       }
 
       commentEl.classList.add('threads-comment--reply');
@@ -999,16 +784,11 @@ export class ThreadsApp extends LitElement {
         if (repliesContainer) {
           repliesContainer.appendChild(editor);
         } else {
-          const contentCol = parentComment.querySelector('.threads-comment__content');
-          if (contentCol) {
-            contentCol.appendChild(editor);
+          const bodyEl = parentComment.querySelector('.threads-comment__body');
+          if (bodyEl) {
+            bodyEl.appendChild(editor);
           } else {
-            const bodyEl = parentComment.querySelector('.threads-comment__body');
-            if (bodyEl) {
-              bodyEl.appendChild(editor);
-            } else {
-              parentComment.appendChild(editor);
-            }
+            parentComment.appendChild(editor);
           }
         }
       } else {
@@ -1116,7 +896,7 @@ export class ThreadsApp extends LitElement {
     newThreadBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;display:inline-flex;align-items:center;margin-right:4px;border-radius:4px;';
     newThreadBtn.appendChild(createSvgElement('plus', 16));
     newThreadBtn.addEventListener('click', () => {
-      const content = this.getContentArea();
+      const content = getContentArea();
       const firstHeading = content?.querySelector('h1, h2, h3, h4, p');
       if (firstHeading) {
         firstHeading.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1146,13 +926,6 @@ export class ThreadsApp extends LitElement {
 
     column.appendChild(panel);
     document.body.appendChild(column);
-
-    // Ensure publish widget is mounted in panel if already created
-    if (this.publishMount.widget && !panel.contains(this.publishMount.widget)) {
-      panel.appendChild(this.publishMount.widget);
-      this.mountTabs();
-      void this.publishMount.widget.refresh();
-    }
   }
 
   /** The Threads / Reviews tab buttons, between the drawer's header and body. Only a live drawer has them. */
@@ -1266,15 +1039,6 @@ export class ThreadsApp extends LitElement {
     }
     threadEl.dataset.threadId = thread.id;
 
-    // Apply semantic border color based on status
-    if (thread.draft) {
-      threadEl.classList.add('threads-border-draft', 'threads-border-orange');
-    } else if (thread.resolved) {
-      threadEl.classList.add('threads-border-resolved', 'threads-border-green');
-    } else {
-      threadEl.classList.add('threads-border-published', 'threads-border-blue');
-    }
-
     // Anchor quote badge for both sidebar and inline preview
     const mark = document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${thread.id}"]`);
     // An orphaned thread has no mark in the page: its stored quote is all that is left of the anchor.
@@ -1331,12 +1095,7 @@ export class ThreadsApp extends LitElement {
         for (const reply of replies) {
           repliesContainer.appendChild(this.renderCommentElement(thread.id, reply, true));
         }
-        const contentCol = commentEl.querySelector('.threads-comment__content');
-        if (contentCol) {
-          contentCol.appendChild(repliesContainer);
-        } else {
-          commentEl.appendChild(repliesContainer);
-        }
+        commentEl.appendChild(repliesContainer);
       }
       threadEl.appendChild(commentEl);
     }
@@ -1426,28 +1185,19 @@ export class ThreadsApp extends LitElement {
     }
     commentEl.appendChild(avatarCol);
 
-    // Main content column: meta -> body -> reactionsBar (flex column)
-    const content = document.createElement('div');
-    content.className = 'threads-comment__content';
-
     // Meta header
     const meta = document.createElement('div');
     meta.className = 'threads-comment__meta';
 
     const authorStrong = document.createElement('strong');
-    authorStrong.className = 'threads-comment__author';
     authorStrong.textContent = authorInfo?.name || comment.author;
     meta.appendChild(authorStrong);
 
-    const sep = document.createElement('span');
-    sep.className = 'threads-comment__sep';
-    sep.textContent = ' · ';
-    meta.appendChild(sep);
+    const dot = document.createTextNode(' · ');
+    meta.appendChild(dot);
 
     const dateSpan = document.createElement('span');
-    dateSpan.className = 'threads-comment__date';
-    dateSpan.textContent = formatDateTime(comment.date);
-    if (comment.date) dateSpan.title = comment.date;
+    dateSpan.textContent = comment.date;
     meta.appendChild(dateSpan);
 
     // Actions
@@ -1469,24 +1219,23 @@ export class ThreadsApp extends LitElement {
     });
     actions.appendChild(replyBtn);
 
-    // Delete button: only when user is author or admin and canShowFor passes
-    const delTarget = deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id);
-    if (canShowFor('delete-comment', delTarget) && this.canDeleteComment(delTarget, comment.author, comment.authorKey)) {
-      const delBtn = document.createElement('button');
-      delBtn.className = 'threads-delete-btn';
-      delBtn.appendChild(createSvgElement('trash', 13));
-      delBtn.title = t('deleteComment');
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.deleteTarget = { type: 'comment', id: comment.id, threadId };
-        const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-        if (dialog) dialog.open = true;
-      });
-      actions.appendChild(delBtn);
+    // Delete button
+    if (canShowFor('delete-comment', deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id))) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'threads-delete-btn';
+    delBtn.appendChild(createSvgElement('trash', 13));
+    delBtn.title = t('deleteComment');
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.deleteTarget = { type: 'comment', id: comment.id, threadId };
+      const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+      if (dialog) dialog.open = true;
+    });
+    actions.appendChild(delBtn);
     }
 
     meta.appendChild(actions);
-    content.appendChild(meta);
+    commentEl.appendChild(meta);
 
     // Body
     const body = document.createElement('div');
@@ -1497,129 +1246,9 @@ export class ThreadsApp extends LitElement {
       p.textContent = pText;
       body.appendChild(p);
     }
-    content.appendChild(body);
+    commentEl.appendChild(body);
 
-    // Reactions bar on dedicated line
-    const reactions = comment.reactions || [];
-    content.appendChild(this.renderReactionsBar(threadId, comment.id, reactions));
-
-    commentEl.appendChild(content);
     return commentEl;
-  }
-
-  // ─── Reactions & Emoji picker ──────────────────────────────────────
-
-  private activeEmojiPopover: HTMLElement | null = null;
-
-  private async handleToggleReaction(threadId: string, commentId: string, emoji: string): Promise<void> {
-    try {
-      const identity = getIdentityPayload();
-      const updatedReactions = await api.toggleReaction(threadId, commentId, { emoji, author: identity.author || 'Anonymous' });
-      // Instantly update all instances in DOM (both in-page and sidebar)
-      this.updateCommentReactionsInDOM(threadId, commentId, updatedReactions);
-      await this.loadThreads();
-    } catch (err) {
-      console.error('[threads] Failed to toggle reaction:', err);
-    }
-  }
-
-  private updateCommentReactionsInDOM(threadId: string, commentId: string, reactions: Reaction[]): void {
-    const thread = this.threads.find(th => th.id === threadId);
-    const comm = thread?.comments.find(c => c.id === commentId);
-    if (comm) {
-      comm.reactions = reactions;
-    }
-    const comments = document.querySelectorAll<HTMLElement>(`.threads-comment[data-comment-id="${CSS.escape(commentId)}"]`);
-    for (const commentEl of comments) {
-      const existingBar = commentEl.querySelector('.threads-comment__reactions-bar');
-      const newBar = this.renderReactionsBar(threadId, commentId, reactions);
-      if (existingBar) {
-        existingBar.replaceWith(newBar);
-      } else {
-        const contentCol = commentEl.querySelector('.threads-comment__content');
-        if (contentCol) {
-          contentCol.appendChild(newBar);
-        } else {
-          const bodyEl = commentEl.querySelector('.threads-comment__body');
-          if (bodyEl) bodyEl.insertAdjacentElement('afterend', newBar);
-          else commentEl.appendChild(newBar);
-        }
-      }
-    }
-  }
-
-  private toggleEmojiPicker(anchorEl: HTMLElement, threadId: string, commentId: string): void {
-    if (this.activeEmojiPopover) {
-      this.activeEmojiPopover.remove();
-      this.activeEmojiPopover = null;
-      return;
-    }
-
-    const popover = document.createElement('div');
-    popover.className = 'threads-emoji-popover';
-
-    for (const emoji of EMOJI_PRESETS) {
-      const btn = document.createElement('button');
-      btn.className = 'threads-emoji-popover__btn';
-      btn.textContent = emoji;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        popover.remove();
-        this.activeEmojiPopover = null;
-        void this.handleToggleReaction(threadId, commentId, emoji);
-      });
-      popover.appendChild(btn);
-    }
-
-    document.body.appendChild(popover);
-    this.activeEmojiPopover = popover;
-
-    const rect = anchorEl.getBoundingClientRect();
-    popover.style.top = `${rect.bottom + window.scrollY + 4}px`;
-    popover.style.left = `${Math.max(8, rect.left + window.scrollX - 4)}px`;
-
-    const closeHandler = (e: MouseEvent) => {
-      if (this.activeEmojiPopover && !this.activeEmojiPopover.contains(e.target as Node) && e.target !== anchorEl) {
-        this.activeEmojiPopover.remove();
-        this.activeEmojiPopover = null;
-        document.removeEventListener('click', closeHandler);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeHandler), 0);
-  }
-
-  private renderReactionsBar(threadId: string, commentId: string, reactions: Reaction[]): HTMLElement {
-    const bar = document.createElement('div');
-    bar.className = 'threads-comment__reactions-bar';
-
-    const identity = getIdentityPayload();
-    const currentAuthor = identity.author || '';
-
-    for (const r of reactions) {
-      if (!r.authors || r.authors.length === 0) continue;
-      const pill = document.createElement('button');
-      const isActive = r.authors.includes(currentAuthor);
-      pill.className = `threads-reaction-pill${isActive ? ' threads-reaction-pill--active' : ''}`;
-      pill.title = r.authors.join(', ');
-      pill.innerHTML = `${r.emoji} <span class="threads-reaction-pill__count">${r.authors.length}</span>`;
-      pill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        void this.handleToggleReaction(threadId, commentId, r.emoji);
-      });
-      bar.appendChild(pill);
-    }
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'threads-add-reaction-btn';
-    addBtn.title = t('addReaction') || 'Add reaction';
-    addBtn.appendChild(createSvgElement('emoji-smile', 13));
-    addBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.toggleEmojiPicker(addBtn, threadId, commentId);
-    });
-    bar.appendChild(addBtn);
-
-    return bar;
   }
 
   // ─── Floating action button ──────────────────────────────────────
@@ -1632,15 +1261,10 @@ export class ThreadsApp extends LitElement {
     fab.title = t('jumpToThreads');
     fab.appendChild(createSvgElement('messages-square', 18));
 
-    const badgeWrap = document.createElement('span');
-    badgeWrap.className = 'threads-fab__badge-wrap';
-
     const badge = document.createElement('span');
     badge.className = 'threads-fab__badge';
     badge.style.display = 'none';
-    badgeWrap.appendChild(badge);
-
-    fab.appendChild(badgeWrap);
+    fab.appendChild(badge);
 
     fab.addEventListener('click', () => {
       const isOpen = document.body.classList.contains('tc-panel-open');
@@ -1669,11 +1293,8 @@ export class ThreadsApp extends LitElement {
     const badge = document.querySelector('.threads-fab__badge') as HTMLElement | null;
     if (!badge) return;
     const count = this.threads.filter(t => !t.resolved).length;
-    // When unpublished marker is active on FAB, hide open-threads badge to avoid confusing dual-pill crowding
-    const hasUnpublished = this.unpublishedCount > 0;
-    if (count > 0 && !hasUnpublished) {
+    if (count > 0) {
       badge.textContent = String(count);
-      badge.title = `${count} ${t('openCount') || 'discussions'}`;
       badge.style.display = '';
     } else {
       badge.style.display = 'none';

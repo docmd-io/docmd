@@ -28,30 +28,6 @@ function injectThemeCSS(): void {
       --sl-font-mono: var(--font-family-mono, SFMono-Regular, Consolas, Menlo, monospace);
     }
 
-    .threads-highlight {
-      background-color: hsl(48 96% 89% / 0.5);
-      border-bottom: 2px solid hsl(48 96% 53% / 0.6);
-      cursor: pointer;
-      transition: background-color 0.15s;
-      border-radius: 1px;
-    }
-    .threads-highlight:hover {
-      background-color: hsl(48 96% 89% / 0.8);
-    }
-    .threads-highlight--resolved {
-      background-color: hsl(142 76% 36% / 0.1);
-      border-bottom-color: hsl(142 76% 36% / 0.3);
-    }
-    .threads-highlight--resolved:hover {
-      background-color: hsl(142 76% 36% / 0.2);
-    }
-    .threads-highlight--flash {
-      animation: threads-flash 0.8s ease-out;
-    }
-    @keyframes threads-flash {
-      0%, 40% { background-color: hsl(48 96% 53% / 0.5); }
-      100% { background-color: hsl(48 96% 89% / 0.5); }
-    }
   `;
   document.head.appendChild(style);
 }
