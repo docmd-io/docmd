@@ -351,7 +351,7 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
 
     // Check if config is in root or docs
     for (const dir of ['.vitepress', 'docs/.vitepress']) {
-      for (const ext of ['js', 'ts', 'mjs']) {
+      for (const ext of ['js', 'ts', 'mjs', 'mts']) {
         const p = path.resolve(CWD, `${dir}/config.${ext}`);
         if (nativeFs.existsSync(p)) {
           configDir = dir;
@@ -363,7 +363,7 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
     }
 
     if (!activeConfigPath) {
-      TUI.error('Missing configuration', '.vitepress/config.[js|ts|mjs] not found.');
+      TUI.error('Missing configuration', '.vitepress/config.[js|ts|mjs|mts] not found.');
       // Phase 3 PR 3.A (F6): exit 1 so CI pipelines can gate on it.
       process.exit(1);
     }
@@ -391,9 +391,10 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
     await fs.ensureDir(newDocsDir);
 
     if (isDocsInRoot) {
+      // The project root is the VitePress source dir: copy its folders too (guide/, public/).
       const files = await nativeFs.promises.readdir(backupDir);
       for (const file of files) {
-        if (file.endsWith('.md')) {
+        if (!file.startsWith('.')) {
           await fs.copy(path.resolve(backupDir, file), path.resolve(newDocsDir, file));
         }
       }

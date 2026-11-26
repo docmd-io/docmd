@@ -239,6 +239,29 @@ export const test = runTestFile({
       assert(/out:\s*['"]my-site['"]/.test(written), 'N-22: MkDocs site_dir "my-site" is preserved in the generated config');
     }
 
+    // VitePress with a TypeScript config (`vitepress init` writes .vitepress/config.mts).
+    {
+      const dir = setup('migrate-vitepress-config-mts');
+      writeFile(dir, '.vitepress/config.mts', "export default { title: 'VP TS' }\n");
+      writeFile(dir, 'index.md', '# Home\n');
+
+      execFileSync(process.execPath, [DOCMD, 'migrate', '--vitepress'], { cwd: dir, stdio: 'pipe' });
+      const written = fs.readFileSync(path.join(dir, 'docmd.config.js'), 'utf8');
+      assert(/VP TS/.test(written), 'VitePress: .vitepress/config.mts is found and its title is used');
+    }
+
+    // VitePress at the project root (the `vitepress init` default): pages in folders are migrated.
+    {
+      const dir = setup('migrate-vitepress-root-subfolders');
+      writeFile(dir, '.vitepress/config.mjs', "export default { title: 'VP' }\n");
+      writeFile(dir, 'index.md', '# Home\n');
+      writeFile(dir, 'guide/setup.md', '# Setup\n');
+
+      execFileSync(process.execPath, [DOCMD, 'migrate', '--vitepress'], { cwd: dir, stdio: 'pipe' });
+      assert(fs.existsSync(path.join(dir, 'docs/guide/setup.md')), 'VitePress root layout: guide/setup.md is migrated to docs/');
+      assert(!fs.existsSync(path.join(dir, 'docs/.vitepress')), 'VitePress root layout: .vitepress is not copied to docs/');
+    }
+
     // N-9 — MkDocs nav: is parsed into the docmd navigation.
     {
       const dir = setup('migrate-fix-n9-mkdocs-nav');
