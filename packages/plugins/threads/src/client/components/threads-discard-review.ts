@@ -11,8 +11,22 @@ import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 const STYLE_ID = 'tc-discard-review-styles';
 
 const CSS = `
-  threads-discard-review { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .tdr__error { color: var(--sl-color-danger-700, inherit); font-size: 12px; }
+  threads-discard-review { display: inline-flex; flex-direction: column; align-items: flex-end; position: relative; }
+  .tdr__error {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    white-space: nowrap;
+    background: var(--docmd-bg, #ffffff);
+    color: var(--sl-color-danger-700, #dc2626);
+    border: 1px solid var(--sl-color-danger-300, #fca5a5);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    z-index: 50;
+  }
 `;
 
 /**
@@ -62,7 +76,7 @@ export class ThreadsDiscardReview extends LitElement {
       ${error ? html`<div class="tdr__error" data-testid="discard-error">${error}</div>` : nothing}
       <sl-dialog data-testid="discard-dialog" label=${this.label} ?open=${state !== 'closed'}
         @sl-request-close=${(e: Event) => { if (e.target === e.currentTarget) { e.preventDefault(); this.controller.cancel(); } }}>
-        ${this.confirmText}
+        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--docmd-text, inherit);">${this.confirmText}</p>
         <sl-button slot="footer" variant="neutral" data-testid="discard-cancel" ?disabled=${state === 'discarding'}
           @click=${() => this.controller.cancel()}>${t('cancel')}</sl-button>
         <sl-button slot="footer" variant="danger" data-testid="discard-confirm" ?loading=${state === 'discarding'}

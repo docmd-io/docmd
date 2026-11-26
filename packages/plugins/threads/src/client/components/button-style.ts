@@ -45,6 +45,24 @@ const CSS = `
   .tc-btn.tc-btn--icon { width: ${HEIGHT}; padding: 0; border: none; }
   threads-discard-review sl-button::part(base) {
     ${BASE}
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
+  }
+  threads-discard-review sl-button::part(label) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+  threads-discard-review sl-dialog::part(footer) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
   }
 `;
 

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import type { ActionContext } from '@docmd/api';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
@@ -236,10 +237,25 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
   },
 
   /** Every published or discarded review, newest first. A read: needs no identity. */
-  'threads:list-reviews': async (_payload, ctx): Promise<ReviewSummary[]> =>
-    (await listManifests(ctx))
-      .sort(newestFirst)
-      .map(summarize),
+  'threads:list-reviews': async (_payload, ctx): Promise<ReviewSummary[]> => {
+    const manifests = await listManifests(ctx);
+    if (ctx.config?.workspace?.projects) {
+      const seen = new Set(manifests.map((m) => m.id));
+      for (const p of ctx.config.workspace.projects) {
+        if (!p.src) continue;
+        const subRoot = docsRootOf(ctx, path.join(p.src, 'dummy.md'));
+        const subCtx = { ...ctx, docsRootOf: () => subRoot };
+        const subManifests = await listManifests(subCtx).catch(() => []);
+        for (const m of subManifests) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            manifests.push(m);
+          }
+        }
+      }
+    }
+    return manifests.sort(newestFirst).map(summarize);
+  },
 
   /** Name and/or summarize the caller's open review (`null` clears a field, an absent key keeps it); the manifest takes them at publish. */
   'threads:update-review': async (payload, ctx): Promise<Journal> => {
@@ -373,7 +389,28 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
     // The check runs inside discard, under the lock, on the manifest read there.
     const authorize = (manifest: ReviewManifest | null) =>
       assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
-    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx), authorize });
+    try {
+      return await discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx), authorize });
+    } catch (err: unknown) {
+      if (err instanceof ThreadsError && err.code === 'not-found' && ctx.config?.workspace?.projects) {
+        for (const p of ctx.config.workspace.projects) {
+          if (!p.src) continue;
+          const subRoot = ctx.docsRootOf?.(path.join(p.src, 'dummy.md')) ?? docsRootOf(ctx, path.join(p.src, 'dummy.md'));
+          const subCtx = { ...ctx, docsRootOf: () => subRoot };
+          try {
+            return await discard(caller, subCtx, payload.reviewId, {
+              store: getStore(subCtx),
+              sync: getSync(subCtx),
+              authorize,
+            });
+          } catch (subErr: unknown) {
+            if (subErr instanceof ThreadsError && subErr.code === 'not-found') continue;
+            throw subErr;
+          }
+        }
+      }
+      throw err;
+    }
   },
 };
 
@@ -388,7 +425,11 @@ export const actions: typeof handlers = Object.fromEntries(
     (payload: Payload, ctx: ActionContext) => {
       const file = typeof payload?.file === 'string' && payload.file ? payload.file : undefined;
       const root = docsRootOf(ctx, file);
-      return handler(payload, { ...ctx, docsRootOf: () => root });
+      const originalDocsRootOf = ctx.docsRootOf;
+      return handler(payload, {
+        ...ctx,
+        docsRootOf: (f?: string) => (f && originalDocsRootOf ? originalDocsRootOf(f) : root),
+      });
     },
   ]),
 );

@@ -97,6 +97,26 @@ test('publish-review writes the page and the manifest in the subproject and empt
   assert.deepEqual(readJson(journal(apiDocs)).ops, []);
   assert.ok(!exists(root, '.threads'));
   assert.ok(!exists(mainDocs, '.threads', 'reviews'));
+
+  // Discard without file (as the client sends it) reverses the published review in the subproject
+  const result = await call<{ discarded: boolean }>('threads:discard-review', { ...ALICE, reviewId });
+  assert.equal(result.discarded, true);
+  assert.ok(!fs.readFileSync(safePath(apiDocs, 'guide.md'), 'utf8').includes('published on api'));
+  assert.equal(readJson(path.join(apiDocs, '.threads', 'reviews', `${reviewId}.json`)).state, 'discarded');
+});
+
+test('discard-review empties the caller open review draft in a subproject without file', async () => {
+  const call = dispatcher(workspace, docsRoots());
+  await call('threads:add-thread', { file: API_PAGE, ...ALICE, body: 'draft on api to discard' });
+  const who = await call<{ journal: { review: { id: string }; ops: unknown[] } }>('threads:whoami', { file: API_PAGE, ...ALICE });
+  assert.equal(who.journal.ops.length, 1);
+  const openReviewId = who.journal.review.id;
+
+  const result = await call<{ discarded: boolean }>('threads:discard-review', { ...ALICE, reviewId: openReviewId });
+  assert.equal(result.discarded, true);
+
+  const whoAfter = await call<{ journal: { ops: unknown[] } }>('threads:whoami', { file: API_PAGE, ...ALICE });
+  assert.equal(whoAfter.journal.ops.length, 0);
 });
 
 test('without a subproject for the page, the root config decides, as for a single project', async () => {
