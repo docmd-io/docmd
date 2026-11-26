@@ -8,6 +8,7 @@ import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp } from '../src/plugin/drafts.ts';
 import { applyOps, discard, publish, reverseOps } from '../src/plugin/reviews.ts';
 import { createLock, createNoGitSync, type Sync } from '../src/plugin/lock.ts';
+import { assertCan } from '../src/plugin/permissions.ts';
 import * as parser from '../src/plugin/parser.ts';
 import type { Caller, DraftOp, NewDraftOp, PublishResult, WhoAmI } from '../src/types.ts';
 
@@ -313,6 +314,32 @@ test('discard and publish on one docs root run one after the other', async () =>
   assert.deepEqual(published.skipped, []);
   assert.ok(commentIds(FILE, 't-thread2').includes('c-b2'));
   assert.equal(manifestOf(id).state, 'discarded');
+});
+
+test('discard checks permission on the manifest read under the lock: an author change before the lock refuses and changes nothing', async () => {
+  const id = await publishAliceThenBob();
+  const caller: Caller = { ...ALICE_CALLER, source: 'git' };
+  let manifestBytes = '';
+  const inner = createLock();
+  // Another author's publish lands between the caller's first look and the lock being taken.
+  const sync = createNoGitSync({
+    withLock: (fn) => inner.withLock(async () => {
+      fs.writeFileSync(manifestPath(id), JSON.stringify({ ...manifestOf(id), authorKey: 'k-bob' }, null, 2) + '\n');
+      manifestBytes = readAt(manifestPath(id));
+      return fn();
+    }),
+  });
+  const seen: Array<string | null> = [];
+  const authorize = (m: { authorKey?: string | null } | null) => {
+    seen.push(m ? (m.authorKey ?? null) : null);
+    assertCan(caller, 'discard-review', { reviewAuthor: m ? (m.authorKey ?? null) : caller.key }, { resolve: 'anyone' });
+  };
+  const pages = [read(FILE), read(OTHER)];
+  await assert.rejects(discard(caller, ctx() as never, id, deps({ sync, authorize })), /^ThreadsError: threads\/forbidden: /);
+  assert.deepEqual(seen, ['k-bob']);
+  assert.deepEqual([read(FILE), read(OTHER)], pages, 'pages unchanged');
+  assert.equal(readAt(manifestPath(id)), manifestBytes, 'manifest unchanged');
+  assert.equal(manifestOf(id).state, 'published');
 });
 
 // The failed-reset window: the files and the manifest were written, the journal reset failed.
