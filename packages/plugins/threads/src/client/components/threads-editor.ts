@@ -3,7 +3,7 @@ import { property, state } from 'lit/decorators.js';
 import { t } from '../lib/i18n';
 import { dispatchRequest, requestErrorMessage } from '../lib/request';
 import { fitHeight, needsAutosize } from '../lib/autosize';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { fieldStyles } from './fields';
 import { defineOnce } from './define';
 import './threads-button';
@@ -20,7 +20,7 @@ import './threads-button';
  * `actions`, `cancel`, `submit`. It is not a form participant: read values from `threads-submit`.
  */
 export class ThreadsEditor extends LitElement {
-  static override styles = [baseStyles, fieldStyles, css`
+  static override styles = [baseStyles, errorStyles, fieldStyles, css`
     :host { display: block; }
     .editor {
       border: 1px solid var(--_border);
@@ -34,7 +34,7 @@ export class ThreadsEditor extends LitElement {
       padding: 2px 8px;
       border-left: 3px solid var(--_border-strong);
       color: var(--_fg-muted);
-      font-size: 12px;
+      font-size: var(--_font-size-xs);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -47,7 +47,7 @@ export class ThreadsEditor extends LitElement {
       font-size: var(--_font-size);
       field-sizing: content;
     }
-    .error { margin: 8px 0 0; font-size: 12px; color: var(--_danger); }
+    .error { margin: 8px 0 0; }
     .footer {
       display: flex;
       justify-content: space-between;
@@ -57,7 +57,7 @@ export class ThreadsEditor extends LitElement {
       border-top: 1px solid var(--_border);
       background: var(--_surface-muted);
     }
-    .hint { font-size: 12px; color: var(--_fg-muted); }
+    .hint { font-size: var(--_font-size-xs); color: var(--_fg-muted); }
     .actions { display: flex; gap: 6px; }
   `];
 

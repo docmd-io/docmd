@@ -14,7 +14,8 @@ const optionalBoolean = {
 /**
  * The one button: text, icon, or both. An icon-only button is the same element with no text.
  *
- * Attributes: `variant` (neutral, primary, danger, ghost), `size` (md, sm), `icon` (an icon name),
+ * Attributes: `variant` (neutral, primary, danger, ghost), `danger` (on a ghost button: the danger colour, with
+ * the danger tint on hover), `size` (md, sm), `icon` (an icon name),
  * `label` (accessible name and tooltip; required when there is no text), `disabled`, `busy`,
  * `pressed` and `expanded` (set `aria-pressed` / `aria-expanded` when present).
  * Slots: default (text), `prefix`, `suffix`. Parts: `base`, `icon`, `label`, `spinner`.
@@ -69,6 +70,8 @@ export class ThreadsButton extends LitElement {
     :host([variant='ghost']) .base { background: transparent; border-color: transparent; color: var(--_fg-muted); }
     :host([variant='ghost']) .base:hover { background: var(--_surface-muted); color: var(--_fg); }
     :host([variant='ghost']) .base[aria-pressed='true'] { background: var(--_accent-soft); color: var(--_accent-strong); }
+    :host([variant='ghost'][danger]) .base { color: var(--_danger); }
+    :host([variant='ghost'][danger]) .base:hover { background: var(--_danger-soft); color: var(--_danger); }
 
     .icon { display: inline-flex; align-items: center; }
     .label { display: contents; }
@@ -89,6 +92,8 @@ export class ThreadsButton extends LitElement {
   @property({ reflect: true }) size: 'md' | 'sm' = 'md';
   @property() icon = '';
   @property() label = '';
+  /** With `variant="ghost"`: a quiet destructive action (a delete icon). */
+  @property({ type: Boolean, reflect: true }) danger = false;
   @property({ type: Boolean, reflect: true }) disabled = false;
   @property({ type: Boolean, reflect: true }) busy = false;
   @property({ converter: optionalBoolean, reflect: true }) pressed: boolean | undefined = undefined;

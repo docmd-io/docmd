@@ -27,7 +27,7 @@ export const proseStyles = css`
     overflow-x: auto;
     border-radius: var(--_radius);
     background: var(--_surface-muted);
-    font-size: 12px;
+    font-size: var(--_font-size-xs);
     line-height: 1.5;
   }
   .prose pre code { padding: 0; background: none; font-size: inherit; }

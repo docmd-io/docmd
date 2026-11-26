@@ -53,7 +53,7 @@ export class ThreadsPanel extends LitElement {
       color: var(--_fg);
       transition: width 0.2s ease;
     }
-    .column.open { width: var(--_panel-width); box-shadow: -4px 0 24px rgb(0 0 0 / 0.18); }
+    .column.open { width: var(--_panel-width); box-shadow: var(--_shadow-lg); }
 
     .launcher {
       position: relative;
@@ -100,7 +100,7 @@ export class ThreadsPanel extends LitElement {
       padding: 0 5px;
       box-sizing: border-box;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: var(--_font-size-2xs);
       font-weight: 700;
       line-height: 16px;
       text-align: center;
@@ -148,7 +148,7 @@ export class ThreadsPanel extends LitElement {
       cursor: pointer;
     }
     .tab:hover { color: var(--_fg); }
-    .tab[aria-selected='true'] { color: var(--_fg); border-bottom-color: var(--_accent); }
+    .tab[aria-selected='true'] { background: var(--_accent-soft); color: var(--_accent-strong); border-bottom-color: var(--_accent); }
     .tab:focus-visible { outline: 2px solid var(--_focus); outline-offset: -2px; }
 
     .body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; }
@@ -170,7 +170,7 @@ export class ThreadsPanel extends LitElement {
 
     .group-title {
       padding: 12px 4px 6px;
-      font-size: 11px;
+      font-size: var(--_font-size-2xs);
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;

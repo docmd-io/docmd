@@ -60,7 +60,12 @@
   --threads-font-mono: var(--summer-font-mono, var(--font-family-mono, ui-monospace, monospace));
   --threads-font-size: 14px;
   --threads-font-size-sm: 13px;
+  --threads-font-size-xs: 12px;
+  --threads-font-size-2xs: 11px;
   --threads-line-height: 1.5;
+
+  /* The browser's colour scheme for native controls (the emoji picker's input and scrollbars) */
+  --threads-color-scheme: light;
 
   /* Shape and depth */
   --threads-radius: var(--summer-radius-sm, var(--radius-md, 6px));
@@ -88,6 +93,8 @@
   /* Summer's rose is about 3.7:1 on its dark surface. */
   --threads-danger: #f87171;
   --threads-draft: var(--summer-amber, #fbbf24);
+
+  --threads-color-scheme: dark;
 
   --threads-hl-yellow: hsl(48 96% 60% / 0.22);
   --threads-hl-yellow-strong: hsl(48 96% 65%);

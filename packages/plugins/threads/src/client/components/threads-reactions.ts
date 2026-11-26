@@ -20,7 +20,7 @@ import {
   type Viewer,
 } from '../lib/reactions';
 import type { EmojiPickerElement } from '../vendor/emoji-picker/picker.js';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { defineOnce } from './define';
 import './threads-button';
 
@@ -40,7 +40,7 @@ import './threads-button';
  * button), `add` (the +), `picker`, `error`. It never reads `window.__threads_config`.
  */
 export class ThreadsReactions extends LitElement {
-  static override styles = [baseStyles, css`
+  static override styles = [baseStyles, errorStyles, css`
     :host { display: block; }
     :host([hidden]) { display: none; }
     .base { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -54,7 +54,7 @@ export class ThreadsReactions extends LitElement {
     }
     .chip-emoji { font-size: 14px; line-height: 1; }
     .chip-count { font-variant-numeric: tabular-nums; }
-    .error { flex-basis: 100%; margin: 2px 0 0; font-size: 12px; color: var(--_danger); }
+    .error { flex-basis: 100%; margin: 2px 0 0; }
 
     /* Cards live in the top layer (popover=manual) and are placed with JS. display is only set while open. */
     .card {
@@ -93,6 +93,8 @@ export class ThreadsReactions extends LitElement {
       --button-active-background: var(--_accent-soft);
       --category-font-color: var(--_fg-muted);
       font-family: var(--_font);
+      /* The picker's input and scrollbars are native: they follow the page's light or dark mode. */
+      color-scheme: var(--_color-scheme);
     }
   `];
 

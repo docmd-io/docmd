@@ -4,7 +4,7 @@ import { defineOnce } from './define';
 import * as api from '../lib/api';
 import { createDiscardController } from '../lib/discard-controller';
 import { t } from '../lib/i18n';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import './threads-button';
 import './threads-dialog';
 
@@ -15,9 +15,8 @@ import './threads-dialog';
  * (`detail: { open, outcome }`, outcome `kept`, `discarded` or `failed`) when the confirmation opens and closes.
  */
 export class ThreadsDiscardReview extends LitElement {
-  static override styles = [baseStyles, css`
+  static override styles = [baseStyles, errorStyles, css`
     :host { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-    .error { color: var(--_danger); font-size: 12px; }
   `];
 
   @property({ attribute: false }) reviewId = '';

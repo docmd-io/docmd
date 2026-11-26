@@ -41,7 +41,10 @@ export const tokens = css`
     --_font-mono: var(--threads-font-mono, ui-monospace, monospace);
     --_font-size: var(--threads-font-size, 14px);
     --_font-size-sm: var(--threads-font-size-sm, 13px);
+    --_font-size-xs: var(--threads-font-size-xs, 12px);
+    --_font-size-2xs: var(--threads-font-size-2xs, 11px);
     --_line-height: var(--threads-line-height, 1.5);
+    --_color-scheme: var(--threads-color-scheme, light);
     --_radius: var(--threads-radius, 6px);
     --_radius-lg: var(--threads-radius-lg, 12px);
     --_shadow: var(--threads-shadow, 0 1px 2px rgb(0 0 0 / 0.06));
@@ -67,6 +70,11 @@ export const hostReset = css`
     color: var(--_fg);
     text-align: start;
   }
+`;
+
+/** The one look of an error line under a control or in a dialog; a component adds only its own layout (margin, flex). */
+export const errorStyles = css`
+  .error { margin: 0; font-size: var(--_font-size-xs); line-height: 1.4; color: var(--_danger); }
 `;
 
 /** The usual start of a component's `static styles`: aliases, then the reset. */

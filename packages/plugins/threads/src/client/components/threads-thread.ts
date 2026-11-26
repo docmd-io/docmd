@@ -11,7 +11,7 @@ import type { ShowAction, ShowTarget } from '../lib/can-show';
 import {
   buildCommentTree, canDeleteComment, canEditComment, chooseBodyHtml, summaryText, type CardColor, type TreeNode,
 } from '../lib/thread-view';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { defineOnce } from './define';
 import './threads-button';
 import './threads-comment';
@@ -45,7 +45,7 @@ const FLASH_MS = 2000;
  * `new-comment`, `editor`, `resolve`, `collapse`, `draft`, `status`, `error`, and the comment parts as `comment-*`.
  */
 export class ThreadsThread extends LitElement {
-  static override styles = [baseStyles, css`
+  static override styles = [baseStyles, errorStyles, css`
     :host { display: block; }
     :host([variant='inline']) { max-width: 680px; margin: 16px 0 20px; }
     :host([variant='panel']) { margin: 0 0 12px; }
@@ -95,7 +95,7 @@ export class ThreadsThread extends LitElement {
       padding: 7px 12px;
       border-bottom: 1px solid var(--_border);
       background: var(--_surface-muted);
-      font-size: 12px;
+      font-size: var(--_font-size-xs);
       color: var(--_fg-muted);
     }
     .quote {
@@ -112,9 +112,9 @@ export class ThreadsThread extends LitElement {
       font: inherit;
       text-align: start;
     }
-    button.quote { cursor: pointer; }
-    button.quote:hover { color: var(--_fg); }
-    button.quote:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; border-radius: 2px; }
+    /* The panel's quote is a button: it jumps to the highlight. Same base as every other button, left-aligned. */
+    threads-button.quote-button { display: block; flex: 1 1 140px; min-width: 0; }
+    threads-button.quote-button::part(base) { width: 100%; justify-content: flex-start; font-size: var(--_font-size-xs); padding: 0 6px; }
     .quote-icon { display: inline-flex; flex: none; }
     .quote-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
     .status { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
@@ -134,10 +134,10 @@ export class ThreadsThread extends LitElement {
       padding: 6px 12px 8px;
       border-top: 1px solid var(--_border);
     }
-    .summary { flex: 1 1 100%; font-size: 12px; color: var(--_fg-muted); }
+    .summary { flex: 1 1 100%; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
     .summary[hidden] { display: none; }
     .grow { margin-left: auto; }
-    .error { flex: 1 1 100%; margin: 0; font-size: 12px; color: var(--_danger); }
+    .error { flex: 1 1 100%; }
   `];
 
   @property({ attribute: false }) thread!: Thread;
@@ -292,8 +292,8 @@ export class ThreadsThread extends LitElement {
     let quoteEl;
     if (!quote) quoteEl = nothing;
     else if (this.variant === 'panel' && !this.thread.orphaned) {
-      quoteEl = html`<button class="quote" part="quote" title=${t('jumpToHighlight')}
-        @click=${() => this.emit('threads-reveal-quote', { threadId: this.thread.id })}>${icon}${text}</button>`;
+      quoteEl = html`<threads-button class="quote-button" part="quote" variant="ghost" size="sm" icon="quote" label=${t('jumpToHighlight')}
+        @click=${() => this.emit('threads-reveal-quote', { threadId: this.thread.id })}>${text}</threads-button>`;
     } else {
       quoteEl = html`<div class="quote" part="quote">${icon}${text}</div>`;
     }

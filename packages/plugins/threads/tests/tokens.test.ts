@@ -9,7 +9,7 @@ const read = (rel: string) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 /** Tokens whose dark value deliberately does not repeat the light chain (spec: marked "fixed" or recomputed). */
 const DELIBERATE = new Set([
-  'accent-strong', 'on-accent', 'danger', 'draft',
+  'accent-strong', 'on-accent', 'danger', 'draft', 'color-scheme',
   'hl-yellow', 'hl-yellow-strong', 'hl-blue', 'hl-blue-strong', 'hl-green', 'hl-green-strong',
   'hl-pink', 'hl-pink-strong', 'hl-purple', 'hl-purple-strong', 'hl-orange', 'hl-orange-strong',
 ]);

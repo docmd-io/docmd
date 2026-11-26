@@ -13,7 +13,7 @@ import {
   IDENTITY_NEEDED_EVENT, PROFILE_SAVED_EVENT,
 } from '../lib/identity';
 import { avatar, avatarStyles } from '../lib/avatar';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { fieldStyles } from './fields';
 import './threads-button';
 import { upsertAuthor, fetchAuthors, ThreadsClientError } from '../lib/api';
@@ -26,23 +26,18 @@ import { autoLinkAvailable, choiceFromLink, linkFromChoice, type LinkChoice } fr
  * Parts: `button`, `avatar`, `panel`, `field`, `input`, `link` (the Profile link radio group), `link-url`, `error`, `save`, `cancel`.
  */
 export class ThreadsIdentity extends LitElement {
-  static override styles = [baseStyles, avatarStyles, fieldStyles, css`
+  static override styles = [baseStyles, errorStyles, avatarStyles, fieldStyles, css`
     :host { position: relative; display: flex; align-items: center; }
-    .button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    /* The trigger is a threads-button (icon-only) whose base is drawn as a round avatar. */
+    .button::part(base) {
       width: 32px;
       height: 32px;
       padding: 0;
       overflow: hidden;
       border: 2px solid var(--_border);
       border-radius: 50%;
-      background: var(--_surface);
-      cursor: pointer;
     }
-    .button:hover { border-color: var(--_accent); }
-    .button:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; }
+    .button::part(base):hover { border-color: var(--_accent); }
     .panel {
       position: absolute;
       top: calc(100% + 8px);
@@ -65,8 +60,7 @@ export class ThreadsIdentity extends LitElement {
     .preview { display: flex; justify-content: center; margin-bottom: 4px; }
     .preview .avatar { border: 2px solid var(--_border); }
     label { display: flex; flex-direction: column; gap: 4px; font-size: var(--_font-size-sm); font-weight: 500; }
-    .hint { margin: 0; font-size: 11px; color: var(--_fg-muted); line-height: 1.4; }
-    .hint--error { color: var(--_danger); }
+    .hint { margin: 0; font-size: var(--_font-size-2xs); color: var(--_fg-muted); line-height: 1.4; }
     fieldset.link { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
     fieldset.link legend { padding: 0; margin-bottom: 4px; font-size: var(--_font-size-sm); font-weight: 500; }
     fieldset.link label { flex-direction: row; align-items: center; gap: 6px; font-weight: 400; }
@@ -270,11 +264,10 @@ export class ThreadsIdentity extends LitElement {
     const header = getIdentityMode().mode === 'header';
 
     return html`
-      <button class="button" part="button" type="button" title=${t('discussionIdentity')}
-        aria-label=${t('discussionIdentity')} aria-expanded=${String(this.panelOpen)}
-        @click=${this.togglePanel}>
-        ${avatar({ src: this.avatarUrl, name: this.name, size: 28 })}
-      </button>
+      <threads-button class="button" part="button" variant="ghost" label=${t('discussionIdentity')}
+        .expanded=${this.panelOpen} @click=${this.togglePanel}>
+        <span slot="prefix">${avatar({ src: this.avatarUrl, name: this.name, size: 28 })}</span>
+      </threads-button>
 
       ${this.panelOpen ? html`
         <div class="panel" part="panel">
@@ -308,7 +301,7 @@ export class ThreadsIdentity extends LitElement {
             ${this.linkRadio('none', t('linkNone'))}
             <p class="hint">${t('linkHint')}</p>
           </fieldset>
-          ${this.error ? html`<p class="hint hint--error" part="error" data-testid="identity-error" role="alert">${this.error}</p>` : nothing}
+          ${this.error ? html`<p class="error" part="error" data-testid="identity-error" role="alert">${this.error}</p>` : nothing}
           <p class="hint">${t('avatarHint')}</p>
           <div class="actions">
             <threads-button part="cancel" size="sm" @click=${this.handleCancel}>${t('cancel')}</threads-button>

@@ -6,7 +6,7 @@ import * as api from '../lib/api';
 import { t } from '../lib/i18n';
 import { createPublishTimer } from '../lib/mode';
 import { createPublishController } from '../lib/publish-controller';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { fieldStyles } from './fields';
 import './threads-button';
 import './threads-discard-review';
@@ -34,7 +34,7 @@ const widgetStyles = css`
     border-radius: 999px;
     background: var(--_surface-muted);
     color: var(--_fg-muted);
-    font-size: 12px;
+    font-size: var(--_font-size-xs);
   }
   .pill--auto { background: var(--_accent-soft); color: var(--_accent-strong); }
   .publish { margin-left: auto; }
@@ -53,13 +53,17 @@ const widgetStyles = css`
   .title { display: flex; flex-direction: column; gap: 6px; }
   .title-row { display: flex; gap: 6px; }
   .title-input { flex: 1; }
-  .line { color: var(--_draft); font-size: 12px; }
-  .line--error { color: var(--_danger); }
+  .line { color: var(--_draft); font-size: var(--_font-size-xs); }
   .line--orphan { color: var(--_fg-muted); }
 `;
 
+/**
+ * The publish strip at the foot of the panel: the unpublished count, the countdown ring, Publish, Discard, and the
+ * open review's title and summary.
+ * Parts: `base`, `pill`, `count`, `playpause`, `publish`, `title-form`, `title`, `summary`, `orphan`, `error`.
+ */
 export class ThreadsPublishWidget extends LitElement {
-  static override styles = [baseStyles, fieldStyles, widgetStyles];
+  static override styles = [baseStyles, errorStyles, fieldStyles, widgetStyles];
 
   private controller = createPublishController({
     api,
@@ -129,18 +133,18 @@ export class ThreadsPublishWidget extends LitElement {
 
   private renderTitle() {
     return html`
-      <form class="title" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
+      <form class="title" part="title-form" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
         <div class="title-row">
-          <input class="field title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
+          <input class="field title-input" part="title" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
             aria-label=${t('reviewTitle')} .value=${this.draftTitle}
             @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
           <threads-button data-testid="tpw-title-save" ?disabled=${this.savingTitle} @click=${() => void this.saveTitle()}>${t('save')}</threads-button>
         </div>
-        <textarea class="field" data-testid="tpw-summary" rows="3" placeholder=${t('reviewSummary')}
+        <textarea class="field" part="summary" data-testid="tpw-summary" rows="3" placeholder=${t('reviewSummary')}
           aria-label=${t('reviewSummary')} .value=${this.draftSummary}
           @input=${(e: Event) => { this.draftSummary = (e.target as HTMLTextAreaElement).value; }}></textarea>
       </form>
-      ${this.titleError ? html`<div class="line line--error" part="error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
+      ${this.titleError ? html`<div class="error" part="error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
   }
 
   /** The unpublished count last announced to the page. */
@@ -190,7 +194,7 @@ export class ThreadsPublishWidget extends LitElement {
         </div>
         ${reviewId && opCount > 0 ? this.renderTitle() : nothing}
         ${s.orphanLine ? html`<div class="line line--orphan" part="orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
-        ${s.errorLine ? html`<div class="line line--error" part="error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
+        ${s.errorLine ? html`<div class="error" part="error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>
     `;
   }

@@ -19,22 +19,22 @@ import './threads-discard-review';
  * handled by the host, which calls `refresh()`.
  *
  * Properties: `authors` and `profileUrl` (the review author's name links to their profile when there is one).
- * Parts: `base`, `review`, `title`, `badge`, `meta`, `ops`, `link`, `error`, `empty`.
+ * Parts: `base`, `review`, `title`, `badge`, `meta`, `author` (the linked author name), `ops`, `link`, `error`, `empty`.
  */
 export class ThreadsReviewsPanel extends LitElement {
   static override styles = [baseStyles, css`
     :host { display: block; }
     .base { display: flex; flex-direction: column; gap: 10px; padding: 8px 4px; font-size: var(--_font-size-sm); }
-    .error { color: var(--_fg-muted); font-size: 12px; border: 1px solid var(--_border); border-radius: var(--_radius); padding: 6px 8px; }
+    .error { color: var(--_fg-muted); font-size: var(--_font-size-xs); border: 1px solid var(--_border); border-radius: var(--_radius); padding: 6px 8px; }
     .empty { padding: 48px 24px; text-align: center; color: var(--_fg-muted); line-height: 1.6; }
     .review { border: 1px solid var(--_border); border-radius: var(--_radius-lg); padding: 10px 12px; background: var(--_surface); }
     .review--discarded { opacity: 0.55; }
     .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
     .title { font-weight: 600; }
-    .badge { font-size: 11px; color: var(--_fg-muted); border: 1px solid var(--_border); border-radius: 999px; padding: 0 8px; }
-    .meta { font-size: 12px; color: var(--_fg-muted); margin: 2px 0 6px; }
+    .badge { font-size: var(--_font-size-2xs); color: var(--_fg-muted); border: 1px solid var(--_border); border-radius: 999px; padding: 0 8px; }
+    .meta { font-size: var(--_font-size-xs); color: var(--_fg-muted); margin: 2px 0 6px; }
     .meta a { color: inherit; }
-    .ops { margin: 0 0 4px; padding-left: 16px; font-size: 12px; }
+    .ops { margin: 0 0 4px; padding-left: 16px; font-size: var(--_font-size-xs); }
     .link { color: var(--_accent-strong); text-decoration: none; }
     .link:hover { text-decoration: underline; }
     a:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; }

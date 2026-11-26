@@ -51,14 +51,14 @@ export class ThreadsComment extends LitElement {
     .row { display: flex; gap: 10px; }
     .avatar-col { flex: none; padding-top: 2px; }
     .main { flex: 1; min-width: 0; }
-    .meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 2px; font-size: 12px; color: var(--_fg-muted); }
+    .meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 2px; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
     .author { font-weight: 600; font-size: var(--_font-size-sm); color: var(--_fg-strong); }
     a.author { text-decoration: none; }
     a.author:hover { color: var(--_accent-strong); text-decoration: underline; text-underline-offset: 2px; }
     a.author:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; border-radius: 2px; }
     .draft { display: inline-flex; align-items: center; gap: 4px; color: var(--_draft); }
     .draft::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--_draft); }
-    .reply-to { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: 12px; color: var(--_fg-muted); }
+    .reply-to { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
     .body { font-size: var(--_font-size); line-height: var(--_line-height); overflow-wrap: anywhere; }
     .body.plain { white-space: pre-wrap; }
     .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
@@ -67,7 +67,6 @@ export class ThreadsComment extends LitElement {
     .row:hover .actions, .row:focus-within .actions { opacity: 1; }
     @media (hover: none) { .actions { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .actions { transition: none; } }
-    .delete { --threads-fg-muted: var(--_danger); }
     ::slotted([slot='replies']) { display: block; margin-top: 10px; }
   `];
 
@@ -134,7 +133,7 @@ export class ThreadsComment extends LitElement {
           label=${t('replyToComment')} @click=${() => this.emit('threads-reply', { commentId: id })}>${t('reply')}</threads-button>` : nothing}
         ${this.canEdit ? html`<threads-button part="edit" variant="ghost" size="sm" icon="pencil" label=${t('editComment')}
           @click=${() => { this.editing = true; }}></threads-button>` : nothing}
-        ${this.canDelete ? html`<threads-button class="delete" part="delete" variant="ghost" size="sm" icon="trash" label=${t('deleteComment')}
+        ${this.canDelete ? html`<threads-button part="delete" variant="ghost" danger size="sm" icon="trash" label=${t('deleteComment')}
           @click=${() => this.emit('threads-delete', { commentId: id })}></threads-button>` : nothing}
       </div>
     `;

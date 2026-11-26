@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { dispatchRequest, requestErrorMessage } from '../lib/request';
 import { t } from '../lib/i18n';
-import { baseStyles } from './tokens';
+import { baseStyles, errorStyles } from './tokens';
 import { defineOnce } from './define';
 import './threads-button';
 
@@ -26,7 +26,7 @@ function deepActiveElement(): HTMLElement | null {
  * With no listener calling `waitUntil`, a confirm closes the dialog at once.
  */
 export class ThreadsDialog extends LitElement {
-  static override styles = [baseStyles, css`
+  static override styles = [baseStyles, errorStyles, css`
     :host { display: block; }
     dialog {
       box-sizing: border-box;
@@ -45,7 +45,6 @@ export class ThreadsDialog extends LitElement {
     .panel { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
     .heading { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--_fg-strong); }
     .body { font-size: var(--_font-size); line-height: var(--_line-height); }
-    .error { margin: 0; font-size: 12px; color: var(--_danger); }
     .footer { display: flex; justify-content: flex-end; gap: 8px; }
   `];
 
