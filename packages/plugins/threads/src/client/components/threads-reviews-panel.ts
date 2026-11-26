@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
+import { defineOnce } from './define';
 import { repeat } from 'lit/directives/repeat.js';
 import { t } from '../lib/i18n';
 import * as api from '../lib/api';
@@ -20,7 +21,6 @@ import './threads-discard-review';
  * Properties: `authors` and `profileUrl` (the review author's name links to their profile when there is one).
  * Parts: `base`, `review`, `title`, `badge`, `meta`, `ops`, `link`, `error`, `empty`.
  */
-@customElement('threads-reviews-panel')
 export class ThreadsReviewsPanel extends LitElement {
   static override styles = [baseStyles, css`
     :host { display: block; }
@@ -104,6 +104,8 @@ export class ThreadsReviewsPanel extends LitElement {
       </div>`;
   }
 }
+
+defineOnce('threads-reviews-panel', ThreadsReviewsPanel);
 
 declare global {
   interface HTMLElementTagNameMap {

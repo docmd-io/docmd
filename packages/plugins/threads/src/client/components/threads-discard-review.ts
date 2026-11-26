@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { defineOnce } from './define';
 import * as api from '../lib/api';
 import { createDiscardController } from '../lib/discard-controller';
 import { t } from '../lib/i18n';
@@ -13,7 +14,6 @@ import './threads-dialog';
  * a host that refreshes as a result cancels it. It also dispatches `discard-dialog-change`
  * (`detail: { open, outcome }`, outcome `kept`, `discarded` or `failed`) when the confirmation opens and closes.
  */
-@customElement('threads-discard-review')
 export class ThreadsDiscardReview extends LitElement {
   static override styles = [baseStyles, css`
     :host { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -60,3 +60,5 @@ export class ThreadsDiscardReview extends LitElement {
     `;
   }
 }
+
+defineOnce('threads-discard-review', ThreadsDiscardReview);

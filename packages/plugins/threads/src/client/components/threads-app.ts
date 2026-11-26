@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, render } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { defineOnce } from './define';
 import { repeat } from 'lit/directives/repeat.js';
 import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
@@ -58,7 +59,6 @@ function placeAfterBlock(block: HTMLElement, card: HTMLElement): void {
   ref.insertAdjacentElement('afterend', card);
 }
 
-@customElement('threads-app')
 export class ThreadsApp extends LitElement {
   override createRenderRoot() { return this; }
 
@@ -931,3 +931,5 @@ export class ThreadsApp extends LitElement {
     `;
   }
 }
+
+defineOnce('threads-app', ThreadsApp);

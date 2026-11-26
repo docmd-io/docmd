@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { defineOnce } from './define';
 import { t } from '../lib/i18n';
 import {
   getAuthor, setAuthor,
@@ -24,7 +25,6 @@ import { choiceFromLink, linkFromChoice, type LinkChoice } from '../lib/profile-
  * opens by itself when a write needs a name (the `threads-identity-needed` event on `document`).
  * Parts: `button`, `avatar`, `panel`, `field`, `input`, `link` (the Profile link radio group), `link-url`, `error`, `save`, `cancel`.
  */
-@customElement('threads-identity')
 export class ThreadsIdentity extends LitElement {
   static override styles = [baseStyles, avatarStyles, fieldStyles, css`
     :host { position: relative; display: flex; align-items: center; }
@@ -310,3 +310,5 @@ export class ThreadsIdentity extends LitElement {
     `;
   }
 }
+
+defineOnce('threads-identity', ThreadsIdentity);

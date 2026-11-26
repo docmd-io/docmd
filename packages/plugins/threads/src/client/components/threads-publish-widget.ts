@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { defineOnce } from './define';
 import { keyed } from 'lit/directives/keyed.js';
 import * as api from '../lib/api';
 import { t } from '../lib/i18n';
@@ -57,7 +58,6 @@ const widgetStyles = css`
   .line--orphan { color: var(--_fg-muted); }
 `;
 
-@customElement('threads-publish-widget')
 export class ThreadsPublishWidget extends LitElement {
   static override styles = [baseStyles, fieldStyles, widgetStyles];
 
@@ -195,3 +195,5 @@ export class ThreadsPublishWidget extends LitElement {
     `;
   }
 }
+
+defineOnce('threads-publish-widget', ThreadsPublishWidget);
