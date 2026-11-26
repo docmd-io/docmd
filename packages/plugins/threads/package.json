@@ -11,6 +11,7 @@
       "default": "./dist/index.js"
     },
     "./components": {
+      "types": "./dist/client/components.d.ts",
       "default": "./dist/client/components.js"
     },
     "./threads.css": "./dist/client/index.css"
@@ -38,7 +39,7 @@
     "requiresLiveServer": true
   },
   "scripts": {
-    "build": "tsc && node build.js",
+    "build": "tsc && tsc -p tsconfig.components.json && node build.js",
     "build:client": "node build.js",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test"
