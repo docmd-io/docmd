@@ -5,9 +5,7 @@ import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
 import { initIdentity, getIdentityPayload, getIdentityMode, getViewer, canShowFor } from '../lib/identity';
 import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent, pathHasThreadsElement } from '../lib/selection';
-import { injectComponentStyles } from './styles';
 import { t } from '../lib/i18n';
-import { createSvgElement } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
 import type { RequestDetail } from '../lib/request';
 import { threadIdFromHash } from '../lib/reviews-view';
@@ -145,7 +143,6 @@ export class ThreadsApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    injectComponentStyles();
     for (const [type, listener] of this.cardEvents) document.addEventListener(type, listener);
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
@@ -220,11 +217,12 @@ export class ThreadsApp extends LitElement {
 
       heading.classList.add('threads-heading-wrap');
 
-      const btn = document.createElement('button');
+      const btn = document.createElement('threads-button');
       btn.className = 'threads-new-thread-btn';
-      btn.appendChild(createSvgElement('plus', 13));
-      btn.appendChild(document.createTextNode(' ' + t('newThread')));
-      btn.title = t('startThread');
+      btn.setAttribute('size', 'sm');
+      btn.setAttribute('icon', 'plus');
+      btn.setAttribute('label', t('startThread'));
+      btn.textContent = t('newThread');
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -533,7 +531,6 @@ export class ThreadsApp extends LitElement {
       }
       for (const cls of [...mark.classList]) if (cls.startsWith('threads-hl-')) mark.classList.remove(cls);
       mark.classList.add(`threads-hl-${this.colors.get(threadId)}`);
-      mark.style.cursor = 'pointer';
       mark.onclick = (e) => {
         e.stopPropagation();
         if (this.hydrated) this.revealInPanel(threadId);

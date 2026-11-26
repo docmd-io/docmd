@@ -152,3 +152,130 @@ body.tc-panel-open .summer-layout { margin-right: var(--threads-panel-width, 380
 }
 /* In sidebar mode the panel shows every thread: the server's cards are not repeated. */
 body.tc-sidebar-active .threads-sidebar { display: none !important; }
+
+/* ===== Marks in the article text ===== */
+mark.threads-highlight {
+  color: inherit;
+  border-radius: 2px;
+  padding: 1px 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+mark.threads-highlight:hover { opacity: 0.75; }
+mark.threads-hl-yellow { background: var(--threads-hl-yellow); border-bottom: 2px solid var(--threads-hl-yellow-strong); }
+mark.threads-hl-blue { background: var(--threads-hl-blue); border-bottom: 2px solid var(--threads-hl-blue-strong); }
+mark.threads-hl-green { background: var(--threads-hl-green); border-bottom: 2px solid var(--threads-hl-green-strong); }
+mark.threads-hl-pink { background: var(--threads-hl-pink); border-bottom: 2px solid var(--threads-hl-pink-strong); }
+mark.threads-hl-purple { background: var(--threads-hl-purple); border-bottom: 2px solid var(--threads-hl-purple-strong); }
+mark.threads-hl-orange { background: var(--threads-hl-orange); border-bottom: 2px solid var(--threads-hl-orange-strong); }
+mark.threads-thread--flash { animation: threads-mark-flash 2s ease-out; }
+@keyframes threads-mark-flash {
+  0% { outline: 2px solid var(--threads-accent); outline-offset: 4px; }
+  100% { outline: 2px solid transparent; outline-offset: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  mark.threads-thread--flash { animation: none; outline: 2px solid var(--threads-accent); outline-offset: 2px; }
+}
+
+/* ===== Per-heading New thread button: revealed on hover or focus ===== */
+.threads-heading-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.threads-heading-wrap > .threads-new-thread-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.threads-heading-wrap:hover > .threads-new-thread-btn,
+.threads-heading-wrap:focus-within > .threads-new-thread-btn,
+.threads-heading-wrap > .threads-new-thread-btn:focus-within { opacity: 1; }
+@media (hover: none) {
+  .threads-heading-wrap > .threads-new-thread-btn { opacity: 1; }
+}
+
+/* ===== The no-JS view: the build's own HTML, readable without the components ===== */
+.threads-sidebar {
+  margin: 24px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--threads-font);
+}
+.threads-thread {
+  margin: 14px 0;
+  border: 1px solid var(--threads-border);
+  border-left: 3px solid var(--threads-accent);
+  border-radius: var(--threads-radius-lg);
+  background: var(--threads-surface);
+  overflow: hidden;
+  box-shadow: var(--threads-shadow);
+}
+.threads-thread--resolved { opacity: 0.6; }
+.threads-anchor {
+  margin: 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--threads-border-strong);
+  color: var(--threads-fg-muted);
+  font-size: var(--threads-font-size-sm);
+  font-style: italic;
+}
+.threads-comment {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 10px 14px;
+  font-size: var(--threads-font-size);
+}
+.threads-comment--reply { grid-template-columns: 24px 1fr; padding-left: 24px; }
+.threads-comment__meta {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--threads-fg-muted);
+}
+.threads-comment__meta strong { color: var(--threads-fg); font-weight: 600; }
+.threads-comment__meta a,
+.threads-reactions a { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.threads-comment__meta a:hover,
+.threads-reactions a:hover { color: var(--threads-accent); text-decoration-style: solid; }
+.threads-comment__body {
+  grid-column: 2;
+  color: var(--threads-fg);
+  line-height: var(--threads-line-height);
+}
+.threads-comment__body p { margin: 0 0 6px; }
+.threads-comment__body p:last-child { margin-bottom: 0; }
+.threads-reactions { margin-top: 8px; }
+.threads-reactions ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.threads-reactions li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--threads-border);
+  background: var(--threads-surface-muted);
+  font-size: var(--threads-font-size-sm);
+  line-height: 1;
+}
+
+/* No flash of unstyled components before they upgrade. */
+threads-comment:not(:defined),
+threads-reactions:not(:defined),
+threads-editor:not(:defined),
+threads-panel:not(:defined),
+threads-button:not(:defined) { visibility: hidden; }
