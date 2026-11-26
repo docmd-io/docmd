@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Comment } from '../src/types';
 import {
-  buildCommentTree, summaryText, chooseBodyHtml, canEditComment, canDeleteComment, deleteScope, colorAt, emojiLang, pickerUrls,
+  buildCommentTree, summaryText, chooseBodyHtml, canEditComment, canDeleteComment, deleteScope, statusColor, emojiLang, pickerUrls,
 } from '../src/client/lib/thread-view.ts';
 
 const c = (id: string, over: Partial<Comment> = {}): Comment => ({
@@ -204,9 +204,14 @@ test('delete: with several comments it is a comment delete with the server\'s ta
 // colour, picker URLs
 // ---------------------------------------------------------------------------
 
-test('colorAt cycles through the six highlight names', () => {
-  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map(colorAt), ['yellow', 'blue', 'green', 'pink', 'purple', 'orange', 'yellow', 'blue']);
-  assert.equal(colorAt(-1), 'orange');
+test('statusColor: blue when published and open, green when resolved, orange for a draft', () => {
+  assert.equal(statusColor({ comments: [c('a')] }), 'blue');
+  assert.equal(statusColor({ resolved: true, comments: [c('a')] }), 'green');
+  assert.equal(statusColor({ draft: true, comments: [c('a')] }), 'orange');
+  assert.equal(statusColor({ comments: [c('a', { draft: true })] }), 'orange', 'an unpublished opening comment is a draft thread');
+  assert.equal(statusColor({ comments: [c('a'), c('b', { draft: true })] }), 'blue', 'a draft reply does not make the thread a draft');
+  assert.equal(statusColor({ resolved: true, comments: [c('a', { draft: true })] }), 'orange', 'a draft stays orange when resolved');
+  assert.equal(statusColor({ comments: [] }), 'blue');
 });
 
 test('emojiLang: the primary subtag when its data is built, English otherwise', () => {

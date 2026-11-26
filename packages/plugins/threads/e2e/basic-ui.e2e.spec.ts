@@ -75,30 +75,17 @@ test.describe("threads plugin - basic UI", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("highlights have cycling colors (not all the same)", async () => {
+  test("highlights are coloured by status: published blue, resolved green", async () => {
     await user.perform(NavigateTo.path("/"));
     await waitForClientProcessing(user.page);
 
-    const highlights = user.page.locator("mark.threads-highlight[data-thread-id]");
-    const count = await highlights.count();
-
-    if (count < 2) {
-      test.skip(true, "Need at least 2 highlights to test color cycling");
-      return;
-    }
-
-    // Collect all highlight color classes
-    const colorClasses: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const classList = await highlights.nth(i).evaluate((el) =>
-        Array.from(el.classList).filter((c) => c.startsWith("threads-hl-")),
-      );
-      colorClasses.push(...classList);
-    }
-
-    // With 2+ highlights, we should see at least 2 different colors
-    const uniqueColors = new Set(colorClasses);
-    expect(uniqueColors.size).toBeGreaterThanOrEqual(2);
+    const colourOf = (id: string) =>
+      user.page
+        .locator(`mark.threads-highlight[data-thread-id="${id}"]`)
+        .first()
+        .evaluate((el) => Array.from(el.classList).filter((c) => c.startsWith("threads-hl-")));
+    expect(await colourOf("t-thread1")).toEqual(["threads-hl-blue"]);
+    expect(await colourOf("t-thread3")).toEqual(["threads-hl-green"]);
   });
 
   test("thread cards are placed inline after their highlighted block", async () => {

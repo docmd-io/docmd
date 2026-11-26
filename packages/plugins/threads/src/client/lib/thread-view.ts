@@ -151,13 +151,17 @@ export function canDeleteComment(
   return canShow('delete-comment', deleteCommentTarget(thread.comments, commentId));
 }
 
-/** The six highlight names marks and cards cycle through; `neutral` is for threads with no mark. */
+/** The highlight names a mark or card can wear; `neutral` is for threads with no mark. */
 export const HIGHLIGHT_NAMES = ['yellow', 'blue', 'green', 'pink', 'purple', 'orange'] as const;
 export type CardColor = (typeof HIGHLIGHT_NAMES)[number] | 'neutral';
 
-/** The colour of the nth mark in the page (cycling). */
-export function colorAt(index: number): CardColor {
-  return HIGHLIGHT_NAMES[((index % HIGHLIGHT_NAMES.length) + HIGHLIGHT_NAMES.length) % HIGHLIGHT_NAMES.length]!;
+/**
+ * The colour that says where a thread stands: orange while it is a draft (not yet published), green once
+ * resolved, blue when it is published and open. A draft stays orange when resolved: it is not published yet.
+ */
+export function statusColor(thread: Pick<Thread, 'draft' | 'resolved' | 'comments'>): CardColor {
+  if (thread.draft || thread.comments[0]?.draft) return 'orange';
+  return thread.resolved ? 'green' : 'blue';
 }
 
 /** The languages the emoji data is built for (build.js copies the same list). */

@@ -14,7 +14,7 @@ import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 import { hideRawSidebars } from '../lib/raw-sidebars';
 import { QUICK_REACTIONS, toReactionViews } from '../lib/reactions';
-import { colorAt, deleteScope, pickerUrls, type CardColor } from '../lib/thread-view';
+import { statusColor, deleteScope, pickerUrls, type CardColor } from '../lib/thread-view';
 
 import './threads-button';
 import './threads-dialog';
@@ -551,18 +551,19 @@ export class ThreadsApp extends LitElement {
   // ─── Marks, cards and hydration ────────────────────────────────────
 
   /**
-   * Colour the page's marks (one colour per thread, cycling) and make each open its thread in the
-   * panel. Runs whether or not the load succeeded: with no data a click scrolls to the server card.
+   * Colour the page's marks by where their thread stands (blue published, orange draft, green resolved)
+   * and make each open its thread in the panel. Runs whether or not the load succeeded: with no data a
+   * mark is blue and a click scrolls to the server card.
    */
   private scanMarks(): void {
     this.marks.clear();
     this.colors.clear();
-    let next = 0;
     for (const mark of document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]')) {
       const threadId = mark.dataset.threadId;
       if (!threadId) continue;
       if (!this.colors.has(threadId)) {
-        this.colors.set(threadId, colorAt(next++));
+        const thread = this.threads.find((th) => th.id === threadId);
+        this.colors.set(threadId, thread ? statusColor(thread) : 'blue');
         this.marks.set(threadId, mark);
       }
       for (const cls of [...mark.classList]) if (cls.startsWith('threads-hl-')) mark.classList.remove(cls);
