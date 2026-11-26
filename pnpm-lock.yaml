@@ -243,8 +243,8 @@ importers:
         specifier: ^0.1.6
         version: 0.1.6
       lite-hl:
-        specifier: ^0.2.1
-        version: 0.2.1
+        specifier: ^0.2.2
+        version: 0.2.2
       lite-matter:
         specifier: ^0.1.2
         version: 0.1.2
@@ -1799,8 +1799,8 @@ packages:
   lit@3.3.3:
     resolution: {integrity: sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw==}
 
-  lite-hl@0.2.1:
-    resolution: {integrity: sha512-xFuCX47Lg9RowJsOKt12+RTPY4AVewib+XCBr5LOjAoaJ7mh8V2TxvuZS8ersMvoswTq3RqL39ofpj9y9SVfkA==}
+  lite-hl@0.2.2:
+    resolution: {integrity: sha512-BWxFbgEagJ3TE8CmvkHxqLOsbu/Rfr/z3SgLMK9vvTLz37Hb/wVxzzXSw14wQ+3TmyWAS97R0gXrpdHoWz93pQ==}
 
   lite-matter@0.1.2:
     resolution: {integrity: sha512-cGSYxO6vcipYZBSF5dUtDF3IqbkNxSjVQuvs5Ol3fO35URzHEvG2Ml0KbH5kvXXsx33SgbfwiVp6afwovarD8A==}
@@ -3264,7 +3264,7 @@ snapshots:
       lit-element: 4.2.2
       lit-html: 3.3.3
 
-  lite-hl@0.2.1: {}
+  lite-hl@0.2.2: {}
 
   lite-matter@0.1.2:
     dependencies:
