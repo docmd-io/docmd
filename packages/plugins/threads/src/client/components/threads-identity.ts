@@ -10,7 +10,7 @@ import {
   computeAvatarUrl,
   computeAuthorKey, getAuthorKey, setAuthorKey,
   getIdentityMode, setHeaderProfile,
-  IDENTITY_NEEDED_EVENT,
+  IDENTITY_NEEDED_EVENT, PROFILE_SAVED_EVENT,
 } from '../lib/identity';
 import { avatar, avatarStyles } from '../lib/avatar';
 import { baseStyles } from './tokens';
@@ -81,6 +81,11 @@ export class ThreadsIdentity extends LitElement {
   @state() private error: string | null = null;
   @state() private linkChoice: LinkChoice = 'none';
   @state() private linkUrl = '';
+  /**
+   * The stored setting has been read into the radios. Until then they are disabled and none shows as chosen, so a
+   * pick can never be overwritten by the load (a radio drawn checked before the load would swallow a click on it).
+   */
+  @state() private linkReady = false;
   /** The stored `link` has been read; until then, and until the person touches the setting, the save leaves it alone. */
   private linkTouched = false;
 
@@ -92,6 +97,7 @@ export class ThreadsIdentity extends LitElement {
 
   /** A write found no name: show the panel with the reason. */
   private identityNeededHandler = () => {
+    if (!this.panelOpen) void this.loadLink();
     this.panelOpen = true;
     this.error = t('identityRequired');
   };
@@ -144,15 +150,17 @@ export class ThreadsIdentity extends LitElement {
   /** Show the stored setting: read this person's entry from authors.json. */
   private async loadLink(): Promise<void> {
     this.linkTouched = false;
+    this.linkReady = false;
     const key = this.myKey();
     let link: string | false | undefined;
     if (key !== null) {
       const authors = await fetchAuthors();
-      if (!this.panelOpen || this.linkTouched) return;
+      if (!this.panelOpen) return;
       link = Object.hasOwn(authors, key) ? authors[key]?.link : undefined;
     }
     this.linkChoice = choiceFromLink(link, this.autoAvailable);
     this.linkUrl = typeof link === 'string' ? link : '';
+    this.linkReady = true;
   }
 
   private pickLink(choice: LinkChoice): void {
@@ -197,6 +205,7 @@ export class ThreadsIdentity extends LitElement {
       this.error = null;
       setHeaderProfile(this.name, this.avatarUrl);
       this.panelOpen = false;
+      document.dispatchEvent(new CustomEvent(PROFILE_SAVED_EVENT));
       return;
     }
 
@@ -238,6 +247,7 @@ export class ThreadsIdentity extends LitElement {
 
     this.error = null;
     this.panelOpen = false;
+    document.dispatchEvent(new CustomEvent(PROFILE_SAVED_EVENT));
   }
 
   private async refreshAvatar(): Promise<void> {
@@ -252,7 +262,7 @@ export class ThreadsIdentity extends LitElement {
   }
 
   private linkRadio(choice: LinkChoice, text: string) {
-    return html`<label><input type="radio" name="link-choice" .checked=${this.linkChoice === choice}
+    return html`<label><input type="radio" name="link-choice" .checked=${this.linkReady && this.linkChoice === choice}
       @change=${() => this.pickLink(choice)} />${text}</label>`;
   }
 
@@ -286,7 +296,7 @@ export class ThreadsIdentity extends LitElement {
             <input id="identity-email" class="field" part="field input" type="email"
               .value=${this.email} placeholder="you@example.com" />
           </label>
-          <fieldset class="link" part="link">
+          <fieldset class="link" part="link" ?disabled=${!this.linkReady}>
             <legend>${t('profileLink')}</legend>
             ${this.autoAvailable ? this.linkRadio('auto', t('linkAutomatic')) : nothing}
             ${this.linkRadio('custom', t('linkCustom'))}

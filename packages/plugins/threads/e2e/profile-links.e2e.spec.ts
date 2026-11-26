@@ -65,6 +65,16 @@ test.describe("names link to the profile pattern", () => {
     await expect(page.locator(`threads-panel threads-thread[data-thread-id="${id}"] a[part~="author"]`).first()).toHaveAttribute("href", "https://github.com/TestUser");
   });
 
+  test("the name in a draft comment links before the review is published", async ({ page }) => {
+    await overrideSiteConfig(page, { profileUrl: PATTERN });
+    await page.reload();
+    await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
+    await setAuthor(page, "TestUser");
+    await new Actor("TestUser", page).perform(StartThreadOn.on(contentSelector, "verify core engine", "A draft with a linked author"));
+    const card = inlineCards(page).filter({ hasText: "A draft with a linked author" });
+    await expect(card.locator('a[part~="author"]').first()).toHaveAttribute("href", /^https:\/\/github\.com\/./);
+  });
+
   test("without a profile pattern the name is plain text", async ({ page }) => {
     const { id } = await seedAndReload(page, { body: "Comment with a plain author", anchor: ANCHOR });
     const card = inlineCard(page, id);
@@ -87,21 +97,19 @@ test.describe("names link to the profile pattern", () => {
 
 test.describe("the Profile link setting", () => {
   /**
-   * Open the identity panel (the site has a pattern, so the stored setting reads as Automatic once loaded),
-   * run `fill` on its Profile link group, and save.
+   * Open the identity panel, run `fill` on its Profile link group (the radios are disabled until the stored setting
+   * is read, so the pick waits for that), and save.
    */
   async function saveProfileLink(page: Page, fill: (group: Locator) => Promise<void>): Promise<void> {
     const identity = page.locator("threads-identity");
     await identity.getByRole("button", { name: "Discussion identity" }).click();
     const group = identity.getByRole("group", { name: "Profile link" });
-    await expect(group.getByRole("radio", { name: "Automatic" })).toBeChecked();
     await fill(group);
     await identity.getByRole("button", { name: "Save" }).click();
   }
 
   /**
-   * Write a thread through the UI and publish it: the viewer's own comment, keyed by the viewer's stored key. (A
-   * draft carries no key until it is published, so its name cannot link yet.)
+   * Write a thread through the UI and publish it: the viewer's own comment, keyed by the viewer's stored key.
    */
   async function publishOwnComment(page: Page, text: string): Promise<Locator> {
     await new Actor("TestUser", page).perform(StartThreadOn.on(contentSelector, "verify core engine", text));
@@ -134,7 +142,6 @@ test.describe("the Profile link setting", () => {
     await page.locator("threads-identity").getByRole("textbox", { name: "Custom link" }).fill("https://example.com/me");
     await page.locator("threads-identity").getByRole("button", { name: "Save" }).click();
     await expect(page.locator("threads-identity").getByRole("group", { name: "Profile link" })).toBeHidden();
-    await waitForReload(page);
     card = inlineCards(page).filter({ hasText: "Comment of a person who sets a link" });
     await expect(card.locator('a[part~="author"]').first()).toHaveAttribute("href", "https://example.com/me");
   });
@@ -163,7 +170,6 @@ test.describe("the Profile link setting", () => {
       await group.getByRole("radio", { name: "No link" }).check();
     });
     await expect(page.locator("threads-identity").getByRole("group", { name: "Profile link" })).toBeHidden();
-    await waitForReload(page);
     card = inlineCards(page).filter({ hasText: "Comment of a person who turns linking off" });
     await expect(card.locator('[part~="author"]').first()).toHaveText("TestUser");
     await expect(card.locator('a[part~="author"]')).toHaveCount(0);

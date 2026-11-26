@@ -4,7 +4,7 @@ import { defineOnce } from './define';
 import { repeat } from 'lit/directives/repeat.js';
 import type { Thread, Anchor, AuthorsMap, Reaction } from '../../types';
 import * as api from '../lib/api';
-import { initIdentity, getIdentityPayload, getIdentityMode, getViewer, canShowFor } from '../lib/identity';
+import { initIdentity, getIdentityPayload, getIdentityMode, getViewer, canShowFor, PROFILE_SAVED_EVENT } from '../lib/identity';
 import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent, pathHasThreadsElement } from '../lib/selection';
 import { t } from '../lib/i18n';
 import { createPublishMount } from '../lib/publish-mount';
@@ -137,6 +137,7 @@ export class ThreadsApp extends LitElement {
     document.removeEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
     window.removeEventListener('hashchange', this.handleHashChange);
     document.removeEventListener('reviews-changed', this.handleReviewsChanged);
+    document.removeEventListener(PROFILE_SAVED_EVENT, this.handleProfileSaved);
     document.removeEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
     this.publishMount.stop();
   }
@@ -149,6 +150,7 @@ export class ThreadsApp extends LitElement {
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
     window.addEventListener('hashchange', this.handleHashChange);
     document.addEventListener('reviews-changed', this.handleReviewsChanged);
+    document.addEventListener(PROFILE_SAVED_EVENT, this.handleProfileSaved);
     document.addEventListener('unpublished-count-change', this.handleUnpublishedCount as EventListener);
 
     this.initPanel();
@@ -468,6 +470,15 @@ export class ThreadsApp extends LitElement {
     mark.classList.add('threads-thread--flash');
     setTimeout(() => mark.classList.remove('threads-thread--flash'), 2000);
   }
+
+  /** A profile was saved (name, avatar or Profile link): re-read authors.json and redraw the names. */
+  private handleProfileSaved = (): void => {
+    void api.fetchAuthors().then((authors) => {
+      if (!authors || typeof authors !== 'object') return;
+      this.authorsMap = authors;
+      if (this.hydrated) this.renderCards();
+    });
+  };
 
   private async loadThreads(): Promise<void> {
     await this.identityReady;

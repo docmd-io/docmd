@@ -157,6 +157,9 @@ export async function initIdentity(whoami: () => Promise<WhoAmI>): Promise<void>
 /** Dispatched on `document` when a write needs a name nobody has set: the identity panel opens on it. */
 export const IDENTITY_NEEDED_EVENT = 'threads-identity-needed';
 
+/** Dispatched on `document` after the identity panel saved a profile: the app re-reads authors.json and re-renders its names. */
+export const PROFILE_SAVED_EVENT = 'threads-profile-saved';
+
 /** A write was attempted with no display name set. Carries the wire form of the code so `errorCode` reads it. */
 export class IdentityRequiredError extends Error {
   readonly code = 'threads/identity-required';
