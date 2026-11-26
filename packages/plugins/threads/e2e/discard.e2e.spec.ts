@@ -6,7 +6,7 @@
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
+import { tolerateReload, cleanThreads, emptyOpenReview, ensureAuthorProfile, openPanel, removeAuthorProfile, setAuthor } from "./helpers.ts";
 
 const site = process.env["THREADS_E2E_SITE"]!;
 const index = safePath(site, "docs/index.md");
@@ -67,10 +67,10 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
   const open = page.getByTestId("discard-open");
   // Retried as a whole: a late dev-server reload closes the drawer.
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click();
+    await openPanel(page, 1_000);
     await expect(count).toHaveText("1 unpublished comment", { timeout: 1_000 });
     // The draft is not in the served markdown: its card is in the drawer body.
-    await expect(page.locator(".tc-panel__body").getByText("to be discarded")).toBeVisible({ timeout: 1_000 });
+    await expect(page.locator("threads-panel").getByText("to be discarded")).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   // The client highlights its quote after the load.
   const mark = page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`);
@@ -79,10 +79,10 @@ test("Discard asks first, then drops the drafts and leaves the markdown and mani
 
   // Cancel closes the dialog and changes nothing.
   await open.click();
-  await expect(page.getByTestId("discard-dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByTestId("discard-dialog")).toContainText("(1)");
   await page.getByTestId("discard-cancel").click();
-  await expect(page.getByTestId("discard-dialog")).toBeHidden();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(count).toHaveText("1 unpublished comment");
 
   // Confirm empties the review and the page.

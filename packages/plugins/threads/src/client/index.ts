@@ -1,4 +1,4 @@
-import '@shoelace-style/shoelace/dist/themes/light.css';
+import './threads.css';
 import './components/threads-app';
 
 function init(): void {

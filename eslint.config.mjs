@@ -53,7 +53,7 @@ export default [
     }
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/site/**', 'temp-*/**', '**/public/**']
+    ignores: ['**/dist/**', '**/node_modules/**', '**/site/**', 'temp-*/**', '**/public/**', 'packages/plugins/threads/src/client/vendor/**']
   },
   {
     // docmd internal security rules — Phase 0 failsafe for DEVELOPMENT-BENCHMARK.md S1 and S3.

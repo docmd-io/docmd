@@ -1,6 +1,11 @@
 export interface Author {
   name: string;
   avatarUrl: string;
+  /**
+   * Where the name links to. Absent: automatic (the site's `profileUrl` pattern, or no link when
+   * that is unset). A string: the author's own http(s) link. `false`: no link anywhere.
+   */
+  link?: string | false;
 }
 
 export interface AuthorsMap {
@@ -33,11 +38,24 @@ export interface Comment {
   reactions: Reaction[];
   /** Set on the caller's own unpublished comments. */
   draft?: true;
+  /** Set when the caller has an unpublished edit of this published comment. */
+  pendingEdit?: true;
+  /** Set by `get-threads` on comments whose body comes from the caller's journal (drafts, pending edits): the body rendered to HTML. */
+  bodyHtml?: string;
 }
 
 export interface Reaction {
   emoji: string;
-  authors: string[];
+  reactors: Reactor[];
+}
+
+/**
+ * One person who reacted. `key` is their identity key; `null` for an entry stored by name only
+ * (written before keys were recorded).
+ */
+export interface Reactor {
+  key: string | null;
+  name: string;
 }
 
 export interface Anchor {
@@ -125,7 +143,7 @@ export interface Journal {
    * The caller's own author entry, waiting for their next publish (set only under serve with git
    * sync on; a later edit replaces it). Absent on journals that never had one.
    */
-  profile?: { name: string; avatarUrl: string };
+  profile?: { name: string; avatarUrl: string; link?: string | false };
 }
 
 export type DraftMode = 'auto' | 'collect';

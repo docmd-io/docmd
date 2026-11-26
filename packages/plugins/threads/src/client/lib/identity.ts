@@ -154,15 +154,32 @@ export async function initIdentity(whoami: () => Promise<WhoAmI>): Promise<void>
   }
 }
 
+/** Dispatched on `document` when a write needs a name nobody has set: the identity panel opens on it. */
+export const IDENTITY_NEEDED_EVENT = 'threads-identity-needed';
+
+/** Dispatched on `document` after the identity panel saved a profile: the app re-reads authors.json and re-renders its names. */
+export const PROFILE_SAVED_EVENT = 'threads-profile-saved';
+
+/** A write was attempted with no display name set. Carries the wire form of the code so `errorCode` reads it. */
+export class IdentityRequiredError extends Error {
+  readonly code = 'threads/identity-required';
+  constructor() {
+    super('threads/identity-required: Set your name first');
+    this.name = 'IdentityRequiredError';
+  }
+}
+
+/**
+ * The display name for a write. With none stored (local mode) nothing is invented and nobody is
+ * prompted with a blocking dialog: the identity panel is asked to open and the write is rejected
+ * with `threads/identity-required`, which the editor shows as "Set your name first".
+ */
 export function ensureAuthor(): string {
   if (identity.mode === 'header') return identity.payload.author;
-  let author = getAuthor();
+  const author = getAuthor()?.trim();
   if (!author) {
-    author = prompt('Enter your display name for discussions:');
-    if (!author || !author.trim()) {
-      author = 'Anonymous';
-    }
-    setAuthor(author.trim());
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent(IDENTITY_NEEDED_EVENT));
+    throw new IdentityRequiredError();
   }
 
   // Ensure author key exists
@@ -194,4 +211,16 @@ export function getStoredIdentity(): { author: string; authorKey: string; avatar
   if (!author) return null;
   const authorKey = getAuthorKey() || computeAuthorKey(author, getGithub() || '');
   return { author, authorKey, avatarUrl: getAvatarUrl() || '' };
+}
+
+/**
+ * Who the server records for this browser's writes, as the reaction and edit rules compare it: the
+ * header profile (key and name) under a trusted identity, else the local key and typed name.
+ * The key is null until a name has been set.
+ */
+export function getViewer(): { key: string | null; name: string } {
+  if (identity.mode === 'header') return { key: identity.payload.authorKey, name: identity.payload.author };
+  const name = getAuthor()?.trim() ?? '';
+  if (!name) return { key: null, name: '' };
+  return { key: getAuthorKey() || computeAuthorKey(name, getGithub() || ''), name };
 }

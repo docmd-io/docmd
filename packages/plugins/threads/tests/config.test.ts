@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizeOptions } from '../src/plugin/config.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 
-const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, limits: { maxCommentChars: 5000, commentsPerMinute: 10 }, git: null };
+const DEFAULTS = { sidebar: false, autoPublish: { seconds: 180, startOn: true }, permissions: { admins: [], resolve: 'anyone' }, limits: { maxCommentChars: 5000, commentsPerMinute: 10 }, reactions: { emoji: ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'], restricted: false }, profileUrl: null, git: null };
 
 test('absent, true and empty options all normalise to the defaults', () => {
   for (const raw of [{}, undefined, true]) {
@@ -25,6 +25,20 @@ test('valid values are kept', () => {
   assert.deepEqual(normalizeOptions({ permissions: { resolve: 'author' } }).permissions, { admins: [], resolve: 'author' });
   assert.deepEqual(normalizeOptions({ limits: { maxCommentChars: 10 } }).limits, { maxCommentChars: 10, commentsPerMinute: 10 });
   assert.deepEqual(normalizeOptions({ limits: { commentsPerMinute: 2 } }).limits, { maxCommentChars: 5000, commentsPerMinute: 2 });
+});
+
+test('reactions: defaults, a custom list, restricted, skin-tone and ZWJ sequences, exactly 20', () => {
+  const defaults = ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'];
+  assert.deepEqual(normalizeOptions({ reactions: {} }).reactions, { emoji: defaults, restricted: false });
+  assert.deepEqual(normalizeOptions({ reactions: { restricted: true } }).reactions, { emoji: defaults, restricted: true });
+  assert.deepEqual(normalizeOptions({ reactions: { emoji: ['✅'] } }).reactions, { emoji: ['✅'], restricted: false });
+  const rich = ['👍🏽', '👨‍👩‍👧', '🇧🇷', '1️⃣'];
+  assert.deepEqual(normalizeOptions({ reactions: { emoji: rich, restricted: true } }).reactions, { emoji: rich, restricted: true });
+  const twenty = Array.from({ length: 20 }, (_, i) => String.fromCodePoint(0x1f600 + i));
+  assert.equal(normalizeOptions({ reactions: { emoji: twenty } }).reactions.emoji.length, 20);
+  const input = { reactions: { emoji: ['🎉'] } };
+  normalizeOptions(input).reactions.emoji.push('x');
+  assert.deepEqual(input.reactions.emoji, ['🎉'], 'the result does not alias the input');
 });
 
 test('git defaults fill in around the required branch; null is off; explicit values are kept', () => {
@@ -87,6 +101,25 @@ test('invalid values throw threads/config', () => {
     [{ git: { branch: 'm', committer: 'bot' } }, /plugins\.threads\.git\.committer must be an object/],
     [{ git: { branch: 'm', committer: { name: '' } } }, /plugins\.threads\.git\.committer\.name must be a non-empty string/],
     [{ git: { branch: 'm', committer: { email: 7 } } }, /plugins\.threads\.git\.committer\.email must be a non-empty string/],
+    [{ reactions: 'all' }, /plugins\.threads\.reactions must be an object/],
+    [{ reactions: [] }, /plugins\.threads\.reactions must be an object/],
+    [{ reactions: { emoji: [] } }, /plugins\.threads\.reactions\.emoji must be an array of 1 to 20 emoji/],
+    [{ reactions: { emoji: '👍' } }, /plugins\.threads\.reactions\.emoji must be an array/],
+    [{ reactions: { emoji: Array.from({ length: 21 }, (_, i) => String.fromCodePoint(0x1f600 + i)) } }, /plugins\.threads\.reactions\.emoji must be an array of 1 to 20 emoji/],
+    [{ reactions: { emoji: ['👍', 'x'] } }, /plugins\.threads\.reactions\.emoji entry 1 must be a single emoji/],
+    [{ reactions: { emoji: ['👍👎'] } }, /plugins\.threads\.reactions\.emoji entry 0 must be a single emoji/],
+    [{ reactions: { emoji: ['👍,'] } }, /plugins\.threads\.reactions\.emoji entry 0/],
+    [{ reactions: { emoji: [7] } }, /plugins\.threads\.reactions\.emoji entry 0/],
+    [{ reactions: { emoji: ['👍', '🎉', '👍'] } }, /plugins\.threads\.reactions\.emoji must not repeat an emoji/],
+    [{ reactions: { restricted: 'yes' } }, /plugins\.threads\.reactions\.restricted must be a boolean/],
+    [{ profileUrl: 5 }, /plugins\.threads\.profileUrl must be an absolute http or https URL containing \{id\}/],
+    [{ profileUrl: '' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'https://github.com/' }, /plugins\.threads\.profileUrl must be an absolute http or https URL containing \{id\}/],
+    [{ profileUrl: '/users/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'users/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'javascript:alert({id})' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'ftp://host/{id}' }, /plugins\.threads\.profileUrl must be an absolute/],
+    [{ profileUrl: 'mailto:{id}@x.io' }, /plugins\.threads\.profileUrl must be an absolute/],
     [{ permissions: { resolve: 'nobody' } }, /plugins\.threads\.permissions\.resolve must be 'anyone' or 'author'/],
   ];
   for (const [raw, naming] of cases) {
@@ -96,5 +129,13 @@ test('invalid values throw threads/config', () => {
         e instanceof ThreadsError && e.code === 'config' && e.message.startsWith('threads/config:') && naming.test(e.message),
       JSON.stringify(raw),
     );
+  }
+});
+
+test('profileUrl: null by default, null kept, http and https patterns kept as written', () => {
+  assert.equal(normalizeOptions({}).profileUrl, null);
+  assert.equal(normalizeOptions({ profileUrl: null }).profileUrl, null);
+  for (const url of ['https://github.com/{id}', 'http://intranet/u/{id}/profile', 'https://{id}.example.com/', 'https://x.io/?user={id}&a={id}']) {
+    assert.equal(normalizeOptions({ profileUrl: url }).profileUrl, url);
   }
 });

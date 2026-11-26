@@ -7,7 +7,14 @@
  */
 
 
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+
+/** Every enhanced thread card the page shows inside the article (the panel's copies are not counted). */
+export const inlineCards = (page: Page): Locator => page.locator('threads-thread[variant="inline"][data-thread-id]');
+
+/** The "New thread" button of the first heading. */
+export const newThreadButton = (page: Page): Locator =>
+  page.locator(".threads-new-thread-btn").first().getByRole("button", { name: "New Thread" });
 
 // ---------------------------------------------------------------------------
 // Ability: BrowseTheWeb
@@ -131,7 +138,7 @@ export class SelectText implements Task<void> {
 }
 
 /**
- * Select text and use the popover "Add comment" to open an inline editor,
+ * Select text and use the selection button "Add comment" to open an inline editor,
  * then fill and submit to create a new thread.
  */
 export class StartThreadOn implements Task<void> {
@@ -144,21 +151,21 @@ export class StartThreadOn implements Task<void> {
   async performAs(actor: Actor): Promise<void> {
     await actor.perform(SelectText.within(this.selector, this.selectedText));
 
-    // Wait for popover and click "Add comment"
-    const popoverBtn = actor.page.locator("threads-popover").getByText("Add comment");
+    // Wait for the selection button and click "Add comment"
+    const popoverBtn = actor.page.getByRole("button", { name: "Add comment", exact: true });
     await popoverBtn.waitFor({ state: "visible", timeout: 5_000 });
     await popoverBtn.click();
 
     // Fill in the inline editor
-    const editor = actor.page.locator("threads-inline-editor");
+    const editor = actor.page.locator("threads-editor");
     await editor.waitFor({ state: "attached", timeout: 5_000 });
 
-    const textarea = editor.locator("sl-textarea").locator("textarea");
+    const textarea = editor.getByRole("textbox");
     await textarea.waitFor({ timeout: 5_000 });
     await textarea.fill(this.comment);
 
     // Submit
-    const submitBtn = editor.locator("sl-button[variant='primary']");
+    const submitBtn = editor.getByRole("button", { name: "Submit" });
     await submitBtn.click();
 
     // Wait for editor to detach (submission complete)
@@ -177,17 +184,16 @@ export class AddNewThread implements Task<void> {
   constructor(private body: string) {}
 
   async performAs(actor: Actor): Promise<void> {
-    const newThreadBtn = actor.page.locator(".threads-new-thread-btn").first();
-    await newThreadBtn.click();
+    await newThreadButton(actor.page).click();
 
-    const editor = actor.page.locator("threads-inline-editor");
+    const editor = actor.page.locator("threads-editor");
     await editor.waitFor({ state: "attached", timeout: 5_000 });
 
-    const textarea = editor.locator("sl-textarea").locator("textarea");
+    const textarea = editor.getByRole("textbox");
     await textarea.waitFor({ timeout: 5_000 });
     await textarea.fill(this.body);
 
-    const submitBtn = editor.locator("sl-button[variant='primary']");
+    const submitBtn = editor.getByRole("button", { name: "Submit" });
     await submitBtn.click();
 
     await editor.waitFor({ state: "detached", timeout: 10_000 });
@@ -209,17 +215,17 @@ export class ReplyToThread implements Task<void> {
 
   async performAs(actor: Actor): Promise<void> {
     const threadEl = actor.page.locator(this.threadSelector);
-    const replyBtn = threadEl.locator(".threads-comment-reply-btn").first();
+    const replyBtn = threadEl.getByRole("button", { name: "Reply", exact: true }).first();
     await replyBtn.click();
 
-    const editor = actor.page.locator("threads-inline-editor");
+    const editor = threadEl.locator("threads-editor");
     await editor.waitFor({ state: "attached", timeout: 5_000 });
 
-    const textarea = editor.locator("sl-textarea").locator("textarea");
+    const textarea = editor.getByRole("textbox");
     await textarea.waitFor({ timeout: 5_000 });
     await textarea.fill(this.comment);
 
-    const submitBtn = editor.locator("sl-button[variant='primary']");
+    const submitBtn = editor.getByRole("button", { name: "Submit" });
     await submitBtn.click();
 
     await editor.waitFor({ state: "detached", timeout: 10_000 });
@@ -232,10 +238,10 @@ export class ReplyToThread implements Task<void> {
 
 export class SubmitWithKeyboard implements Task<void> {
   async performAs(actor: Actor): Promise<void> {
-    const editor = actor.page.locator("threads-inline-editor");
+    const editor = actor.page.locator("threads-editor");
     await editor.waitFor({ state: "attached", timeout: 3_000 });
 
-    const textarea = editor.locator("sl-textarea").locator("textarea");
+    const textarea = editor.getByRole("textbox");
     await textarea.click();
 
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
@@ -249,10 +255,10 @@ export class SubmitWithKeyboard implements Task<void> {
 
 export class CancelWithKeyboard implements Task<void> {
   async performAs(actor: Actor): Promise<void> {
-    const editor = actor.page.locator("threads-inline-editor");
+    const editor = actor.page.locator("threads-editor");
     await editor.waitFor({ state: "attached", timeout: 3_000 });
 
-    const textarea = editor.locator("sl-textarea").locator("textarea");
+    const textarea = editor.getByRole("textbox");
     await textarea.click();
 
     await actor.page.keyboard.press("Escape");
@@ -269,7 +275,7 @@ export class CancelWithKeyboard implements Task<void> {
 
 export class TheThreadCount implements Question<number> {
   async answeredBy(actor: Actor): Promise<number> {
-    return actor.page.locator(".threads-thread[data-thread-id]").count();
+    return inlineCards(actor.page).count();
   }
 
   static count() {
@@ -289,7 +295,7 @@ export class TheHighlightCount implements Question<number> {
 
 export class TheInlineEditor implements Question<boolean> {
   async answeredBy(actor: Actor): Promise<boolean> {
-    return (await actor.page.locator("threads-inline-editor").count()) > 0;
+    return (await actor.page.locator("threads-editor").count()) > 0;
   }
 
   static isVisible() {
@@ -299,7 +305,7 @@ export class TheInlineEditor implements Question<boolean> {
 
 export class TheDeleteDialog implements Question<boolean> {
   async answeredBy(actor: Actor): Promise<boolean> {
-    return actor.page.locator("sl-dialog#delete-dialog").isVisible();
+    return actor.page.getByRole("dialog", { name: "Confirm Delete" }).isVisible();
   }
 
   static isOpen() {
@@ -314,10 +320,8 @@ export class TheCommentBody implements Question<string> {
   ) {}
 
   async answeredBy(actor: Actor): Promise<string> {
-    const thread = actor.page.locator(`.threads-thread[data-thread-id="${this.threadId}"]`);
-    const comment = thread.locator(".threads-comment").nth(this.commentIndex);
-    const body = comment.locator(".threads-comment__body");
-    return (await body.textContent()) ?? "";
+    const comment = actor.page.locator(`threads-thread[variant="inline"][data-thread-id="${this.threadId}"] threads-comment`).nth(this.commentIndex);
+    return (await comment.locator('[part~="body"]').first().innerText()) ?? "";
   }
 
   static of(threadId: string, commentIndex: number) {

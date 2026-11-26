@@ -16,6 +16,6 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["src/index.ts", "src/plugin/**/*.ts", "src/types.ts"],
+  "include": ["src/index.ts", "src/plugin/**/*.ts", "src/shared/**/*.ts", "src/types.ts"],
   "exclude": ["src/client/**/*", "node_modules", "dist"]
 }

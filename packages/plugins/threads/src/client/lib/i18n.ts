@@ -10,17 +10,15 @@ const defaults: Record<string, string> = {
   newComment: 'New Comment',
   startThread: 'Start a new discussion thread',
   addGeneralComment: 'Add general comment',
-  collapseSidebar: 'Collapse sidebar',
   openThreadsPanel: 'Open threads panel',
   closePanel: 'Close panel',
-  jumpToThreads: 'Jump to threads',
   all: 'All',
   open: 'Open',
   resolved: 'Resolved',
   noThreads: 'No threads on this page yet.',
   selectTextToStart: 'Select text to start one.',
   writeComment: 'Write your comment...',
-  addComment: 'Add a comment...',
+  addComment: 'Add comment',
   cmdEnterSubmit: 'Cmd+Enter to submit',
   cancel: 'Cancel',
   submit: 'Submit',
@@ -40,13 +38,20 @@ const defaults: Record<string, string> = {
   githubUsername: 'GitHub Username',
   gravatarEmail: 'Gravatar Email',
   save: 'Save',
+  profileLink: 'Profile link',
+  linkAutomatic: 'Automatic',
+  linkCustom: 'Custom link',
+  linkNone: 'No link',
+  linkUrlPlaceholder: 'https://example.com/you',
+  linkInvalid: 'Enter a link that starts with http:// or https://',
+  linkHint: 'Where your name links to. A custom link is not verified.',
   avatarHint: 'Avatar: Gravatar > GitHub > random. Stored in your browser only.',
-  openCount: 'open',
-  commentCount: 'comment',
-  commentsCount: 'comments',
-  by: 'by',
-  and: 'and',
-  more: 'more',
+  openCount: '({n} open)',
+  commentSummary: '{n} comments',
+  commentSummaryOne: '{n} comment',
+  commentSummaryBy: '{n} comments by {names}',
+  commentSummaryByOne: '{n} comment by {names}',
+  namesMore: '{m} more',
   publish: 'Publish',
   autoPublishing: 'Auto-publishing',
   pause: 'Pause auto-publishing',
@@ -63,8 +68,8 @@ const defaults: Record<string, string> = {
   discardDraftsConfirm: 'Discard your unpublished comments ({n})? This cannot be undone.',
   discardFailed: 'Could not discard',
   orphaned: 'Orphaned',
-  lostAnchor: '{n} of your comments lost its anchor',
-  lostAnchorPlural: '{n} of your comments lost their anchor',
+  lostAnchor: '{n} of your comments lost their anchor',
+  lostAnchorOne: '{n} of your comments lost its anchor',
   reviews: 'Reviews',
   discard: 'Discard',
   discardConfirm: 'Discard this review? Its comments are removed from the pages.',
@@ -76,17 +81,74 @@ const defaults: Record<string, string> = {
   saveFailed: 'Could not save the review',
   limitChars: 'This comment is too long. Shorten it and try again.',
   rateLimited: 'You are commenting too fast. Wait a minute and try again.',
+  couldNotSave: 'Could not save. Try again.',
+  emojiPickerFailed: 'Could not load the emoji picker. The quick reactions still work.',
+  'emojiPicker.categoriesLabel': 'Categories',
+  'emojiPicker.emojiUnsupportedMessage': 'Your browser does not support color emoji.',
+  'emojiPicker.favoritesLabel': 'Favorites',
+  'emojiPicker.loadingMessage': 'Loading…',
+  'emojiPicker.networkErrorMessage': 'Could not load emoji.',
+  'emojiPicker.regionLabel': 'Emoji picker',
+  'emojiPicker.searchDescription': 'When search results are available, press up or down to select and enter to choose.',
+  'emojiPicker.searchLabel': 'Search',
+  'emojiPicker.searchResultsLabel': 'Search results',
+  'emojiPicker.skinToneDescription': 'When expanded, press up or down to select and enter to choose.',
+  'emojiPicker.skinToneLabel': 'Choose a skin tone (currently {skinTone})',
+  'emojiPicker.skinTonesLabel': 'Skin tones',
+  'emojiPicker.skinTone.0': 'Default',
+  'emojiPicker.skinTone.1': 'Light',
+  'emojiPicker.skinTone.2': 'Medium-Light',
+  'emojiPicker.skinTone.3': 'Medium',
+  'emojiPicker.skinTone.4': 'Medium-Dark',
+  'emojiPicker.skinTone.5': 'Dark',
+  'emojiPicker.category.custom': 'Custom',
+  'emojiPicker.category.smileys-emotion': 'Smileys and emoticons',
+  'emojiPicker.category.people-body': 'People and body',
+  'emojiPicker.category.animals-nature': 'Animals and nature',
+  'emojiPicker.category.food-drink': 'Food and drink',
+  'emojiPicker.category.travel-places': 'Travel and places',
+  'emojiPicker.category.activities': 'Activities',
+  'emojiPicker.category.objects': 'Objects',
+  'emojiPicker.category.symbols': 'Symbols',
+  'emojiPicker.category.flags': 'Flags',
+  moreEmoji: 'More emoji',
   addReaction: 'Add reaction',
+  chooseReaction: 'Choose a reaction',
+  reactionNotAllowed: 'This emoji is not allowed on this site',
+  editComment: 'Edit comment',
+  edited: 'edited',
+  unpublished: 'Unpublished',
+  replyingTo: 'Replying to {name}',
+  identityRequired: 'Set your name first',
   resolve: 'Resolve',
   unresolve: 'Unresolve',
+  emptyHint: 'Select any text on this page to leave a comment, or click New Thread beside any heading.',
+  sidebar: 'Sidebar',
+  openInSidebar: 'Open discussion in sidebar',
+  jumpToHighlight: 'Jump to highlight in text',
 };
+
+/** Strings a host app set with setThreadsStrings; they win over the page's injected strings. */
+const overrides: Record<string, string> = {};
+
+/**
+ * Set translated strings for hosts that are not docmd (docmd's own bundle gets its strings injected).
+ * Keys not in the dictionary keep their value; a later call with the same key replaces it.
+ * Non-string values are ignored.
+ */
+export function setThreadsStrings(dict: Record<string, string>): void {
+  for (const [key, value] of Object.entries(dict)) {
+    if (typeof value === 'string') overrides[key] = value;
+  }
+}
 
 /**
  * Get a translated string by key.
- * Priority: window.__threads_i18n[key] → defaults[key] → key itself.
+ * Priority: setThreadsStrings → window.__threads_i18n[key] → defaults[key] → key itself.
  */
 export function t(key: string): string {
-  const injected = (window as any).__threads_i18n;
+  if (Object.hasOwn(overrides, key)) return overrides[key];
+  const injected = (globalThis as any).window?.__threads_i18n;
   if (injected && typeof injected[key] === 'string') return injected[key];
-  return defaults[key] || key;
+  return Object.hasOwn(defaults, key) && defaults[key] ? defaults[key] : key;
 }

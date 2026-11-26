@@ -1,0 +1,24 @@
+emoji-picker-element
+Version: 1.29.1
+Project: https://github.com/nolanlawson/emoji-picker-element
+Author: Nolan Lawson
+Licence: Apache License, Version 2.0 (the full text is in LICENSE next to this file)
+
+picker.js and database.js here are copied from the published ESM of that version
+(npm: emoji-picker-element@1.29.1) and modified for @docmd/plugin-threads.
+Each modified file says so in a comment under its header.
+
+Changes:
+1. The custom element is registered as "threads-emoji-picker" instead of
+   "emoji-picker" (still guarded: nothing happens if the tag is already defined),
+   so a site that also uses emoji-picker has no clash.
+2. The default data source (a jsDelivr CDN URL) is removed from picker.js and
+   database.js. A missing dataSource is an error (Database throws); the emoji
+   data is always served with the site.
+3. The prefers-color-scheme: dark block is removed from the stylesheet. Colours
+   come from the CSS custom properties that the host page sets on the element.
+4. The UI strings are not changed in the file: the host sets the "i18n" property
+   from the plugin's own translations. The upstream i18n files are not included.
+
+Nothing else differs from the upstream files, apart from the two comment headers.
+picker.d.ts is not upstream: it is a small hand-written type declaration for the plugin's own use.

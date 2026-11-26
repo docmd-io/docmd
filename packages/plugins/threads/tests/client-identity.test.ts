@@ -17,8 +17,8 @@ test('identityFromWhoami: header, payload, none', () => {
 
 test('canShow matches the server decision table', () => {
   for (const [label, caller, action, target, resolve, allowed] of rows) {
-    // Only the actions the live UI renders a button for; edits and profile writes are server-only here.
-    if (action !== 'delete-comment' && action !== 'delete-thread' && action !== 'resolve-thread' && action !== 'discard-review') continue;
+    // Only the actions the live UI renders a button for; profile writes are server-only here.
+    if (action === 'upsert-author') continue;
     const shown = canShow(action, { callerKey: caller.key, isAdmin: caller.isAdmin, source: caller.source, resolveRule: resolve }, target);
     assert.equal(shown, allowed, label);
   }
@@ -106,7 +106,7 @@ test('header mode: the server identity is returned, nobody is prompted, __docmd_
   assert.deepEqual(identity.getIdentityPayload(), { author: 'Bo', authorKey: 'ann@x', avatarUrl: 'v' });
 });
 
-test('local mode: whoami with no identity, or rejecting, seeds from __docmd_dev and prompts when nothing is stored', async () => {
+test('local mode: whoami with no identity, or rejecting, seeds from __docmd_dev; with nothing stored a write is rejected, never prompted', async () => {
   for (const whoami of [() => Promise.resolve({ identity: null }), () => Promise.reject(new Error('offline'))]) {
     storage.clear();
     prompts = 0;
@@ -117,9 +117,46 @@ test('local mode: whoami with no identity, or rejecting, seeds from __docmd_dev 
     assert.equal(storage.get('threads_email'), 'd@x');
     storage.clear();
     delete win.__docmd_dev;
-    assert.equal(identity.ensureAuthor(), 'Prompted');
-    assert.equal(prompts, 1);
+    assert.throws(() => identity.ensureAuthor(), (err: Error) => err.message.startsWith('threads/identity-required:') && (err as unknown as { code: string }).code === 'threads/identity-required');
+    assert.throws(() => identity.getIdentityPayload(), /identity-required/);
+    assert.equal(prompts, 0, 'no blocking prompt');
+    assert.equal(storage.size, 0, 'no name is invented');
   }
+});
+
+test('local mode: a blank stored name counts as none', async () => {
+  await identity.initIdentity(() => Promise.resolve({ identity: null }));
+  storage.set('threads_author', '   ');
+  assert.throws(() => identity.ensureAuthor(), /identity-required/);
+});
+
+test('local mode: a rejected write asks the page to open the identity panel, once per attempt', async () => {
+  await identity.initIdentity(() => Promise.resolve({ identity: null }));
+  const events: string[] = [];
+  const doc = { dispatchEvent: (e: Event) => { events.push(e.type); return true; } };
+  Object.defineProperty(g, 'document', { value: doc, configurable: true, writable: true });
+  try {
+    assert.throws(() => identity.ensureAuthor(), /identity-required/);
+    assert.throws(() => identity.ensureAuthor(), /identity-required/);
+    assert.deepEqual(events, [identity.IDENTITY_NEEDED_EVENT, identity.IDENTITY_NEEDED_EVENT]);
+    storage.set('threads_author', 'Ann');
+    identity.ensureAuthor();
+    assert.equal(events.length, 2, 'a name is set: nothing to open');
+  } finally {
+    delete g.document;
+  }
+});
+
+test('getViewer: the header profile under a trusted identity, the local key and name otherwise, null key until a name is set', async () => {
+  await identity.initIdentity(header('ann@x'));
+  assert.deepEqual(identity.getViewer(), { key: 'ann@x', name: 'Ann' });
+  await identity.initIdentity(() => Promise.resolve({ identity: null }));
+  assert.deepEqual(identity.getViewer(), { key: null, name: '' });
+  storage.set('threads_author', 'Ann Lee');
+  assert.deepEqual(identity.getViewer(), { key: 'ann-lee', name: 'Ann Lee' });
+  storage.set('threads_github', 'octo');
+  storage.set('threads_author_key', 'octo');
+  assert.deepEqual(identity.getViewer(), { key: 'octo', name: 'Ann Lee' });
 });
 
 test('setHeaderProfile leaves local mode alone', async () => {

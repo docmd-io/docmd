@@ -1,215 +1,200 @@
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { LitElement, html, css, nothing } from 'lit';
+import { property } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { getThreadSvg } from '../lib/icons';
 import { t } from '../lib/i18n';
+import { avatar, avatarStyles } from '../lib/avatar';
+import { getThreadSvg } from '../lib/icons';
+import { dispatchRequest, type RequestDetail } from '../lib/request';
+import { formatDateTime } from '../lib/format-date';
+import { QUICK_REACTIONS, plainReactionViews, type AuthorView, type ReactionView, type Viewer } from '../lib/reactions';
 import type { Comment } from '../../types';
+import { baseStyles } from './tokens';
+import { proseStyles } from './prose';
+import { defineOnce } from './define';
+import './threads-button';
+import './threads-editor';
+import './threads-reactions';
 
-import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
-import '@shoelace-style/shoelace/dist/components/avatar/avatar.js';
-import '@shoelace-style/shoelace/dist/components/popup/popup.js';
+/** What the app passes through to every `threads-reactions`. */
+export interface ReactionOptions {
+  options: string[];
+  restricted: boolean;
+  pickerSrc: string;
+  emojiDataSrc: string;
+}
 
-const EMOJI_PRESETS = ['\u{1F44D}', '\u{1F44E}', '\u{1F602}', '\u{1F389}', '\u{1F914}', '\u{2764}\u{FE0F}', '\u{1F680}', '\u{1F440}'];
+const DEFAULT_OPTIONS: string[] = [...QUICK_REACTIONS];
 
-@customElement('threads-comment')
+/** The reactions parts, re-exported with a `reactions-` prefix. */
+const REACTION_PARTS = ['base', 'chip', 'chip-emoji', 'chip-count', 'who', 'options', 'option', 'react', 'add', 'picker', 'error']
+  .map((p) => `${p}:reactions-${p}`)
+  .join(', ');
+
+/**
+ * One comment row and its own action bar.
+ *
+ * Properties: `comment` (id, author, date, edited_at, body, reactions, draft, pendingEdit, parent_id),
+ * `bodyHtml` (trusted HTML of the body: server output with raw HTML disabled; plain text of
+ * `comment.body` when absent), `author` (`{ name, avatarUrl, href }`; `href` is the profile link or
+ * null), `viewer` (`{ key, name }`), `reactions` (reaction views with profile links; the comment's own
+ * reactions without links when absent), `reactionOptions` (`{ options, restricted, pickerSrc,
+ * emojiDataSrc }`, passed to `threads-reactions`), `can-edit`, `can-delete`, `can-react`, `can-reply`
+ * (booleans the app computes), `reply-to` (name shown as "replying to X"), `editing`, `variant` (`inline`: one
+ * meta line, `panel`: the name above the date).
+ * Events: `threads-reply` `{ commentId }`; `threads-edit` `{ commentId, body, waitUntil }` (request: the
+ * comment leaves edit mode when it resolves); `threads-delete` `{ commentId }`; `threads-react`
+ * `{ commentId, emoji, waitUntil }` (re-emitted from its reactions bar).
+ * Slot: `replies`. Parts: `base`, `avatar`, `meta`, `author`, `date`, `edited`, `draft`, `reply-to`,
+ * `body`, `actions`, `reply`, `edit`, `delete`, `reactions` and the reactions parts as `reactions-*`.
+ */
 export class ThreadsComment extends LitElement {
-  override createRenderRoot() { return this; }
+  static override styles = [baseStyles, avatarStyles, proseStyles, css`
+    :host { display: block; }
+    .row { display: flex; gap: 10px; }
+    .avatar-col { flex: none; padding-top: 2px; }
+    .main { flex: 1; min-width: 0; }
+    .meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 2px; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
+    /* In the page the meta is one line: name, then date and flags set off by a dot. In the panel the name has its own line, the date and flags are the second. */
+    :host(:not([variant='panel'])) .meta > :not(.author):not(.draft)::before { content: '\\00b7' / ''; margin-inline-end: 8px; }
+    :host([variant='panel']) .meta { gap: 0 8px; line-height: 1.3; }
+    :host([variant='panel']) .meta > .author { flex: 1 0 100%; }
+    .author { font-weight: 600; font-size: var(--_font-size-sm); color: var(--_fg-strong); }
+    a.author { text-decoration: none; }
+    a.author:hover { color: var(--_accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+    a.author:focus-visible { outline: 2px solid var(--_focus); outline-offset: 2px; border-radius: 2px; }
+    .draft { display: inline-flex; align-items: center; gap: 4px; color: var(--_draft); }
+    .draft::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--_draft); }
+    .reply-to { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; font-size: var(--_font-size-xs); color: var(--_fg-muted); }
+    .body { font-size: var(--_font-size); line-height: var(--_line-height); overflow-wrap: anywhere; }
+    .body.plain { white-space: pre-wrap; }
+    .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+    .bar threads-reactions { flex: 1 1 auto; min-width: 0; }
+    .actions { display: flex; gap: 2px; margin-left: auto; opacity: 0; transition: opacity 0.12s; }
+    .row:hover .actions, .row:focus-within .actions { opacity: 1; }
+    @media (hover: none) { .actions { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .actions { transition: none; } }
+    ::slotted([slot='replies']) { display: block; margin-top: 10px; }
+  `];
 
-  @property({ type: Object }) comment!: Comment;
-  @property({ type: String }) currentAuthor: string | null = null;
-  @property({ type: Boolean }) editing = false;
-  @state() private showEmojiPicker = false;
+  @property({ attribute: false }) comment!: Comment;
+  @property({ attribute: false }) bodyHtml = '';
+  @property({ attribute: false }) author: AuthorView = { name: '', avatarUrl: '', href: null };
+  @property({ attribute: false }) viewer: Viewer = { key: null, name: '' };
+  @property({ attribute: false }) reactions: ReactionView[] | null = null;
+  @property({ attribute: false }) reactionOptions: ReactionOptions | null = null;
+  @property({ type: Boolean, attribute: 'can-edit' }) canEdit = false;
+  @property({ type: Boolean, attribute: 'can-delete' }) canDelete = false;
+  @property({ type: Boolean, attribute: 'can-react' }) canReact = false;
+  @property({ type: Boolean, attribute: 'can-reply' }) canReply = false;
+  @property({ attribute: 'reply-to' }) replyTo = '';
+  @property({ type: Boolean, reflect: true }) editing = false;
+  @property({ reflect: true }) variant: 'inline' | 'panel' = 'inline';
 
-  private editValue = '';
-
-  private get isOwn(): boolean {
-    return this.comment.author === this.currentAuthor;
+  private emit(type: string, detail: object): void {
+    this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }));
   }
 
-  override connectedCallback() {
-    super.connectedCallback();
-    document.addEventListener('click', this.handleOutsideClick);
+  /**
+   * The reactions bar's request, passed on with the comment id. The original event stops here;
+   * the promise it waits for is the one the app's listener returned.
+   */
+  private onReact(e: CustomEvent<{ emoji: string } & RequestDetail>): void {
+    e.stopPropagation();
+    const request = dispatchRequest(this, 'threads-react', { commentId: this.comment.id, emoji: e.detail.emoji });
+    if (request) e.detail.waitUntil(request);
   }
 
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    document.removeEventListener('click', this.handleOutsideClick);
+  /** The editor's submit becomes `threads-edit`; the comment leaves edit mode when the write succeeds. */
+  private onEditSubmit(e: CustomEvent<{ body: string } & RequestDetail>): void {
+    e.stopPropagation();
+    const request = dispatchRequest(this, 'threads-edit', { commentId: this.comment.id, body: e.detail.body });
+    if (request) e.detail.waitUntil(request.then(() => { this.editing = false; }));
   }
 
-  private handleOutsideClick = (e: MouseEvent) => {
-    if (this.showEmojiPicker) {
-      const trigger = this.querySelector(`#emoji-trigger-${this.comment.id}`);
-      const popup = this.querySelector('sl-popup');
-      if (trigger && !e.composedPath().includes(trigger) && popup && !e.composedPath().includes(popup)) {
-        this.showEmojiPicker = false;
-      }
-    }
-  };
-
-  private formatTime(dateStr: string): string {
-    const d = new Date(dateStr);
-    const diff = Date.now() - d.getTime();
-    if (diff < 60000) return 'just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-    return d.toLocaleDateString();
-  }
-
-  private startEdit(): void {
-    this.editValue = this.comment.body;
-    this.editing = true;
-    this.requestUpdate();
-  }
-
-  private cancelEdit(): void {
+  private onEditCancel(e: Event): void {
+    e.stopPropagation();
     this.editing = false;
-    this.requestUpdate();
-  }
-
-  private saveEdit(): void {
-    const textarea = this.querySelector<HTMLElement & { value: string }>('sl-textarea');
-    const value = textarea?.value?.trim();
-    if (!value) return;
-    this.dispatchEvent(new CustomEvent('comment-edit', {
-      bubbles: true, composed: true,
-      detail: { commentId: this.comment.id, threadId: this.comment.thread_id, body: value },
-    }));
-    this.editing = false;
-    this.requestUpdate();
-  }
-
-  private requestDelete(): void {
-    this.dispatchEvent(new CustomEvent('comment-delete', {
-      bubbles: true, composed: true,
-      detail: { commentId: this.comment.id, threadId: this.comment.thread_id },
-    }));
-  }
-
-  private toggleEmojiPicker(): void {
-    this.showEmojiPicker = !this.showEmojiPicker;
-  }
-
-  private addReaction(emoji: string): void {
-    this.showEmojiPicker = false;
-    this.dispatchEvent(new CustomEvent('comment-reaction', {
-      bubbles: true, composed: true,
-      detail: { commentId: this.comment.id, threadId: this.comment.thread_id, emoji },
-    }));
   }
 
   private renderBody() {
     if (this.editing) {
-      return html`
-        <sl-textarea
-          value=${this.editValue}
-          rows="3"
-          size="small"
-          @input=${(e: Event) => { this.editValue = (e.target as any).value; }}
-        ></sl-textarea>
-        <div style="display:flex; gap:8px; margin-top:6px; justify-content:flex-end;">
-          <sl-button size="small" variant="text" @click=${this.cancelEdit}>Cancel</sl-button>
-          <sl-button size="small" variant="primary" @click=${this.saveEdit}>Save</sl-button>
-        </div>
-      `;
+      return html`<threads-editor
+        value=${this.comment.body}
+        label=${t('editComment')}
+        submit-label=${t('save')}
+        @threads-submit=${this.onEditSubmit}
+        @threads-cancel=${this.onEditCancel}
+      ></threads-editor>`;
     }
-    return html`<div class="tc-comment__body">${this.renderMarkdown(this.comment.body)}</div>`;
+    return this.bodyHtml
+      ? html`<div class="body prose" part="body">${unsafeHTML(this.bodyHtml)}</div>`
+      : html`<div class="body plain" part="body">${this.comment.body}</div>`;
   }
 
-  private renderMarkdown(text: string): ReturnType<typeof html> {
-    return html`<div .innerHTML=${this.sanitize(this.simpleMarkdown(text))}></div>`;
-  }
-
-  private sanitize(html: string): string {
-    return html
-      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-      .replace(/on\w+="[^"]*"/gim, "")
-      .replace(/on\w+='[^']*'/gim, "");
-  }
-
-  private simpleMarkdown(text: string): string {
-    return this.escapeHtml(text)
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>')
-      .replace(/^/, '<p>')
-      .replace(/$/, '</p>');
-  }
-
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+  private renderActions() {
+    if (this.editing) return nothing;
+    const { id } = this.comment;
+    return html`
+      <div class="actions" part="actions">
+        ${this.canReply ? html`<threads-button part="reply" variant="ghost" size="sm" icon="reply"
+          label=${t('replyToComment')} @click=${() => this.emit('threads-reply', { commentId: id })}>${t('reply')}</threads-button>` : nothing}
+        ${this.canEdit ? html`<threads-button part="edit" variant="ghost" size="sm" icon="pencil" label=${t('editComment')}
+          @click=${() => { this.editing = true; }}></threads-button>` : nothing}
+        ${this.canDelete ? html`<threads-button part="delete" variant="ghost" danger size="sm" icon="trash" label=${t('deleteComment')}
+          @click=${() => this.emit('threads-delete', { commentId: id })}></threads-button>` : nothing}
+      </div>
+    `;
   }
 
   override render() {
     const c = this.comment;
-    const reactions = c.reactions || [];
-
+    if (!c) return nothing;
+    const { name, avatarUrl, href } = this.author;
+    const shownName = name || c.author;
+    const reactions = this.reactions ?? plainReactionViews(c.reactions ?? []);
+    const opts = this.reactionOptions;
     return html`
-      <div class="tc-comment">
-        <div class="tc-comment__header">
-          <sl-avatar initials="${c.author.charAt(0).toUpperCase()}" label="${c.author}" style="--size: 26px;"></sl-avatar>
-          <div class="tc-comment__meta">
-            <span class="tc-comment__author">${c.author}</span>
-            <span class="tc-comment__time">${this.formatTime(c.date)}${c.edited_at ? ' (edited)' : ''}</span>
-            ${c.draft ? html`<span class="tc-comment__draft" data-testid="tc-draft-badge">${t('draft')}</span>` : nothing}
-          </div>
-          ${this.isOwn && !this.editing ? html`
-            <div class="tc-comment__menu">
-              <sl-button size="small" variant="text" title="Edit" @click=${this.startEdit}>
-                <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('pencil', 13))}</span>
-              </sl-button>
-              <sl-button size="small" variant="text" title="Delete" @click=${this.requestDelete}>
-                <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('trash', 13))}</span>
-              </sl-button>
+      <div class="base" part="base">
+        <div class="row">
+          <div class="avatar-col">${avatar({ src: avatarUrl, name: shownName })}</div>
+          <div class="main">
+            <div class="meta" part="meta">
+              ${href
+                ? html`<a class="author" part="author" href=${href} rel="nofollow noopener ugc">${shownName}</a>`
+                : html`<span class="author" part="author">${shownName}</span>`}
+              <time part="date" datetime=${c.date} title=${c.date}>${formatDateTime(c.date)}</time>
+              ${c.edited_at ? html`<span part="edited" title=${c.edited_at}>${t('edited')}</span>` : nothing}
+              ${c.draft || c.pendingEdit ? html`<span class="draft" part="draft">${t('unpublished')}</span>` : nothing}
             </div>
-          ` : nothing}
-        </div>
-
-        ${this.renderBody()}
-
-        <div class="tc-comment__footer">
-          ${reactions.length > 0 ? html`
-            <div class="tc-reactions">
-              ${reactions.map(r => html`
-                <button
-                  class="tc-reaction ${r.authors.includes(this.currentAuthor ?? '') ? 'tc-reaction--active' : ''}"
-                  title="${r.authors.join(', ')}"
-                  @click=${() => this.addReaction(r.emoji)}
-                >${r.emoji} <span class="tc-reaction__count">${r.authors.length}</span></button>
-              `)}
+            ${this.replyTo ? html`<div class="reply-to" part="reply-to"><span aria-hidden="true">${unsafeHTML(getThreadSvg('corner-down-right', 12))}</span>${t('replyingTo').replace('{name}', this.replyTo)}</div>` : nothing}
+            ${this.renderBody()}
+            <div class="bar">
+              <threads-reactions
+                part="reactions"
+                exportparts=${REACTION_PARTS}
+                .reactions=${reactions}
+                .viewer=${this.viewer}
+                .options=${opts?.options ?? DEFAULT_OPTIONS}
+                .restricted=${opts?.restricted ?? false}
+                picker-src=${opts?.pickerSrc ?? ''}
+                emoji-data-src=${opts?.emojiDataSrc ?? ''}
+                ?disabled=${!this.canReact}
+                @threads-react=${this.onReact}
+              ></threads-reactions>
+              ${this.renderActions()}
             </div>
-          ` : nothing}
-
-          <div class="tc-comment__actions">
-            <sl-button
-              id="emoji-trigger-${c.id}"
-              size="small"
-              variant="text"
-              title="Add reaction"
-              @click=${this.toggleEmojiPicker}
-            >
-              <span style="display:inline-flex;align-items:center;">${unsafeHTML(getThreadSvg('emoji-smile', 14))}</span>
-            </sl-button>
-            <sl-popup
-              placement="bottom-start"
-              .anchor=${this.querySelector(`#emoji-trigger-${c.id}`)}
-              ?active=${this.showEmojiPicker}
-              style="z-index: 10;"
-            >
-              <div style="display:flex; gap:2px; padding:4px 6px; background: var(--sl-color-neutral-0); border: 1px solid var(--sl-color-neutral-200); border-radius: var(--tc-radius); box-shadow: var(--sl-shadow-medium);">
-                ${EMOJI_PRESETS.map(e => html`
-                  <button class="tc-emoji-picker__item" @click=${() => this.addReaction(e)}>${e}</button>
-                `)}
-              </div>
-            </sl-popup>
           </div>
         </div>
+        <slot name="replies"></slot>
       </div>
     `;
+  }
+}
+
+defineOnce('threads-comment', ThreadsComment);
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'threads-comment': ThreadsComment;
   }
 }

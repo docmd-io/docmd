@@ -3,7 +3,7 @@
  * and filters-general.e2e.spec.ts "general comments" block.
  *
  * Changes from old plugin:
- * - "Add comment" popover opens inline editor (not a panel compose form)
+ * - The "Add comment" selection button opens an inline editor (not a panel compose form)
  * - "New Thread" button replaces "Add general comment" panel button
  * - WebSocket actions instead of HTTP API for verification
  */
@@ -16,6 +16,8 @@ import {
   AddNewThread,
   SelectText,
   TheHighlightCount,
+  inlineCards,
+  newThreadButton,
 } from "./screenplay.ts";
 import { clientKey, cleanThreads, publishReview, setAuthor, waitForReload } from "./helpers.ts";
 
@@ -56,10 +58,9 @@ test.describe("creating threads via text selection", () => {
     await waitForReload(user.page);
 
     // Thread should appear in the content area
-    const threads = user.page.locator(".threads-thread[data-thread-id]");
-    // Count may include pre-existing threads from markdown, so just check we have at least 1
-    const count = await threads.count();
-    expect(count).toBeGreaterThanOrEqual(1);
+    // The page has the three threads of the markdown plus the new (drafted) one
+    await expect(inlineCards(user.page)).toHaveCount(4);
+    await expect(inlineCards(user.page).filter({ hasText: "This needs clarification" })).toBeVisible();
   });
 
   test("highlights appear after creating a thread", async () => {
@@ -105,7 +106,7 @@ test.describe("creating threads via text selection", () => {
     const textToSelect = paragraphText.trim().slice(0, 15);
     await user.perform(SelectText.within(contentSelector, textToSelect));
 
-    const popoverBtn = user.page.locator("threads-popover").getByText("Add comment");
+    const popoverBtn = user.page.getByRole("button", { name: "Add comment", exact: true });
     await expect(popoverBtn).toBeVisible({ timeout: 5_000 });
   });
 });
@@ -114,11 +115,11 @@ test.describe("creating general (unanchored) threads", () => {
   test("clicking New Thread opens inline editor", async () => {
     await user.perform(NavigateTo.path("/"));
 
-    const newThreadBtn = user.page.locator(".threads-new-thread-btn").first();
-    await newThreadBtn.click();
+    await newThreadButton(user.page).click();
 
-    const editor = user.page.locator("threads-inline-editor");
+    const editor = user.page.locator("threads-editor");
     await expect(editor).toBeAttached({ timeout: 5_000 });
+    await expect(editor.getByRole("textbox")).toBeFocused();
   });
 
   test("submitting New Thread creates unanchored thread", async () => {
@@ -162,7 +163,7 @@ test.describe("creating general (unanchored) threads", () => {
   });
 });
 
-test.describe("popover behavior", () => {
+test.describe("selection button behavior", () => {
   test("mousedown outside popover dismisses it", async () => {
     await user.perform(NavigateTo.path("/"));
     await user.page.waitForSelector(contentSelector, { timeout: 5_000 });
@@ -178,14 +179,14 @@ test.describe("popover behavior", () => {
     await user.perform(SelectText.within(contentSelector, textToSelect));
 
     await expect(
-      user.page.locator("threads-popover").getByText("Add comment"),
+      user.page.getByRole("button", { name: "Add comment", exact: true }),
     ).toBeVisible({ timeout: 5_000 });
 
     // Click outside
     await user.page.locator("h1, body").first().click();
 
     await expect(
-      user.page.locator("threads-popover").getByText("Add comment"),
+      user.page.getByRole("button", { name: "Add comment", exact: true }),
     ).not.toBeVisible({ timeout: 5_000 });
   });
 
@@ -204,14 +205,14 @@ test.describe("popover behavior", () => {
     await user.perform(SelectText.within(contentSelector, textToSelect));
 
     await expect(
-      user.page.locator("threads-popover").getByText("Add comment"),
+      user.page.getByRole("button", { name: "Add comment", exact: true }),
     ).toBeVisible({ timeout: 5_000 });
 
     // Click to collapse selection
     await user.page.mouse.click(10, 10);
 
     await expect(
-      user.page.locator("threads-popover").getByText("Add comment"),
+      user.page.getByRole("button", { name: "Add comment", exact: true }),
     ).not.toBeVisible({ timeout: 5_000 });
   });
 });

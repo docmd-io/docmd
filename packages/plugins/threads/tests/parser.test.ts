@@ -4,6 +4,10 @@ import {
   parseThreadsFromContent,
   serializeThreadsBlock,
   replaceThreadsBlock,
+  parseReactions,
+  serializeReactors,
+  parseCommentContent,
+  hasContainerFence,
 } from '../src/plugin/parser.ts';
 
 const fullContent = `# My Document
@@ -99,9 +103,9 @@ test('parses a full threads block', () => {
   assert.equal(c2.body, "I agree, let's reword it");
   assert.equal(c2.reactions.length, 2);
   assert.equal(c2.reactions[0].emoji, '👍');
-  assert.deepEqual(c2.reactions[0].authors, ['charlie', 'dave']);
+  assert.deepEqual(c2.reactions[0].reactors, [{ key: null, name: 'charlie' }, { key: null, name: 'dave' }], 'old name-only lines read with a null key');
   assert.equal(c2.reactions[1].emoji, '🎉');
-  assert.deepEqual(c2.reactions[1].authors, ['alice']);
+  assert.deepEqual(c2.reactions[1].reactors, [{ key: null, name: 'alice' }]);
 
   const t2 = threads[1];
   assert.equal(t2.id, 't-def456');
@@ -303,7 +307,7 @@ test('round-trip serialize then parse keeps the thread structure', () => {
           date: '2026-02-10',
           edited_at: '2026-02-12',
           body: 'Multi-line\ncontent here',
-          reactions: [{ emoji: '👍', authors: ['eve'] }],
+          reactions: [{ emoji: '👍', reactors: [{ key: 'eve-key', name: 'eve' }] }],
         },
       ],
     },
@@ -330,7 +334,7 @@ test('round-trip serialize then parse keeps the thread structure', () => {
   assert.equal(reparsed[1].comments[0].body, 'Multi-line\ncontent here');
   assert.equal(reparsed[1].comments[0].reactions.length, 1);
   assert.equal(reparsed[1].comments[0].reactions[0].emoji, '👍');
-  assert.deepEqual(reparsed[1].comments[0].reactions[0].authors, ['eve']);
+  assert.deepEqual(reparsed[1].comments[0].reactions[0].reactors, [{ key: 'eve-key', name: 'eve' }]);
 });
 
 test('replaces the threads block in an existing file', () => {
@@ -464,4 +468,133 @@ test('an anchor that is not the first child is kept and serialised first', () =>
   const [t] = parseThreadsFromContent(content);
   assert.deepEqual(t.anchor, { quote: 'late quote' });
   assert.ok(serializeThreadsBlock([t]).indexOf('::: anchor') < serializeThreadsBlock([t]).indexOf('::: comment'));
+});
+
+// ---------------------------------------------------------------------------
+// Reactions line: `- <emoji> <name> {<key>}, ...`
+// ---------------------------------------------------------------------------
+
+const reactionLine = (rest: string) => parseReactions([`        - 👍 ${rest}`])[0].reactors;
+
+test('reactions line: new name {key} entries', () => {
+  assert.deepEqual(reactionLine('Alice Smith {alice}, Bob {8812031}'), [
+    { key: 'alice', name: 'Alice Smith' },
+    { key: '8812031', name: 'Bob' },
+  ]);
+});
+
+test('reactions line: old name-only entries read with a null key, as before', () => {
+  assert.deepEqual(reactionLine('Alice, Bob Jones,Carol'), [
+    { key: null, name: 'Alice' },
+    { key: null, name: 'Bob Jones' },
+    { key: null, name: 'Carol' },
+  ]);
+});
+
+test('reactions line: old and new entries mixed in one line', () => {
+  assert.deepEqual(reactionLine('Old Timer, New Person {np}, Another Old'), [
+    { key: null, name: 'Old Timer' },
+    { key: 'np', name: 'New Person' },
+    { key: null, name: 'Another Old' },
+  ]);
+});
+
+test('reactions line: escaped commas, braces and backslashes in names and keys', () => {
+  assert.deepEqual(reactionLine('Smith\\, Anna {a\\,b}, Brace \\{x\\} {k\\{1\\}}, Back\\\\slash {c\\\\d}'), [
+    { key: 'a,b', name: 'Smith, Anna' },
+    { key: 'k{1}', name: 'Brace {x}' },
+    { key: 'c\\d', name: 'Back\\slash' },
+  ]);
+  // an escaped closing brace at the end is not a key
+  assert.deepEqual(reactionLine('Odd name \\{x\\}'), [{ key: null, name: 'Odd name {x}' }]);
+  // a lone backslash before an ordinary character stays (old lines never escaped)
+  assert.deepEqual(reactionLine('DOMAIN\\user'), [{ key: null, name: 'DOMAIN\\user' }]);
+});
+
+test('reactions line: an old name-only entry that ends in braces is a name unless it has the serializer shape', () => {
+  // whitespace in the braces, braces earlier in the name, or no space before the brace: not a key
+  assert.deepEqual(reactionLine('Team {QA lead}'), [{ key: null, name: 'Team {QA lead}' }]);
+  assert.deepEqual(reactionLine('Ops {x} {y z}'), [{ key: null, name: 'Ops {x} {y z}' }]);
+  assert.deepEqual(reactionLine('Team{QA}'), [{ key: null, name: 'Team{QA}' }]);
+  assert.deepEqual(reactionLine('Team { QA }, Bob {bob}'), [{ key: null, name: 'Team { QA }' }, { key: 'bob', name: 'Bob' }]);
+  // the serializer's own output still reads back as a key
+  assert.deepEqual(reactionLine('Team {QA}'), [{ key: 'QA', name: 'Team' }]);
+  assert.deepEqual(reactionLine(serializeReactors([{ key: 'k1', name: 'Odd {name}' }])), [{ key: 'k1', name: 'Odd {name}' }]);
+});
+
+test('reactions line: an empty key or name is not a key', () => {
+  assert.deepEqual(reactionLine('Alice {}'), [{ key: null, name: 'Alice {}' }]);
+  assert.deepEqual(reactionLine('{solo}'), [{ key: null, name: '{solo}' }]);
+});
+
+test('reactions serialize as name {key}, escaped; a key-less entry stays name-only', () => {
+  assert.equal(
+    serializeReactors([
+      { key: 'alice', name: 'Alice Smith' },
+      { key: 'a,b', name: 'Smith, Anna' },
+      { key: 'k{1}', name: 'Brace {x}' },
+      { key: 'c\\d', name: 'Back\\slash' },
+      { key: null, name: 'Old Timer' },
+    ]),
+    'Alice Smith {alice}, Smith\\, Anna {a\\,b}, Brace \\{x\\} {k\\{1\\}}, Back\\\\slash {c\\\\d}, Old Timer',
+  );
+  assert.equal(serializeReactors([{ key: 'k', name: 'Two\nLines' }]), 'Two Lines {k}', 'a line break would end the entry');
+});
+
+test('reactions round trip: parse, serialize, parse keeps every entry; old entries stay key-less', () => {
+  const reactors = [
+    { key: 'alice', name: 'Alice Smith' },
+    { key: 'a,b', name: 'Smith, Anna' },
+    { key: 'k{1}', name: 'Brace {x}' },
+    { key: 'c\\d', name: 'Back\\slash' },
+    { key: 'same', name: 'Twin' },
+    { key: 'other', name: 'Twin' },
+    { key: null, name: 'Legacy' },
+  ];
+  assert.deepEqual(reactionLine(serializeReactors(reactors)), reactors);
+
+  const block = serializeThreadsBlock([{
+    id: 't-r', resolved: false, resolved_by: null, resolved_at: null,
+    comments: [{ id: 'c-r', thread_id: 't-r', parent_id: null, author: 'A', date: '2026-01-01', edited_at: null, body: 'b', reactions: [{ emoji: '👍', reactors }] }],
+  }]);
+  assert.ok(block.includes('        - 👍 Alice Smith {alice}, '), block);
+  assert.ok(block.trimEnd().split('\n').some((l) => l.endsWith(', Legacy')), 'the legacy entry is written name-only');
+  assert.deepEqual(parseThreadsFromContent(block)[0].comments[0].reactions, [{ emoji: '👍', reactors }]);
+});
+
+test('reactions: a publish that touches one comment leaves other comments\' old lines name-only', () => {
+  const content = `::: threads
+  ::: thread t-1
+    ::: comment c-1 "A" "2026-01-01"
+      one
+
+      ::: reactions
+        - 👍 Old One, Old Two
+      :::
+    :::
+  :::
+:::
+`;
+  const threads = parseThreadsFromContent(content);
+  const out = replaceThreadsBlock(content, threads);
+  assert.ok(out.includes('- 👍 Old One, Old Two\n'), out);
+  assert.equal(out.includes('{'), false, 'no keys are invented for old entries');
+});
+
+test('hasContainerFence: a bare fence or one with a name, indented or not', () => {
+  assert.equal(hasContainerFence('plain\ntext'), false);
+  assert.equal(hasContainerFence('a ::: b'), false);
+  assert.equal(hasContainerFence(':::'), true);
+  assert.equal(hasContainerFence('x\n  ::: reactions'), true);
+  assert.equal(hasContainerFence('x\n:::comment'), false);
+});
+
+test('parseCommentContent reads the last reactions block, so a lookalike earlier in the body is not the real one', () => {
+  const lines = ['hi', '', '::: reactions', '- 👍 Mallory {alice}', ':::', '', '::: reactions', '- 🎉 Bob {bob}', ':::'];
+  const { reactions } = parseCommentContent(lines);
+  assert.deepEqual(reactions.map((r) => r.emoji), ['🎉']);
+  assert.equal(reactions[0].reactors[0].key, 'bob');
+  // An unterminated block after a closed one keeps the closed one
+  const { reactions: kept } = parseCommentContent(['::: reactions', '- 👍 Bob {bob}', ':::', '::: reactions', '- 🎉 X']);
+  assert.deepEqual(kept.map((r) => r.emoji), ['👍']);
 });

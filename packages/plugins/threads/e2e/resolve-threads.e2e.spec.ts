@@ -5,14 +5,16 @@
  * Changes from old plugin:
  * - Resolve functionality exists at API level (threads:resolve-thread); it drafts the
  *   toggle in the caller's journal until threads:publish-review writes it
- * - Resolved threads get .threads-thread--resolved class (opacity: 0.55)
- * - The Lit-rendered threads-thread component has Resolve/Unresolve buttons,
- *   but the current inline mode uses server-rendered HTML
+ * - Resolved threads carry the `resolved` attribute on their `threads-thread` card
+ *   (the build's own markup keeps `.threads-thread--resolved` for no-JS readers)
+ * - The card has Resolve/Unresolve buttons, inline and in the panel
  */
 
 import { test, expect } from "@playwright/test";
 import { Actor } from "./screenplay.ts";
-import { cleanThreads, setAuthor, seedAndReload, waitForReload } from "./helpers.ts";
+import { cleanThreads, inlineCard, openPanel, panelCard, setAuthor, seedAndReload, waitForReload } from "./helpers.ts";
+
+const ANCHOR = { quote: "verify core engine" };
 
 let user: Actor;
 
@@ -84,9 +86,10 @@ test.describe("resolve thread API", () => {
     expect(unresolved.resolved).toBeFalsy();
   });
 
-  test("resolved thread gets --resolved CSS class on server render", async () => {
+  test("a resolved thread's card is marked resolved, inline and in the panel", async () => {
     const { id: threadId } = await seedAndReload(user.page, {
       body: "Thread for CSS test",
+      anchor: ANCHOR,
       resolved: true,
     });
 
@@ -94,13 +97,48 @@ test.describe("resolve thread API", () => {
     // add-thread + resolve as separate file writes
     await waitForReload(user.page);
 
-    const threadEl = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
-    await expect(threadEl).toBeAttached({ timeout: 5_000 });
+    const card = inlineCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 5_000 });
+    await expect(card).toHaveAttribute("resolved", "");
+    await expect(card.getByText("Resolved", { exact: true })).toBeVisible();
+    await expect(card.getByRole("button", { name: "Unresolve", exact: true })).toBeVisible();
 
-    // Server-rendered resolved threads should have the resolved class
-    const hasResolvedClass = await threadEl.evaluate((el) =>
-      el.classList.contains("threads-thread--resolved"),
-    );
-    expect(hasResolvedClass).toBe(true);
+    await openPanel(user.page);
+    await expect(panelCard(user.page, threadId)).toHaveAttribute("resolved", "");
+  });
+});
+
+test.describe("resolve thread UI", () => {
+  test("Resolve and Unresolve on the card toggle the thread", async () => {
+    const { id: threadId } = await seedAndReload(user.page, { body: "Thread to resolve in the UI", anchor: ANCHOR });
+    const card = inlineCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 5_000 });
+    await expect(card).not.toHaveAttribute("resolved", "");
+
+    await card.getByRole("button", { name: "Resolve", exact: true }).click();
+    await expect(card).toHaveAttribute("resolved", "");
+    await expect(card.getByRole("button", { name: "Unresolve", exact: true })).toBeVisible();
+
+    await card.getByRole("button", { name: "Unresolve", exact: true }).click();
+    await expect(card).not.toHaveAttribute("resolved", "");
+    await expect(card.getByRole("button", { name: "Resolve", exact: true })).toBeVisible();
+  });
+
+  test("a failed resolve shows an error line on the card and leaves the thread open", async () => {
+    const { id: threadId } = await seedAndReload(user.page, { body: "Thread whose resolve fails", anchor: ANCHOR });
+    const card = inlineCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 5_000 });
+
+    // Make the action fail, as a server error would
+    await user.page.evaluate(() => {
+      const original = docmd.call.bind(docmd);
+      docmd.call = (action: string, ...rest: unknown[]) =>
+        action === "threads:resolve-thread" ? Promise.reject(new Error("e2e: resolve refused")) : original(action, ...(rest as [Record<string, unknown>]));
+    });
+
+    await card.getByRole("button", { name: "Resolve", exact: true }).click();
+    await expect(card.getByRole("alert")).toHaveText("Could not save. Try again.");
+    await expect(card).not.toHaveAttribute("resolved", "");
+    await expect(card.getByRole("button", { name: "Resolve", exact: true })).toBeEnabled();
   });
 });

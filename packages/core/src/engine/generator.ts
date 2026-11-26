@@ -489,7 +489,8 @@ export async function renderPages({ config, srcDir, fallbackSrcDir, outputDir, h
           defaultLocale: config._defaultLocale || null,
           allLocales: (config._allLocales || []).map((l: any) => l.id),
           outputPrefix: outputPrefix,
-          config: { base: config.base || '/', strict: Boolean(config.strict) },
+          // `src` (the docs folder) lets plugins find files that sit beside the content, such as the threads authors map.
+          config: { base: config.base || '/', strict: Boolean(config.strict), src: typeof config.src === 'string' ? config.src : undefined },
           strict: Boolean(config.strict),
           pathname: pageUrlsForMarkdown.pathname,
           variableRegistry,

@@ -4,12 +4,12 @@
  * Changes from old plugin:
  * - threads-app replaces devtalk-app as root element
  * - "New Thread" button replaces sidebar toggle
- * - Threads rendered server-side with .threads-* classes
+ * - Threads are `threads-thread` components (shadow DOM) placed after their highlighted block
  */
 
 import { test, expect } from "@playwright/test";
-import { Actor, NavigateTo } from "./screenplay.ts";
-import { setAuthor, waitForClientProcessing } from "./helpers.ts";
+import { Actor, NavigateTo, inlineCards, newThreadButton } from "./screenplay.ts";
+import { openPanel, panelCard, panelLauncher, setAuthor, waitForClientProcessing, waitForHydration } from "./helpers.ts";
 
 
 
@@ -35,24 +35,35 @@ test.describe("threads plugin - basic UI", () => {
 
   test("New Thread button is injected into the content area", async () => {
     await user.perform(NavigateTo.path("/"));
-    const btn = user.page.locator(".threads-new-thread-btn").first();
+    const btn = newThreadButton(user.page);
     await expect(btn).toBeVisible({ timeout: 5_000 });
-    await expect(btn).toContainText("New Thread");
+    await expect(user.page.locator(".threads-new-thread-btn").first()).toHaveText("New Thread");
   });
 
-  test("server-rendered threads appear with correct class structure", async () => {
+  test("the focus-mode title is a copy of the page title and gets no New Thread button", async () => {
+    await user.perform(NavigateTo.path("/"));
+    await expect(newThreadButton(user.page)).toBeVisible({ timeout: 5_000 });
+    const copies = user.page.locator(".docmd-focus-title");
+    expect(await copies.count()).toBeGreaterThan(0);
+    await expect(user.page.locator(".docmd-focus-title .threads-new-thread-btn")).toHaveCount(0);
+    await expect(user.page.locator(".docmd-focus-title.threads-heading-wrap")).toHaveCount(0);
+  });
+
+  test("threads from the markdown appear as cards with their comments", async () => {
     // The playground index.md has pre-existing threads in the ::: threads block
     await user.perform(NavigateTo.path("/"));
 
-    // There should be thread cards rendered from the markdown
-    const threads = user.page.locator(".threads-thread[data-thread-id]");
-    const count = await threads.count();
-    expect(count).toBeGreaterThan(0);
+    // The three threads of the block each have a highlight, so each has a card in the article
+    const threads = inlineCards(user.page);
+    await expect(threads).toHaveCount(3);
 
     // Each thread should have at least one comment
-    const firstThread = threads.first();
-    const comments = firstThread.locator(".threads-comment");
-    await expect(comments.first()).toBeAttached();
+    for (let i = 0; i < 3; i++) {
+      await expect(threads.nth(i).locator("threads-comment").first()).toBeVisible();
+    }
+    // The build's own markup stays in the page for no-JS readers, hidden once the cards are there
+    await waitForHydration(user.page);
+    await expect(user.page.locator(".threads-sidebar .threads-thread").first()).toBeHidden();
   });
 
   test("highlights appear on marked text", async () => {
@@ -64,30 +75,17 @@ test.describe("threads plugin - basic UI", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("highlights have cycling colors (not all the same)", async () => {
+  test("highlights are coloured by status: published blue, resolved green", async () => {
     await user.perform(NavigateTo.path("/"));
     await waitForClientProcessing(user.page);
 
-    const highlights = user.page.locator("mark.threads-highlight[data-thread-id]");
-    const count = await highlights.count();
-
-    if (count < 2) {
-      test.skip(true, "Need at least 2 highlights to test color cycling");
-      return;
-    }
-
-    // Collect all highlight color classes
-    const colorClasses: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const classList = await highlights.nth(i).evaluate((el) =>
-        Array.from(el.classList).filter((c) => c.startsWith("threads-hl-")),
-      );
-      colorClasses.push(...classList);
-    }
-
-    // With 2+ highlights, we should see at least 2 different colors
-    const uniqueColors = new Set(colorClasses);
-    expect(uniqueColors.size).toBeGreaterThanOrEqual(2);
+    const colourOf = (id: string) =>
+      user.page
+        .locator(`mark.threads-highlight[data-thread-id="${id}"]`)
+        .first()
+        .evaluate((el) => Array.from(el.classList).filter((c) => c.startsWith("threads-hl-")));
+    expect(await colourOf("t-thread1")).toEqual(["threads-hl-blue"]);
+    expect(await colourOf("t-thread3")).toEqual(["threads-hl-green"]);
   });
 
   test("thread cards are placed inline after their highlighted block", async () => {
@@ -106,14 +104,15 @@ test.describe("threads plugin - basic UI", () => {
     const threadId = await firstHighlight.getAttribute("data-thread-id");
     if (!threadId) return;
 
-    const threadCard = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
-    await expect(threadCard).toBeAttached();
+    const threadCard = user.page.locator(`threads-thread[variant="inline"][data-thread-id="${threadId}"]`);
+    await expect(threadCard).toBeVisible();
 
-    // Thread card should appear after the highlight's parent block in document order
+    // Thread card should appear after the highlight's parent block in document order. Both are light-DOM
+    // elements of the article (the card's insides are in its shadow root), so document queries see them.
     const isAfterHighlight = await user.page.evaluate(
       ({ threadId }) => {
         const mark = document.querySelector(`mark.threads-highlight[data-thread-id="${threadId}"]`);
-        const thread = document.querySelector(`.threads-thread[data-thread-id="${threadId}"]`);
+        const thread = document.querySelector(`threads-thread[variant="inline"][data-thread-id="${threadId}"]`);
         if (!mark || !thread) return false;
         return mark.compareDocumentPosition(thread) & Node.DOCUMENT_POSITION_FOLLOWING;
       },
@@ -144,14 +143,10 @@ test.describe("threads plugin - basic UI", () => {
 
     if (!hlColorClass) return;
 
-    // The thread card should have the matching border class
-    const expectedBorderClass = hlColorClass.replace("threads-hl-", "threads-border-");
-    const threadCard = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
-    const hasBorderClass = await threadCard.evaluate(
-      (el, cls) => el.classList.contains(cls),
-      expectedBorderClass,
-    );
-    expect(hasBorderClass).toBe(true);
+    // The thread card carries the same colour name, inline and in the panel
+    const color = hlColorClass.replace("threads-hl-", "");
+    await expect(user.page.locator(`threads-thread[variant="inline"][data-thread-id="${threadId}"]`)).toHaveAttribute("color", color);
+    await expect(panelCard(user.page, threadId)).toHaveAttribute("color", color);
   });
 
   test("clicking a highlight scrolls to and flashes its thread", async () => {
@@ -168,48 +163,87 @@ test.describe("threads plugin - basic UI", () => {
 
     await firstHighlight.click();
 
-    // After clicking, the thread card should receive the flash class
+    // After clicking, the panel opens and its card for the thread flashes
     const threadId = await firstHighlight.getAttribute("data-thread-id");
-    const threadCard = user.page.locator(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
-    await expect(threadCard).toHaveClass(/threads-thread--flash/, { timeout: 2_000 });
+    await expect(panelCard(user.page, threadId!)).toHaveAttribute("flash", "", { timeout: 2_000 });
+    await expect(user.page.locator("body")).toHaveClass(/tc-panel-open/);
   });
 
   test("popover hidden initially without text selection", async () => {
     await user.perform(NavigateTo.path("/"));
 
     // Without any text selection, the popover should not show
-    await expect(
-      user.page.locator("threads-popover").getByText("Add comment"),
-    ).not.toBeVisible();
+    await expect(user.page.getByRole("button", { name: "Add comment", exact: true })).not.toBeVisible();
   });
 
   test("reply buttons present on thread cards", async () => {
     await user.perform(NavigateTo.path("/"));
 
-    const threads = user.page.locator(".threads-thread[data-thread-id]");
-    const count = await threads.count();
-
-    if (count === 0) {
-      test.skip(true, "No threads on page");
-      return;
-    }
+    const threads = inlineCards(user.page);
+    await expect(threads).toHaveCount(3);
 
     // Each thread should have a Reply button
-    for (let i = 0; i < count; i++) {
-      const thread = threads.nth(i);
-      const replyBtn = thread.locator(".threads-comment-reply-btn").first();
-      await expect(replyBtn).toBeAttached();
-      await expect(replyBtn).toContainText("Reply");
+    for (let i = 0; i < 3; i++) {
+      const replyBtn = threads.nth(i).getByRole("button", { name: "Reply", exact: true }).first();
+      await expect(replyBtn).toBeVisible();
     }
   });
 
-  test("threads-sidebar container is hidden", async () => {
+  test("the build's threads-sidebar container is hidden once the cards are shown", async () => {
     await user.perform(NavigateTo.path("/"));
 
     const sidebar = user.page.locator(".threads-sidebar");
-    if ((await sidebar.count()) > 0) {
-      // The sidebar wrapper should be hidden (display: none)
-      await expect(sidebar).toBeHidden();
+    await expect(sidebar).toHaveCount(1);
+    await expect(sidebar).toBeHidden();
+  });
+
+  test("every thread has a card in the panel, in the colour of its highlight", async () => {
+    await user.perform(NavigateTo.path("/"));
+    await openPanel(user.page);
+    for (const id of ["t-thread1", "t-thread2", "t-thread3"]) {
+      await expect(panelCard(user.page, id)).toBeVisible();
     }
+    await expect(panelCard(user.page, "t-thread3")).toHaveAttribute("resolved", "");
+    await expect(panelCard(user.page, "t-thread1")).not.toHaveAttribute("resolved", "");
+  });
+
+  test("the launcher is a notch that docks wider on hover and is gone while the panel is open", async () => {
+    await user.perform(NavigateTo.path("/"));
+    const notch = panelLauncher(user.page);
+    await expect(notch).toBeVisible();
+    const rest = await notch.boundingBox();
+    expect(rest!.width).toBeLessThanOrEqual(40);
+    // Centred vertically on the page edge
+    const viewport = user.page.viewportSize()!;
+    expect(Math.abs(rest!.y + rest!.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(2);
+    expect(Math.round(rest!.x + rest!.width)).toBe(viewport.width);
+
+    await notch.hover();
+    await expect.poll(async () => (await notch.boundingBox())!.width).toBeGreaterThan(rest!.width + 4);
+    const docked = await notch.boundingBox();
+    expect(Math.round(docked!.x + docked!.width)).toBe(viewport.width);
+
+    await notch.click();
+    await expect(user.page.locator("threads-panel").getByRole("complementary")).toBeVisible();
+    await expect(notch).toHaveCount(0);
+  });
+
+  test("the table of contents is hidden while the panel is open, at any width", async () => {
+    await user.perform(NavigateTo.path("/"));
+    // The playground theme may not render a TOC: give the page a stand-in the layout rule targets
+    await user.page.evaluate(() => {
+      const toc = document.createElement("aside");
+      toc.className = "toc-sidebar";
+      toc.id = "e2e-toc";
+      toc.textContent = "On this page";
+      document.body.appendChild(toc);
+    });
+    await user.page.setViewportSize({ width: 1700, height: 900 });
+    const toc = user.page.locator("#e2e-toc");
+    await expect(toc).toBeVisible();
+    await openPanel(user.page);
+    await expect(toc).toBeHidden();
+    await user.page.getByRole("button", { name: "Close panel" }).first().click();
+    await expect(toc).toBeVisible();
   });
 });

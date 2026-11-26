@@ -4,12 +4,14 @@ import path from 'node:path';
 import type { ActionContext } from '@docmd/api';
 import { safePath } from '@docmd/utils';
 import * as parser from './parser.js';
+import { hasContainerFence } from './parser.js';
 import { ThreadsError } from './errors.js';
 import { markPattern, splitPage } from './marks.js';
 import type { Sync } from './lock.js';
 import { authorEmailOf } from './author-email.js';
 import { authorsFileOf, setAuthorEntry } from './authors.js';
 import type { DraftStore } from './drafts.js';
+import { addCaller, hasCaller, removeCaller, type ReactionCaller } from './reactors.js';
 import type { Caller, Comment, DraftOp, Journal, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
 const TITLE_MAX = 120;
@@ -111,7 +113,7 @@ export interface ApplyResult {
 }
 
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
-const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
+const unsafeQuote = hasContainerFence;
 
 /**
  * `content` with every threads block blanked to line breaks (same length, so offsets
@@ -182,13 +184,13 @@ const unwrapThread = (content: string, threadId: string) => content.replace(mark
  * order, so a second toggle of the same target flips the first one's result. Passing the
  * result to applyOps makes a re-run a no-op.
  */
-export function deriveTargets(content: string, ops: DraftOp[], authorName: string): Record<string, boolean> {
+export function deriveTargets(content: string, ops: DraftOp[], caller: ReactionCaller): Record<string, boolean> {
   const threads = parser.parseThreadsFromContent(content);
   const resolved = new Map(threads.map((t) => [t.id, t.resolved]));
   const present = new Map<string, boolean>();
   for (const t of threads) {
     for (const c of t.comments) {
-      for (const r of c.reactions ?? []) present.set(`${t.id}\0${c.id}\0${r.emoji}`, r.authors.includes(authorName));
+      for (const r of c.reactions ?? []) present.set(`${t.id}\0${c.id}\0${r.emoji}`, hasCaller(r, caller));
     }
   }
   const targets: Record<string, boolean> = {};
@@ -233,6 +235,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
     const comment = (id: string) => thread?.comments.find((c) => c.id === id);
     switch (op.kind) {
       case 'add-thread': {
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
+          break;
+        }
         const quote = op.anchor?.quote;
         if (thread) {
           if (comment(op.commentId)?.reviewId === opts.reviewId) done(op, quote ? { quote } : {});
@@ -263,6 +269,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
           skip(op, `thread ${op.threadId} not found`);
           break;
         }
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
+          break;
+        }
         const existing = comment(op.commentId);
         if (existing) {
           if (existing.reviewId === opts.reviewId) done(op);
@@ -282,6 +292,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
         const c = comment(op.commentId);
         if (!c) {
           skip(op, thread ? `comment ${op.commentId} not found` : `thread ${op.threadId} not found`);
+          break;
+        }
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
           break;
         }
         const before = { body: c.body, edited_at: c.edited_at };
@@ -352,15 +366,14 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
         }
         c.reactions ??= [];
         const r = c.reactions.find((x) => x.emoji === op.emoji);
-        const present = !!r && r.authors.includes(opts.authorName);
+        const caller = { key: opts.authorKey, name: opts.authorName };
+        const present = hasCaller(r, caller);
         const want = opts.targets?.[op.opId] ?? !present;
         if (want && !present) {
-          if (r) r.authors.push(opts.authorName);
-          else c.reactions.push({ emoji: op.emoji, authors: [opts.authorName] });
+          addCaller(c.reactions, op.emoji, caller);
           changed = true;
-        } else if (!want && present && r) {
-          r.authors = r.authors.filter((a) => a !== opts.authorName);
-          if (!r.authors.length) c.reactions = c.reactions.filter((x) => x !== r);
+        } else if (!want && present) {
+          c.reactions = removeCaller(c.reactions, op.emoji, caller);
           changed = true;
         }
         done(op, { before: { present } });
@@ -395,10 +408,10 @@ interface ReverseResult {
  * Reverse one file's published ops (newest first) from the `before` states the manifest
  * recorded. Ops whose target is gone are skipped with a reason. Idempotent: a second run
  * changes nothing, because every step sets a state (removes an id, restores a value,
- * inserts only when absent) rather than flipping one. `authorName` is the review author's
- * display name: reactions are stored by name and a manifest op does not carry it.
+ * inserts only when absent) rather than flipping one. `authorKey` and `authorName` are the
+ * review author's: a manifest op does not carry them, and reactions are stored under both.
  */
-export function reverseOps(content: string, manifestOps: ManifestOp[], opts: { authorName: string }): ReverseResult {
+export function reverseOps(content: string, manifestOps: ManifestOp[], opts: { authorKey: string; authorName: string }): ReverseResult {
   const threads: Thread[] = parser.parseThreadsFromContent(content);
   const skipped: ReverseResult['skipped'] = [];
   let text = content;
@@ -439,7 +452,7 @@ export function reverseOps(content: string, manifestOps: ManifestOp[], opts: { a
           skip(`thread ${op.threadId} not found`);
           break;
         }
-        if (reverseInThread(thread, op, before, opts.authorName, skip)) changed = true;
+        if (reverseInThread(thread, op, before, { key: opts.authorKey, name: opts.authorName }, skip)) changed = true;
       }
     }
   }
@@ -453,7 +466,7 @@ function reverseInThread(
   thread: Thread,
   op: ManifestOp,
   before: Before | undefined,
-  authorName: string,
+  caller: ReactionCaller,
   skip: (reason: string) => false,
 ): boolean {
   if (op.kind === 'resolve-thread') {
@@ -491,15 +504,10 @@ function reverseInThread(
       if (typeof before?.present !== 'boolean') return skip('no recorded before-state');
       c.reactions ??= [];
       const r = c.reactions.find((x) => x.emoji === op.emoji);
-      const present = !!r && r.authors.includes(authorName);
+      const present = hasCaller(r, caller);
       if (present === before.present) return false;
-      if (before.present) {
-        if (r) r.authors.push(authorName);
-        else c.reactions.push({ emoji: op.emoji, authors: [authorName] });
-      } else if (r) {
-        r.authors = r.authors.filter((a) => a !== authorName);
-        if (!r.authors.length) c.reactions = c.reactions.filter((x) => x !== r);
-      }
+      if (before.present) addCaller(c.reactions, op.emoji, caller);
+      else c.reactions = removeCaller(c.reactions, op.emoji, caller);
       return true;
     }
   }
@@ -677,7 +685,7 @@ type Profile = NonNullable<Journal['profile']>;
 
 /** Drop the journal's profile when it is still the one that was written (edited again meanwhile: it stays). */
 function clearProfile(j: Journal, written: Profile): void {
-  if (j.profile?.name === written.name && j.profile.avatarUrl === written.avatarUrl) delete j.profile;
+  if (j.profile?.name === written.name && j.profile.avatarUrl === written.avatarUrl && j.profile.link === written.link) delete j.profile;
 }
 
 /**
@@ -763,7 +771,7 @@ export async function publish(
             continue;
           }
           titles[file] = pageTitleOf(content);
-          if (!targetsByFile.has(file)) targetsByFile.set(file, deriveTargets(content, fileOps, caller.name));
+          if (!targetsByFile.has(file)) targetsByFile.set(file, deriveTargets(content, fileOps, caller));
           const result = applyOps(content, fileOps, {
             authorKey: caller.key, authorName: caller.name, reviewId, targets: targetsByFile.get(file), enforce: caller.source === 'header',
           });
@@ -899,7 +907,7 @@ export async function discard(
             for (const o of fileOps) discardSkipped.push({ opId: o.opId, reason: `file ${file} not readable` });
             continue;
           }
-          const result = reverseOps(content, fileOps, { authorName: current.authorName });
+          const result = reverseOps(content, fileOps, { authorKey: current.authorKey, authorName: current.authorName });
           discardSkipped.push(...result.skipped);
           results.push({ file, original: content, next: result.content });
         }

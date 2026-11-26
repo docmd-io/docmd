@@ -253,3 +253,16 @@ test('a malformed pending profile is dropped on load', async () => {
   wr(file, JSON.stringify({ ...base, profile: { name: 'Bob B' } }));
   assert.equal((await s.load('bob')).profile, undefined, 'a profile with no avatar is malformed too');
 });
+
+test('a pending profile keeps its link: a URL or false, and drops anything else', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads/drafts'), { recursive: true });
+  const file = path.join(draftsDir(), 'bob.json');
+  const s = createDraftStore(docsRoot, { now: () => clock });
+  const base = { version: 1, mode: 'collect', review: { id: 'r-1', updatedAt: '2026-03-10T12:00:00.000Z', title: null, summary: null }, ops: [] };
+  const load = async (profile: unknown) => (wr(file, JSON.stringify({ ...base, profile })), (await s.load('bob')).profile);
+  assert.deepEqual(await load({ name: 'Bob', avatarUrl: '', link: 'https://b.io/bob' }), { name: 'Bob', avatarUrl: '', link: 'https://b.io/bob' });
+  assert.deepEqual(await load({ name: 'Bob', avatarUrl: '', link: false }), { name: 'Bob', avatarUrl: '', link: false });
+  assert.deepEqual(await load({ name: 'Bob', avatarUrl: '' }), { name: 'Bob', avatarUrl: '' });
+  assert.deepEqual(await load({ name: 'Bob', avatarUrl: '', link: 7 }), { name: 'Bob', avatarUrl: '' }, 'a link of another type is dropped, the rest kept');
+  assert.deepEqual(await load({ name: 'Bob', avatarUrl: '', link: null }), { name: 'Bob', avatarUrl: '' });
+});

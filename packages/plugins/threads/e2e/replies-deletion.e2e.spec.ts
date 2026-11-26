@@ -3,10 +3,10 @@
  * and devtalk.e2e.spec.ts "discussions" block.
  *
  * Changes from old plugin:
- * - Reply button on thread footer (not an always-visible reply textarea)
- * - Delete confirmation via sl-dialog#delete-dialog (same as before)
+ * - Reply button on each comment (not an always-visible reply textarea)
+ * - Delete confirmation via a `threads-dialog` (role dialog, "Confirm Delete")
  * - Seeding via docmd.call() instead of HTTP API
- * - Comment editing now handled by threads-comment Lit component with tc-* classes
+ * - Comment editing is handled by the `threads-comment` component (see edit-comment.e2e.spec.ts)
  * - Replies, edits and deletions are drafts in the caller's journal until published:
  *   these specs check the caller's view (threads:get-threads with their identity)
  */
@@ -16,7 +16,7 @@ import {
   Actor,
   ReplyToThread,
 } from "./screenplay.ts";
-import { clientKey, cleanThreads, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
+import { clientKey, cleanThreads, inlineCard, openPanel, panelCard, setAuthor, seedAndReload, waitForReload, waitForClientProcessing } from "./helpers.ts";
 
 let user: Actor;
 
@@ -35,8 +35,8 @@ test.beforeEach(async ({ page }) => {
 
 test.describe("reply to thread", () => {
   test("clicking Reply opens inline editor inside thread card", async () => {
-    // Use an anchored thread so it gets moved inline (unanchored threads
-    // stay in the hidden sidebar and the Reply button is not visible)
+    // Use an anchored thread so it gets a card inline (unanchored threads
+    // only have their card in the sidebar panel)
     const { id: threadId } = await seedAndReload(user.page, {
       body: "Thread for reply test",
       anchor: { quote: "verify core engine" },
@@ -44,15 +44,18 @@ test.describe("reply to thread", () => {
 
     await waitForClientProcessing(user.page);
 
-    const threadEl = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
+    const threadEl = inlineCard(user.page, threadId);
     await expect(threadEl).toBeVisible({ timeout: 5_000 });
 
-    const replyBtn = threadEl.locator(".threads-comment-reply-btn").first();
+    const replyBtn = threadEl.getByRole("button", { name: "Reply", exact: true }).first();
     await expect(replyBtn).toBeVisible({ timeout: 5_000 });
     await replyBtn.click();
 
-    const editor = user.page.locator("threads-inline-editor");
-    await expect(editor).toBeAttached({ timeout: 5_000 });
+    // The editor is inside the card, under the comment, and takes the focus
+    const editor = threadEl.locator("threads-editor");
+    await expect(editor).toBeVisible({ timeout: 5_000 });
+    await expect(editor.getByRole("textbox")).toBeFocused();
+    await expect(user.page.locator("threads-editor")).toHaveCount(1);
   });
 
   test("submitting reply adds a comment to the thread", async () => {
@@ -64,7 +67,7 @@ test.describe("reply to thread", () => {
 
     await waitForClientProcessing(user.page);
 
-    const threadSelector = `.threads-thread[data-thread-id="${threadId}"]`;
+    const threadSelector = `threads-thread[variant="inline"][data-thread-id="${threadId}"]`;
 
     await user.perform(
       ReplyToThread.on(threadSelector, "I agree with this"),
@@ -92,26 +95,63 @@ test.describe("reply to thread", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("thread deletion", () => {
-  test("delete dialog opens when delete is requested", async () => {
+  test("Delete on a lone comment asks first; Cancel keeps the thread", async () => {
     const { id: threadId } = await seedAndReload(user.page, {
       body: "Thread to delete",
+      anchor: { quote: "verify core engine" },
     });
 
-    const threadEl = user.page.locator(`.threads-thread[data-thread-id="${threadId}"]`);
-    await expect(threadEl).toBeAttached({ timeout: 5_000 });
+    const threadEl = inlineCard(user.page, threadId);
+    await expect(threadEl).toBeVisible({ timeout: 5_000 });
+    await expect(user.page.getByRole("dialog")).toBeHidden();
 
-    // The threads-app component handles delete via event delegation
-    // We need to trigger the delete event on the thread card
-    // Since server-rendered threads don't have a built-in delete button,
-    // check if there's a mechanism. The threads-app handles delete-dialog.
-    // Let's check: the old plugin had a Delete button in the thread footer.
-    // In the new plugin, there's no delete button on server-rendered cards
-    // (only the Lit-rendered panel threads had Resolve/Delete).
-    // However, the delete functionality exists via the delete-dialog.
+    await threadEl.getByRole("button", { name: "Delete comment" }).click();
+    const dialog = user.page.getByRole("dialog", { name: "Confirm Delete" });
+    await expect(dialog).toBeVisible();
+    // The question is slotted text of the `threads-dialog` host
+    await expect(user.page.locator("threads-app > threads-dialog")).toContainText("Are you sure you want to delete this thread?");
 
-    // For now, verify the delete dialog mechanism works:
-    const dialog = user.page.locator("sl-dialog#delete-dialog");
-    await expect(dialog).toBeAttached();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(threadEl).toBeVisible();
+  });
+
+  test("confirming Delete in the dialog removes the thread and its highlight", async () => {
+    const { id: threadId } = await seedAndReload(user.page, {
+      body: "Thread to delete in the UI",
+      anchor: { quote: "verify core engine" },
+    });
+
+    const threadEl = inlineCard(user.page, threadId);
+    await expect(threadEl).toBeVisible({ timeout: 5_000 });
+    await threadEl.getByRole("button", { name: "Delete comment" }).click();
+    await user.page.getByRole("dialog", { name: "Confirm Delete" }).getByRole("button", { name: "Delete", exact: true }).click();
+
+    await expect(threadEl).toHaveCount(0);
+    await expect(user.page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`)).toHaveCount(0);
+  });
+
+  test("a failed delete keeps the dialog open with an error and keeps the thread", async () => {
+    const { id: threadId } = await seedAndReload(user.page, {
+      body: "Thread whose delete fails",
+      anchor: { quote: "verify core engine" },
+    });
+    const threadEl = inlineCard(user.page, threadId);
+    await expect(threadEl).toBeVisible({ timeout: 5_000 });
+
+    await user.page.evaluate(() => {
+      const original = docmd.call.bind(docmd);
+      docmd.call = (action: string, ...rest: unknown[]) =>
+        action === "threads:delete-thread" ? Promise.reject(new Error("e2e: delete refused")) : original(action, ...(rest as [Record<string, unknown>]));
+    });
+
+    await threadEl.getByRole("button", { name: "Delete comment" }).click();
+    const dialog = user.page.getByRole("dialog", { name: "Confirm Delete" });
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText("Could not save. Try again.");
+    await expect(dialog.getByRole("button", { name: "Delete", exact: true })).toBeEnabled();
+    await expect(threadEl).toHaveCount(1);
+    await expect(user.page.locator(`mark.threads-highlight[data-thread-id="${threadId}"]`).first()).toBeAttached();
   });
 
   test("confirm delete removes thread via API", async () => {
@@ -147,6 +187,31 @@ test.describe("thread deletion", () => {
 // ---------------------------------------------------------------------------
 
 test.describe("comment deletion", () => {
+  test("Delete is offered only on the viewer's own comments", async () => {
+    // Seeded as Alice (the comment limit is per author, and the specs of this file share TestUser's minute)
+    const { id: threadId } = await seedAndReload(user.page, {
+      author: "Alice",
+      body: "Alice's comment",
+      anchor: { quote: "verify core engine" },
+    });
+    await waitForClientProcessing(user.page);
+
+    // TestUser did not write it: no Delete
+    const card = inlineCard(user.page, threadId);
+    await expect(card).toBeVisible({ timeout: 10_000 });
+    await expect(card.locator("threads-comment")).toHaveCount(1);
+    await expect(card.locator('[part~="delete"]')).toHaveCount(0);
+    await openPanel(user.page);
+    await expect(panelCard(user.page, threadId).locator('[part~="delete"]')).toHaveCount(0);
+
+    // Under Alice's name, on the next load, it is hers to delete (the name matches without regard to case)
+    await setAuthor(user.page, "alice");
+    await user.page.reload({ waitUntil: "domcontentloaded" });
+    await user.page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
+    await waitForClientProcessing(user.page);
+    await expect(inlineCard(user.page, threadId).locator('[part~="delete"]')).toHaveCount(1, { timeout: 10_000 });
+  });
+
   test("deleting a reply leaves the root comment intact", async () => {
     const { id: threadId, comments } = await seedAndReload(user.page, {
       body: "Root comment",

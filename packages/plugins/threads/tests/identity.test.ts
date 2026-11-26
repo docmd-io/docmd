@@ -180,3 +180,66 @@ test('concurrent profile saves by two users under serve both land', async () => 
   await Promise.all(names.map((n) => run('upsert-author', { name: n.toUpperCase() }, serve(n))));
   assert.deepEqual(Object.keys(readAuthors()).sort(), names);
 });
+
+// ---------------------------------------------------------------------------
+// The profile link: authors.json `link` through upsert-author
+// ---------------------------------------------------------------------------
+
+const BAD_LINKS = ['javascript:alert(1)', 'data:text/html,x', 'ftp://h/x', '/relative', 'plain text', '', 7, true, {}, ['https://a.b'], `https://a.b/${'x'.repeat(2048)}`];
+
+test('upsert-author link under serve: absent keeps it, null clears it, false and an http(s) URL set it; the rest is threads/invalid', async () => {
+  writeAuthors({ alice: { name: 'Alice', avatarUrl: '', link: 'https://old.example/alice' } });
+  await run('upsert-author', { name: 'Alice B' }, serve('alice'));
+  assert.deepEqual(readAuthors().alice, { name: 'Alice B', avatarUrl: '', link: 'https://old.example/alice' }, 'no link in the payload keeps the setting');
+  await run('upsert-author', { name: 'Alice B', link: false }, serve('alice'));
+  assert.equal(readAuthors().alice.link, false);
+  await run('upsert-author', { name: 'Alice B' }, serve('alice'));
+  assert.equal(readAuthors().alice.link, false, 'false survives a later save with no link');
+  await run('upsert-author', { name: 'Alice B', link: 'https://me.example/alice' }, serve('alice'));
+  assert.equal(readAuthors().alice.link, 'https://me.example/alice');
+  await run('upsert-author', { name: 'Alice B', link: null }, serve('alice'));
+  assert.deepEqual(readAuthors().alice, { name: 'Alice B', avatarUrl: '' }, 'null means automatic: the key is gone');
+
+  const before = fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8');
+  for (const link of BAD_LINKS) {
+    await assert.rejects(run('upsert-author', { name: 'Alice B', link }, serve('alice')), /^ThreadsError: threads\/invalid: threads:upsert-author: link must be/, JSON.stringify(link).slice(0, 40));
+  }
+  assert.equal(fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8'), before, 'a refused link changes nothing');
+  await run('upsert-author', { name: 'Alice B', link: `https://a.b/${'x'.repeat(2048 - 'https://a.b/'.length)}` }, serve('alice'));
+  assert.equal(readAuthors().alice.link.length, 2048, 'exactly 2048 characters is accepted');
+});
+
+test('upsert-author link in dev: set, keep (a drafting call does not touch it), clear, and refuse', async () => {
+  await run('upsert-author', { authorKey: 'zed', name: 'Zed', link: 'https://z.example/zed' }, dev);
+  assert.deepEqual(readAuthors().zed, { name: 'Zed', avatarUrl: '', link: 'https://z.example/zed' });
+  await run('add-thread', { file: project.file, author: 'Zed', authorKey: 'zed', body: 'b' }, dev);
+  assert.equal(readAuthors().zed.link, 'https://z.example/zed', 'a comment that records the profile keeps the link');
+  await run('upsert-author', { authorKey: 'zed', name: 'Zed' }, dev);
+  assert.equal(readAuthors().zed.link, 'https://z.example/zed');
+  await run('upsert-author', { authorKey: 'zed', name: 'Zed', link: false }, dev);
+  assert.equal(readAuthors().zed.link, false);
+  await run('upsert-author', { authorKey: 'zed', name: 'Zed', link: null }, dev);
+  assert.deepEqual(readAuthors().zed, { name: 'Zed', avatarUrl: '' });
+  for (const link of BAD_LINKS) {
+    await assert.rejects(run('upsert-author', { authorKey: 'zed', name: 'Zed', link }, dev), /threads\/invalid: threads:upsert-author: link must be/);
+  }
+});
+
+test('upsert-author link under serve with git waits in the journal with the profile and keeps the published setting when none is sent', async () => {
+  const gitServe = serve('alice', { git: GIT });
+  writeAuthors({ alice: { name: 'Alice', avatarUrl: '', link: 'https://old.example/alice' } });
+  const before = fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8');
+  const profile = async () => (await run<WhoAmI>('whoami', {}, gitServe)).journal!.profile;
+
+  await run('upsert-author', { name: 'Alice B' }, gitServe);
+  assert.deepEqual(await profile(), { name: 'Alice B', avatarUrl: '', link: 'https://old.example/alice' });
+  await run('upsert-author', { name: 'Alice B', link: false }, gitServe);
+  assert.deepEqual(await profile(), { name: 'Alice B', avatarUrl: '', link: false });
+  await run('upsert-author', { name: 'Alice C' }, gitServe);
+  assert.deepEqual(await profile(), { name: 'Alice C', avatarUrl: '', link: false }, 'the pending setting carries over');
+  await run('upsert-author', { name: 'Alice C', link: null }, gitServe);
+  assert.deepEqual(await profile(), { name: 'Alice C', avatarUrl: '' });
+  await assert.rejects(run('upsert-author', { name: 'Alice C', link: 'javascript:alert(1)' }, gitServe), /link must be/);
+  assert.deepEqual(await profile(), { name: 'Alice C', avatarUrl: '' }, 'a refused link journals nothing');
+  assert.equal(fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8'), before, 'authors.json is untouched until the publish');
+});

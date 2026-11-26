@@ -9,7 +9,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./components": {
+      "types": "./dist/client/components.d.ts",
+      "default": "./dist/client/components.js"
+    },
+    "./threads.css": "./dist/client/index.css"
   },
   "files": [
     "dist",
@@ -34,7 +39,7 @@
     "requiresLiveServer": true
   },
   "scripts": {
-    "build": "tsc && node build.js",
+    "build": "tsc && tsc -p tsconfig.components.json && node build.js",
     "build:client": "node build.js",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test"
@@ -45,13 +50,14 @@
   },
   "dependencies": {
     "@docmd/utils": "workspace:*",
-    "@shoelace-style/shoelace": "^2.20.1",
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@docmd/api": "workspace:*",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.11",
+    "emoji-picker-element-data": "1.8.0",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15"
   },

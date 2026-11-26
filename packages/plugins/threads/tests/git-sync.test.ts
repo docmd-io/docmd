@@ -322,6 +322,20 @@ test('a pending profile is committed with the review: pages, manifest and author
   assert.deepEqual([journal.ops, journal.profile], [[], undefined]);
 });
 
+test('get-authors lays the caller\'s own pending profile over authors.json, for nobody else', async () => {
+  const ctx = gitCtx();
+  await actions['threads:upsert-author']({ name: 'Ann L.', avatarUrl: 'http://a/ann.png', link: 'https://ann.example/' }, ctx);
+  assert.equal(fs.existsSync(safePath(trio.server, 'docs/.threads/authors.json')) && fs.readFileSync(safePath(trio.server, 'docs/.threads/authors.json'), 'utf8').includes('Ann L.'), false, 'nothing is written yet');
+  const mine = (await actions['threads:get-authors']({}, ctx)) as Record<string, { name: string; link?: string | false }>;
+  assert.equal(mine['ann']?.name, 'Ann L.');
+  assert.equal(mine['ann']?.link, 'https://ann.example/');
+  const anon = (await actions['threads:get-authors']({}, { ...ctx, caller: undefined })) as Record<string, { name: string; link?: unknown }>;
+  assert.notEqual(anon['ann']?.name, 'Ann L.', 'a caller without identity sees the published file only');
+  assert.equal(anon['ann']?.link, undefined);
+  await actions['threads:upsert-author']({ name: 'Ann L.', link: false }, ctx);
+  assert.equal(((await actions['threads:get-authors']({}, ctx)) as Record<string, { link?: unknown }>)['ann']?.link, false);
+});
+
 test('a profile alone is one commit of authors.json named for the new name, authored with the request address; an entry the repository already holds commits and pushes nothing', async () => {
   const ctx = emailCtx();
   await actions['threads:upsert-author']({ name: 'Ann Lee-Smith' }, ctx);

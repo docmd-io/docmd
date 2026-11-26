@@ -6,22 +6,27 @@ import { ThreadsError } from './errors.js';
 import { guardWrite } from './limits.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { withBodyHtml } from './body-html.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
 import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
-import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
+import { claimedAuthorKey, findCaller, headerProfile, linkFromPayload, nextLink, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
-import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
+import { hasCaller } from './reactors.js';
+import { normalizeEmoji } from '../shared/emoji.js';
+import type { Author, AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewManifest, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
-async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
+async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string, link?: string | false | null): Promise<void> {
   await updateAuthors(ctx, (authors) => {
-    const existing = authors[authorKey] || { name: '', avatarUrl: '' };
+    const existing: Author = authors[authorKey] || { name: '', avatarUrl: '' };
+    const next = nextLink(link, existing.link);
     authors[authorKey] = {
       name: name || existing.name || authorKey,
       avatarUrl: avatarUrl || existing.avatarUrl || '',
+      ...(next === undefined ? {} : { link: next }),
     };
   });
 }
@@ -93,6 +98,13 @@ function requireFields(action: string, payload: Record<string, unknown>, fields:
  * source, so its fields are validated first (as before). Under serve identity comes first, so a
  * call without an identity never reaches validation, and `author` is not required.
  */
+/** A body may not hold a container fence: it could fake a reactions block or a comment of the file. */
+function assertBodySafe(action: string, body: unknown): void {
+  if (typeof body === 'string' && parser.hasContainerFence(body)) {
+    throw new ThreadsError('invalid', `${action}: a line of the body may not be ::: or start with "::: "`);
+  }
+}
+
 async function begin(ctx: ActionContext, payload: Payload, action: string, fields: string[]): Promise<Caller> {
   if (ctx.mode !== 'serve') requireFields(action, payload, fields);
   const caller = await resolveCaller(ctx, payload);
@@ -174,24 +186,36 @@ async function recordProfile(ctx: ActionContext, caller: Caller, payload: Payloa
 }
 
 const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise<unknown>> = {
-  'threads:get-authors': async (_payload, ctx): Promise<AuthorsMap> => readAuthors(ctx),
+  /**
+   * authors.json, with the caller's own pending profile laid over their entry: with git on a profile
+   * change waits in the journal until the next publish, and the caller's views show it at once.
+   */
+  'threads:get-authors': async (payload, ctx): Promise<AuthorsMap> => {
+    const authors = await readAuthors(ctx);
+    if (!gitOn(ctx)) return authors;
+    const caller = await findCaller(ctx, payload ?? {});
+    if (!caller || caller.source !== 'header') return authors;
+    const pending = (await getStore(ctx).load(caller.key)).profile;
+    return pending ? { ...authors, [caller.key]: { ...pending } } : authors;
+  },
 
   'threads:upsert-author': async (payload, ctx): Promise<{ ok: boolean }> => {
     const caller = await begin(ctx, payload, 'threads:upsert-author', ctx.mode === 'serve' ? ['name'] : ['authorKey', 'name']);
     assertCan(caller, 'upsert-author', { authorKey: claimedAuthorKey(payload) }, getOptions(ctx).permissions);
+    const link = linkFromPayload(payload);
     if (caller.source === 'header') {
       // The key is the trusted identity: only the caller's own entry changes.
       if (gitOn(ctx)) {
         // With git the working tree stays clean between publishes: the profile waits in the journal and goes out with the next publish.
-        const profile = headerProfile(payload, caller);
-        await getStore(ctx).transact(caller.key, (j) => void (j.profile = profile));
+        const published = (await readAuthors(ctx))[caller.key]?.link;
+        await getStore(ctx).transact(caller.key, (j) => void (j.profile = headerProfile(payload, caller, nextLink(link, j.profile ? j.profile.link : published))));
         return { ok: true };
       }
-      await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller)));
+      await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller, nextLink(link, authors[caller.key]?.link))));
       return { ok: true };
     }
     const profile = profileFromPayload(payload);
-    await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl);
+    await upsertAuthor(ctx, profile.key, profile.name, profile.avatarUrl, link);
     return { ok: true };
   },
 
@@ -206,7 +230,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
     const store = getStore(ctx);
     await finishEarlierPublish(ctx, store, caller.key);
     const journal = await store.load(caller.key);
-    return overlay(published, journal.ops, payload.file, caller);
+    return withBodyHtml(ctx.config, overlay(published, journal.ops, payload.file, caller));
   },
 
   /**
@@ -266,6 +290,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     const caller = await begin(ctx, payload, 'threads:add-thread', ['file', 'author', 'body']);
+    assertBodySafe('threads:add-thread', payload.body);
     guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const threadId = generateThreadId();
     const anchor = anchorFrom(payload.anchor);
@@ -278,6 +303,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:add-comment', ['file', 'threadId', 'author', 'body']);
+    assertBodySafe('threads:add-comment', payload.body);
     guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const commentId = generateCommentId();
     const view = await transact(ctx, caller, payload, (tx) => {
@@ -293,6 +319,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:edit-comment', ['file', 'threadId', 'commentId', 'body']);
+    assertBodySafe('threads:edit-comment', payload.body);
     guardWrite(ctx, payload, caller, { rate: false, now: wallClock });
     const { threadId, commentId, body } = payload;
     const view = await transact(ctx, caller, payload, (tx) => {
@@ -365,13 +392,23 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:toggle-reaction': async (payload, ctx): Promise<Reaction[]> => {
     const caller = await begin(ctx, payload, 'threads:toggle-reaction', ['file', 'threadId', 'commentId', 'emoji']);
-    const { threadId, commentId, emoji } = payload;
+    const { threadId, commentId } = payload;
+    // One emoji only: anything else would reach the markdown line (commas, line breaks). It is stored
+    // in its one spelling, so the picker's 👍️ and the quick row's 👍 are the same reaction.
+    const emoji = normalizeEmoji(payload.emoji);
+    if (emoji === null) throw new ThreadsError('invalid', 'threads:toggle-reaction: emoji must be a single emoji');
+    const { reactions: allowed } = getOptions(ctx);
     const view = await transact(ctx, caller, payload, (tx) => {
-      findComment(findThread(tx.view, threadId), commentId);
+      const target = findComment(findThread(tx.view, threadId), commentId);
       // On a drafted comment a second toggle of the same emoji cancels the first.
       const pending = draftedCommentOp(tx, commentId)
         ? opsOnComment(tx, commentId).find((o) => o.kind === 'toggle-reaction' && o.emoji === emoji)
         : undefined;
+      // A restricted site refuses new reactions outside its list, but never traps an old one: taking
+      // back the caller's own reaction (published, or drafted and now cancelled) is always allowed.
+      if (allowed.restricted && !allowed.emoji.includes(emoji) && !pending && !hasCaller(target.reactions.find((r) => normalizeEmoji(r.emoji) === emoji), caller)) {
+        throw new ThreadsError('reaction-not-allowed', `threads:toggle-reaction: ${emoji} is not one of the allowed reactions`);
+      }
       if (pending) drop(tx, [pending]);
       else push(tx, { kind: 'toggle-reaction', file: tx.file, threadId, commentId, emoji });
     });

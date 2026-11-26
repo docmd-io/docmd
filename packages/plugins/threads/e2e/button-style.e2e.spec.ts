@@ -1,14 +1,16 @@
 /**
- * One base button style across the review UI, on `docmd dev` with the drawer open: the review section's Publish,
- * Save, play/pause and Discard, the discard confirmation's Cancel and Confirm, and the Discard of a published
- * review in the Reviews tab share height, padding, font and radius; the Discard triggers use the danger token.
+ * One base button style across the threads UI, on `docmd dev` with the drawer open. Every button is a
+ * `threads-button`, whose `[part~=base]` is the element the user clicks: the review section's Publish, Save,
+ * play/pause and Discard, the discard confirmation's Cancel and Confirm, and the Discard of a published review in
+ * the Reviews tab share height, padding, font and radius, and so do the small buttons of a comment (Reply, Edit,
+ * reaction chips); the Discard triggers use the danger token.
  * Everything is compared inside one page (button against button, trigger against the token), never to pixel values.
  */
 
 import * as fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { safePath } from "@docmd/utils";
-import { cleanThreads, emptyOpenReview, ensureAuthorProfile, removeAuthorProfile, setAuthor } from "./helpers.ts";
+import { cleanThreads, emptyOpenReview, ensureAuthorProfile, firstWordsOf, inlineCard, openPanel, removeAuthorProfile, seedAndReload, setAuthor, waitForReload } from "./helpers.ts";
 import type { Locator, Page } from "@playwright/test";
 
 const site = process.env["THREADS_E2E_SITE"]!;
@@ -41,10 +43,10 @@ interface Look {
   radius: string;
 }
 
-/** The look of the element the user clicks: a `<button>` itself, an `<sl-button>`'s `base` part. */
+/** The look of the element the user clicks: the `base` part in a `threads-button`'s shadow root. */
 function lookOf(button: Locator): Promise<Look> {
   return button.evaluate((el) => {
-    const target = el.tagName === "SL-BUTTON" ? (el.shadowRoot!.querySelector("[part~=base]") as HTMLElement) : el;
+    const target = el.shadowRoot!.querySelector("[part~=base]") as HTMLElement;
     const c = getComputedStyle(target);
     return {
       // Layout height: the dialog's open animation scales its content, which getBoundingClientRect would show.
@@ -57,7 +59,7 @@ function lookOf(button: Locator): Promise<Look> {
   });
 }
 
-/** The computed colour of a Shoelace token, resolved the way a button's own colour is. */
+/** The computed colour of a `--threads-*` token, resolved the way a button's own colour is. */
 function tokenColor(page: Page, token: string): Promise<string> {
   return page.evaluate((name) => {
     const probe = document.createElement("span");
@@ -71,7 +73,7 @@ function tokenColor(page: Page, token: string): Promise<string> {
 
 const colorsOf = (button: Locator): Promise<string[]> =>
   button.evaluate((el) => {
-    const c = getComputedStyle(el);
+    const c = getComputedStyle(el.shadowRoot!.querySelector("[part~=base]")!);
     return [c.color, c.backgroundColor, c.borderTopColor];
   });
 
@@ -100,7 +102,7 @@ async function load(page: Page): Promise<void> {
  * evaluate's context before its reply: the journal, polled until it shows the draft, is the proof.
  */
 async function addThread(page: Page, body: string): Promise<void> {
-  const quote = await page.evaluate(() => (document.querySelector("main p, .content p, article p") as HTMLElement).textContent!.trim().split(" ").slice(0, 3).join(" "));
+  const quote = await firstWordsOf(page);
   await page
     .evaluate(
       async ({ quote, body, identity }) =>
@@ -121,7 +123,7 @@ async function addThread(page: Page, body: string): Promise<void> {
 /** Run `check` with the drawer open, retried as a whole: a dev-server reload closes the drawer. */
 async function inDrawer(page: Page, check: () => Promise<void>): Promise<void> {
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await openPanel(page, 1_000);
     await check();
   }).toPass({ timeout: 15_000 });
 }
@@ -151,17 +153,20 @@ test("the review section and the discard confirmation share one button base; Dis
 
   // The confirmation's buttons, then Cancel keeps the draft.
   await discard.click();
-  await expect(page.getByTestId("discard-dialog")).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
   expectSameBase(await lookOf(page.getByTestId("discard-cancel")), base);
   expectSameBase(await lookOf(page.getByTestId("discard-confirm")), base);
   await page.getByTestId("discard-cancel").click();
-  await expect(page.getByTestId("discard-dialog")).toBeHidden();
+  await expect(page.getByRole("dialog")).toBeHidden();
 
-  // Discard wears the danger token; Publish keeps the primary one.
-  const danger = await tokenColor(page, "--sl-color-danger-600");
-  expect(await colorsOf(discard)).toContain(danger);
-  const primary = await tokenColor(page, "--sl-color-primary-600");
-  expect((await colorsOf(publish))[1]).toBe(primary);
+  // Discard wears the danger token, outlined (the card background stays); Publish keeps the accent.
+  const danger = await tokenColor(page, "--threads-danger");
+  const [fg, bg, border] = await colorsOf(discard);
+  expect(fg).toBe(danger);
+  expect(border).toBe(danger);
+  expect(bg).not.toBe(danger);
+  const accent = await tokenColor(page, "--threads-accent-strong");
+  expect((await colorsOf(publish))[1]).toBe(accent);
 });
 
 test("Discard on a published review in the Reviews tab is on the same base and danger-coloured", async ({ page }) => {
@@ -175,14 +180,14 @@ test("Discard on a published review in the Reviews tab is on the same base and d
   });
 
   // Read before the write: the token does not change, and a reload after Publish would destroy an evaluate.
-  const danger = await tokenColor(page, "--sl-color-danger-600");
+  const danger = await tokenColor(page, "--threads-danger");
   await reference.click();
   // The dev server reloads the page a moment after the write and a reload closes the drawer: open the Reviews tab,
   // read the trigger and compare it as one retried block.
   const entry = page.locator('[data-testid="review"]').first();
   const discard = entry.getByTestId("discard-open");
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await openPanel(page, 1_000);
     await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
     await expect(discard).toBeVisible({ timeout: 1_000 });
     expectSameBase(await lookOf(discard), await lookOf(page.getByTestId("tpw-publish")));
@@ -191,12 +196,43 @@ test("Discard on a published review in the Reviews tab is on the same base and d
 
   // Leave nothing published: confirm the discard, retried the same way.
   await expect(async () => {
-    if (!(await page.evaluate(() => document.body.classList.contains("tc-panel-open")))) await page.locator(".threads-fab").click({ timeout: 1_000 });
+    await openPanel(page, 1_000);
     await page.getByTestId("tab-reviews").click({ timeout: 1_000 });
     // Idempotent: an earlier attempt may have confirmed before a reload, and a discarded entry has no Discard.
     if ((await entry.getAttribute("data-state", { timeout: 1_000 })) === "discarded") return;
-    if (!(await entry.getByTestId("discard-dialog").isVisible())) await discard.click({ timeout: 1_000 });
-    await entry.getByTestId("discard-confirm").click({ timeout: 1_000 });
+    if (!(await page.getByRole("dialog").isVisible())) await discard.click({ timeout: 1_000 });
+    await page.getByTestId("discard-confirm").click({ timeout: 1_000 });
     await expect(entry).toHaveAttribute("data-state", "discarded", { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
+});
+
+test("the small buttons of a comment (Reply, Edit, reaction chips) share one small base", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForSelector("threads-app", { state: "attached", timeout: 10_000 });
+  await setAuthor(page, "TestUser");
+  await cleanThreads(page);
+  await waitForReload(page);
+  const { id } = await seedAndReload(page, { body: "small buttons", anchor: { quote: "verify core engine" } });
+  const card = inlineCard(page, id);
+  await expect(card).toBeVisible();
+  // A chip exists once the comment has a reaction: draft one through the UI, then compare.
+  await card.getByRole("button", { name: "Add reaction" }).click();
+  await page.getByRole("group", { name: "Choose a reaction" }).getByRole("button").first().click();
+  const chip = card.locator('threads-button[part~="chip"]').first();
+  await expect(chip).toBeVisible();
+
+  const reply = await lookOf(card.locator('threads-button[part~="reply"]').first());
+  expectSameBase(await lookOf(chip), reply);
+  const edit = await lookOf(card.locator('threads-button[part~="edit"]').first());
+  // Icon-only: the height, font size and radius are shared; its width and padding stay its own.
+  expect(edit.height).toBe(reply.height);
+  expect(edit.fontSize).toBe(reply.fontSize);
+  expect(edit.radius).toBe(reply.radius);
+
+  // The small base is smaller than the review UI's regular one.
+  const publish = page.getByTestId("tpw-publish");
+  await openPanel(page);
+  await expect(publish).toBeAttached();
+  expect(reply.height).toBeLessThan((await lookOf(publish)).height);
+  expect(reply.fontFamily).toBe((await lookOf(publish)).fontFamily);
 });

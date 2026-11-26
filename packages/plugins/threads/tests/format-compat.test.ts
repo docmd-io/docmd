@@ -78,3 +78,26 @@ test('containers.parseCommentInfo gives the same author/date with and without v2
     assert.equal(b.author, 'Alice');
   }
 });
+
+const mixedReactions = `::: threads
+  ::: thread t-1
+    ::: comment c-0000000a "Alice" "2026-01-01"
+      first
+
+      ::: reactions
+        - 👍 Old Timer, New Person {np}, Smith\\, Anna {sa}
+        - 🎉 Legacy Only
+      :::
+    :::
+  :::
+:::
+`;
+
+test('a page with old name-only and new keyed reactions parses and writes back byte-identical', () => {
+  const [reactions] = parseThreadsFromContent(mixedReactions)[0].comments.map((c) => c.reactions);
+  assert.deepEqual(reactions, [
+    { emoji: '👍', reactors: [{ key: null, name: 'Old Timer' }, { key: 'np', name: 'New Person' }, { key: 'sa', name: 'Smith, Anna' }] },
+    { emoji: '🎉', reactors: [{ key: null, name: 'Legacy Only' }] },
+  ]);
+  assert.equal(replaceThreadsBlock(mixedReactions, parseThreadsFromContent(mixedReactions)), mixedReactions);
+});

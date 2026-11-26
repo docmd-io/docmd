@@ -1,0 +1,286 @@
+/*
+ * Threads design tokens, host page side.
+ *
+ * Each token is a var() chain: the summer template's variable first, then the default template
+ * and theme variable, then a literal. They are declared on :root because docmd and its themes
+ * declare theirs on :root and :root[data-theme=...]; a var() chain resolves on the element that
+ * declares it, so ours follow dark mode and themes with no extra rules.
+ *
+ * The dark block redeclares only the tokens whose dark value differs from what the chain gives.
+ * Every dark entry repeats the full chain and changes only the last-resort literal: a bare
+ * literal there would beat the template's and the themes' own dark values. Tokens defined by a
+ * formula over other tokens are declared once, in the light block, and recompute from the dark
+ * values on their own. A few tokens skip the docmd variable in one mode because it fails contrast.
+ *
+ * Components never read these directly: components/tokens.ts aliases each one as --_name with a
+ * light literal fallback, so a component also renders sensibly with no stylesheet at all.
+ * Change a token by setting --threads-* on :root, body, threads-app or any ancestor.
+ */
+
+:root {
+  /* Colour: surfaces and text */
+  --threads-surface: var(--summer-surface, var(--bg-color, #ffffff));
+  --threads-surface-raised: color-mix(in oklab, var(--threads-fg) 3%, var(--threads-surface));
+  --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #fafafa));
+  --threads-fg: var(--summer-fg, var(--text-color, #1f1f20));
+  --threads-fg-strong: var(--summer-fg, var(--text-heading, var(--threads-fg)));
+  /* The docmd muted colour is often 3.5 to 4:1 on a card; pulling it toward the text colour keeps secondary text at 4.5:1. */
+  --threads-fg-muted: color-mix(in oklab, var(--summer-fg-muted, var(--text-muted, #6b6b75)) 35%, var(--threads-fg));
+  --threads-border: var(--summer-border, var(--border-color, #e4e4e7));
+  --threads-border-strong: var(--summer-border-strong, color-mix(in oklab, var(--threads-fg) 25%, var(--threads-surface)));
+
+  /* Colour: accent, danger, draft, focus */
+  --threads-accent: var(--summer-accent, var(--link-color, #068ad5));
+  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 65%, black);
+  --threads-accent-soft: var(--summer-accent-soft, color-mix(in oklab, var(--threads-accent) 14%, transparent));
+  --threads-on-accent: #ffffff;
+  --threads-danger: color-mix(in oklab, var(--summer-rose, #dc2626) 85%, black);
+  --threads-danger-soft: color-mix(in oklab, var(--threads-danger) 12%, transparent);
+  --threads-draft: #b45309;
+  --threads-focus: var(--threads-accent);
+
+  /* Highlight palette: marks in the text and the card's left border */
+  --threads-hl-yellow: hsl(48 96% 53% / 0.3);
+  --threads-hl-yellow-strong: hsl(48 96% 45%);
+  --threads-hl-blue: hsl(210 100% 55% / 0.3);
+  --threads-hl-blue-strong: hsl(210 100% 45%);
+  --threads-hl-green: hsl(142 60% 45% / 0.3);
+  --threads-hl-green-strong: hsl(142 60% 45%);
+  --threads-hl-pink: hsl(340 80% 55% / 0.3);
+  --threads-hl-pink-strong: hsl(340 80% 45%);
+  --threads-hl-purple: hsl(270 70% 55% / 0.3);
+  --threads-hl-purple-strong: hsl(270 70% 45%);
+  --threads-hl-orange: hsl(28 100% 55% / 0.3);
+  --threads-hl-orange-strong: hsl(28 100% 45%);
+  --threads-hl-neutral: var(--threads-border-strong);
+  --threads-hl-neutral-strong: var(--threads-border-strong);
+
+  /* Type */
+  --threads-font: var(--summer-font-sans, var(--font-family-sans, system-ui, sans-serif));
+  --threads-font-mono: var(--summer-font-mono, var(--font-family-mono, ui-monospace, monospace));
+  --threads-font-size: 14px;
+  --threads-font-size-sm: 13px;
+  --threads-font-size-xs: 12px;
+  --threads-font-size-2xs: 11px;
+  --threads-line-height: 1.5;
+
+  /* The browser's colour scheme for native controls (the emoji picker's input and scrollbars) */
+  --threads-color-scheme: light;
+
+  /* Shape and depth */
+  --threads-radius: var(--summer-radius-sm, var(--radius-md, 6px));
+  --threads-radius-lg: var(--summer-radius-lg, var(--radius-lg, 12px));
+  --threads-shadow: var(--summer-shadow-sm, var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.06)));
+  --threads-shadow-lg: var(--summer-shadow-lg, var(--shadow-lg, 0 10px 30px rgb(0 0 0 / 0.15)));
+
+  /* Layout */
+  --threads-control-height: 28px;
+  --threads-control-height-sm: 24px;
+  --threads-panel-width: 380px;
+  --threads-z-panel: 3000;
+  --threads-z-fab: 2100;
+}
+
+:root[data-theme="dark"] {
+  --threads-surface: var(--summer-surface, var(--bg-color, #18181b));
+  --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #202024));
+  --threads-fg: var(--summer-fg, var(--text-color, #d4d4d8));
+  --threads-border: var(--summer-border, var(--border-color, #27272a));
+  --threads-accent: var(--summer-accent, var(--link-color, #38bdf8));
+  /* Themes' dark accents can be mid-tone (a blue at 3.5:1 on its tint): lighten them for text, with near-black text on buttons. */
+  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 65%, white);
+  --threads-on-accent: #0b0b0c;
+  /* Summer's rose is about 3.7:1 on its dark surface. */
+  --threads-danger: #f87171;
+  --threads-draft: var(--summer-amber, #fbbf24);
+
+  --threads-color-scheme: dark;
+
+  --threads-hl-yellow: hsl(48 96% 60% / 0.22);
+  --threads-hl-yellow-strong: hsl(48 96% 65%);
+  --threads-hl-blue: hsl(210 100% 62% / 0.22);
+  --threads-hl-blue-strong: hsl(210 100% 65%);
+  --threads-hl-green: hsl(142 60% 52% / 0.22);
+  --threads-hl-green-strong: hsl(142 60% 65%);
+  --threads-hl-pink: hsl(340 80% 62% / 0.22);
+  --threads-hl-pink-strong: hsl(340 80% 65%);
+  --threads-hl-purple: hsl(270 70% 65% / 0.22);
+  --threads-hl-purple-strong: hsl(270 70% 70%);
+  --threads-hl-orange: hsl(28 100% 62% / 0.22);
+  --threads-hl-orange-strong: hsl(28 100% 65%);
+}
+
+/*
+ * The selection button: a popover=manual threads-button the app places above the selected text
+ * from two custom properties. The top layer needs no z-index.
+ */
+threads-button.threads-selection {
+  position: fixed;
+  inset: auto;
+  left: var(--threads-selection-x, 0px);
+  top: var(--threads-selection-y, 0px);
+  margin: 0;
+  padding: 4px;
+  overflow: visible;
+  transform: translate(-50%, calc(-100% - 10px));
+  border: 1px solid var(--threads-border);
+  border-radius: var(--threads-radius);
+  background: var(--threads-surface);
+  box-shadow: var(--threads-shadow-lg);
+}
+threads-button.threads-selection::part(base) {
+  color: var(--threads-fg);
+  font-weight: 500;
+}
+
+/* An editor the app places in the page, after a block, a heading or a comment. */
+threads-editor.threads-inline-editor { margin: 16px 0; }
+
+/* The server-rendered cards are replaced by the components; `hidden` must beat the author `display`. */
+.threads-sidebar[hidden] { display: none !important; }
+/* While the panel is open its cards are the view: inline cards step aside. */
+body.tc-panel-open threads-thread[variant="inline"] { display: none !important; }
+/* No flash of unstyled components before they upgrade. */
+threads-thread:not(:defined) { visibility: hidden; }
+
+/* ===== Page layout around the panel (light DOM: the panel sets these classes on body) ===== */
+body.tc-has-sidebar main,
+body.tc-has-sidebar .summer-main { max-width: 1440px; }
+body.tc-has-sidebar .main-content-wrapper,
+body.tc-has-sidebar .summer-layout {
+  transition: margin-right 0.2s ease;
+}
+body.tc-panel-open .main-content-wrapper,
+body.tc-panel-open .summer-layout { margin-right: var(--threads-panel-width, 380px); }
+/* The table of contents steps aside whenever the panel is open */
+body.tc-panel-open .toc-sidebar,
+body.tc-panel-open .summer-toc { display: none; }
+/* In sidebar mode the panel shows every thread: the server's cards are not repeated. */
+body.tc-sidebar-active .threads-sidebar { display: none !important; }
+
+/* ===== Marks in the article text ===== */
+mark.threads-highlight {
+  color: inherit;
+  border-radius: 2px;
+  padding: 1px 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+mark.threads-highlight:hover { opacity: 0.75; }
+mark.threads-hl-yellow { background: var(--threads-hl-yellow); border-bottom: 2px solid var(--threads-hl-yellow-strong); }
+mark.threads-hl-blue { background: var(--threads-hl-blue); border-bottom: 2px solid var(--threads-hl-blue-strong); }
+mark.threads-hl-green { background: var(--threads-hl-green); border-bottom: 2px solid var(--threads-hl-green-strong); }
+mark.threads-hl-pink { background: var(--threads-hl-pink); border-bottom: 2px solid var(--threads-hl-pink-strong); }
+mark.threads-hl-purple { background: var(--threads-hl-purple); border-bottom: 2px solid var(--threads-hl-purple-strong); }
+mark.threads-hl-orange { background: var(--threads-hl-orange); border-bottom: 2px solid var(--threads-hl-orange-strong); }
+mark.threads-thread--flash { animation: threads-mark-flash 2s ease-out; }
+@keyframes threads-mark-flash {
+  0% { outline: 2px solid var(--threads-accent); outline-offset: 4px; }
+  100% { outline: 2px solid transparent; outline-offset: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  mark.threads-thread--flash { animation: none; outline: 2px solid var(--threads-accent); outline-offset: 2px; }
+}
+
+/* ===== Per-heading New thread button: revealed on hover or focus ===== */
+.threads-heading-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.threads-heading-wrap > .threads-new-thread-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.threads-heading-wrap:hover > .threads-new-thread-btn,
+.threads-heading-wrap:focus-within > .threads-new-thread-btn,
+.threads-heading-wrap > .threads-new-thread-btn:focus-within { opacity: 1; }
+@media (hover: none) {
+  .threads-heading-wrap > .threads-new-thread-btn { opacity: 1; }
+}
+
+/* ===== The no-JS view: the build's own HTML, readable without the components ===== */
+.threads-sidebar {
+  margin: 24px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--threads-font);
+}
+.threads-thread {
+  margin: 14px 0;
+  border: 1px solid var(--threads-border);
+  border-left: 3px solid var(--threads-accent);
+  border-radius: var(--threads-radius-lg);
+  background: var(--threads-surface);
+  overflow: hidden;
+  box-shadow: var(--threads-shadow);
+}
+.threads-thread--resolved { opacity: 0.6; }
+.threads-anchor {
+  margin: 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--threads-border-strong);
+  color: var(--threads-fg-muted);
+  font-size: var(--threads-font-size-sm);
+  font-style: italic;
+}
+.threads-comment {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 10px 14px;
+  font-size: var(--threads-font-size);
+}
+.threads-comment--reply { grid-template-columns: 24px 1fr; padding-left: 24px; }
+.threads-comment__meta {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--threads-fg-muted);
+}
+.threads-comment__meta strong { color: var(--threads-fg); font-weight: 600; }
+.threads-comment__meta a,
+.threads-reactions a { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.threads-comment__meta a:hover,
+.threads-reactions a:hover { color: var(--threads-accent); text-decoration-style: solid; }
+.threads-comment__body {
+  grid-column: 2;
+  color: var(--threads-fg);
+  line-height: var(--threads-line-height);
+}
+.threads-comment__body p { margin: 0 0 6px; }
+.threads-comment__body p:last-child { margin-bottom: 0; }
+.threads-reactions { margin-top: 8px; }
+.threads-reactions ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.threads-reactions li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--threads-border);
+  background: var(--threads-surface-muted);
+  font-size: var(--threads-font-size-sm);
+  line-height: 1;
+}
+
+/* No flash of unstyled components before they upgrade. */
+threads-comment:not(:defined),
+threads-reactions:not(:defined),
+threads-editor:not(:defined),
+threads-panel:not(:defined),
+threads-button:not(:defined) { visibility: hidden; }

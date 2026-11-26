@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import type { Thread, Comment, Reaction } from '../types.js';
+import type { Thread, Comment, Reaction, Reactor } from '../types.js';
 
 /**
  * Generate a comment ID: "c-" + 8 random hex chars.
@@ -195,9 +195,70 @@ export function parseCommentInfo(info: string): { id: string | null; parent_id: 
   return null;
 }
 
+/** Write a name or key into a reactions line: `\`, `,`, `{` and `}` are escaped; a line break would end the entry, so it becomes a space. */
+const escapeReactorText = (text: string): string => text.replace(/\r?\n/g, ' ').replace(/[\\,{}]/g, (ch) => `\\${ch}`);
+/** Undo escapeReactorText; a backslash before any other character is kept as written (old lines never escaped). */
+const unescapeReactorText = (text: string): string => text.replace(/\\([\\,{}])/g, '$1');
+
+/** True when the character at `index` is preceded by an even number of backslashes (so it is not itself escaped). */
+function unescapedAt(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) backslashes++;
+  return backslashes % 2 === 0;
+}
+
+/** Split on commas that are not escaped. */
+function splitReactors(text: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === ',' && unescapedAt(text, i)) {
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+/**
+ * One reactor: `name {key}`, the shape the serializer writes: a name with no unescaped brace, one space, then a
+ * key with no whitespace and no unescaped brace in `{}`. Anything else, including an old name-only entry that
+ * happens to end in braces (`Team {QA lead}`, `A {x} {y}`, `Team{QA}`), is a name with key null.
+ * An empty name or key leaves the whole entry as a name.
+ */
+function parseReactor(entry: string): Reactor | null {
+  const raw = entry.trim();
+  if (!raw) return null;
+  if (raw.endsWith('}') && unescapedAt(raw, raw.length - 1)) {
+    let open = -1;
+    for (let i = raw.length - 2; i >= 0; i--) {
+      if (raw[i] === '{' && unescapedAt(raw, i)) {
+        open = i;
+        break;
+      }
+    }
+    if (open > 0 && /\s/.test(raw[open - 1]!)) {
+      const rawName = raw.slice(0, open).trim();
+      const rawKey = raw.slice(open + 1, -1);
+      if (rawName && rawKey && !/\s/.test(rawKey) && !hasUnescapedBrace(rawName) && !hasUnescapedBrace(rawKey)) {
+        return { key: unescapeReactorText(rawKey), name: unescapeReactorText(rawName) };
+      }
+    }
+  }
+  return { key: null, name: unescapeReactorText(raw) };
+}
+
+/** True when `text` holds a `{` or `}` that is not escaped. */
+const hasUnescapedBrace = (text: string): boolean => {
+  for (let i = 0; i < text.length; i++) if ((text[i] === '{' || text[i] === '}') && unescapedAt(text, i)) return true;
+  return false;
+};
+
 /**
  * Parse reactions from content lines inside a ::: reactions block.
- * Each line: `- <emoji> <author1>, <author2>, ...`
+ * Each line: `- <emoji> <name> {<key>}, <name> {<key>}, ...`; entries written before keys were
+ * recorded are `<name>` alone and read with key null.
  */
 export function parseReactions(lines: string[]): Reaction[] {
   const reactions: Reaction[] = [];
@@ -205,12 +266,18 @@ export function parseReactions(lines: string[]): Reaction[] {
     const trimmed = line.trim();
     const match = trimmed.match(/^-\s+(\S+)\s+(.+)$/);
     if (match) {
-      const emoji = match[1];
-      const authors = match[2].split(',').map((a) => a.trim()).filter(Boolean);
-      reactions.push({ emoji, authors });
+      const reactors = splitReactors(match[2]).flatMap((entry) => parseReactor(entry) ?? []);
+      reactions.push({ emoji: match[1], reactors });
     }
   }
   return reactions;
+}
+
+/** The text after the emoji on a reactions line: `name {key}` per reactor, `name` alone for an old entry. */
+export function serializeReactors(reactors: Reactor[]): string {
+  return reactors
+    .map((r) => (r.key === null ? escapeReactorText(r.name) : `${escapeReactorText(r.name)} {${escapeReactorText(r.key)}}`))
+    .join(', ');
 }
 
 /**
@@ -236,32 +303,38 @@ function extractBody(lines: string[]): string {
   return stripped.join('\n');
 }
 
+/** True when a line of `text` would open or close a container (`:::` or `::: name`), so it could fake or end a block of the file. */
+export const hasContainerFence = (text: string): boolean =>
+  text.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
+
 /**
  * Parse a comment container's content lines into body and reactions.
+ * The writer puts the reactions block after the body, so the last closed block is the real one.
  */
 export function parseCommentContent(contentLines: string[]): { body: string; reactions: Reaction[] } {
-  // Find if there's a ::: reactions block
   let reactionsStart = -1;
   let reactionsEnd = -1;
 
   for (let i = 0; i < contentLines.length; i++) {
-    if (contentLines[i].trim() === '::: reactions') {
-      reactionsStart = i;
-      let depth = 1;
-      for (let j = i + 1; j < contentLines.length; j++) {
-        const t = contentLines[j].trim();
-        if (t === ':::') {
-          depth--;
-          if (depth === 0) {
-            reactionsEnd = j;
-            break;
-          }
-        } else if (t.startsWith('::: ')) {
-          depth++;
+    if (contentLines[i].trim() !== '::: reactions') continue;
+    let depth = 1;
+    let end = -1;
+    for (let j = i + 1; j < contentLines.length; j++) {
+      const t = contentLines[j].trim();
+      if (t === ':::') {
+        depth--;
+        if (depth === 0) {
+          end = j;
+          break;
         }
+      } else if (t.startsWith('::: ')) {
+        depth++;
       }
-      break;
     }
+    if (end < 0) break;
+    reactionsStart = i;
+    reactionsEnd = end;
+    i = end;
   }
 
   let reactions: Reaction[] = [];
@@ -401,7 +474,7 @@ export function serializeThreadsBlock(threads: Thread[]): string {
         lines.push('');
         lines.push('      ::: reactions');
         for (const r of comment.reactions) {
-          lines.push(`        - ${r.emoji} ${r.authors.join(', ')}`);
+          lines.push(`        - ${r.emoji} ${serializeReactors(r.reactors)}`);
         }
         lines.push('      :::');
       }

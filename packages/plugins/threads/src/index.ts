@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { setup as setupContainers } from './plugin/containers.js';
+import { loadAuthorsFile } from './plugin/authors.js';
 import { setup as setupHighlightRule } from './plugin/highlight-rule.js';
 import { actions } from './plugin/actions.js';
 import { checkStartup, startPullLoop, type ExecFile } from './plugin/git-sync.js';
@@ -39,8 +40,8 @@ export function translations(localeId: string): Record<string, string> {
   return loadPluginStrings(localeId || 'en');
 }
 
-export function markdownSetup(md: any, _options?: any): void {
-  setupContainers(md);
+export function markdownSetup(md: any, options?: any): void {
+  setupContainers(md, options);
   setupHighlightRule(md);
 }
 
@@ -79,23 +80,11 @@ function resolveOptions(options: unknown): ThreadsOptions {
 export function generateScripts(config: any, options?: any): { headScriptsHtml: string; bodyScriptsHtml: string } {
   // S-7: parse authors.json, never inline the raw file text. scriptLiteral
   // escapes </script, <!--, U+2028, U+2029 so the JSON is safe inside <script>.
-  let authors: unknown = {};
-  try {
-    const srcDir = config.src || 'docs';
-    const authorsPath = path.resolve(srcDir, '.threads', 'authors.json');
-    if (fs.existsSync(authorsPath)) {
-      const parsed = JSON.parse(fs.readFileSync(authorsPath, 'utf8'));
-      // Runtime schema is a plain object — coerce arrays/primitives to {}.
-      authors = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
-    }
-  } catch (err: any) {
-    console.error(`[threads] Failed to parse .threads/authors.json: ${err.message}. Using empty authors.`);
-    authors = {};
-  }
+  const authors = loadAuthorsFile(config.src || 'docs');
 
-  const { sidebar, autoPublish, permissions } = resolveOptions(options);
+  const { sidebar, autoPublish, permissions, reactions, profileUrl } = resolveOptions(options);
   // Only what the client reads: the resolve rule, never the admin list.
-  const clientConfig = { sidebar, autoPublish, permissions: { resolve: permissions.resolve } };
+  const clientConfig = { sidebar, autoPublish, permissions: { resolve: permissions.resolve }, reactions, profileUrl };
   const i18nStrings = loadPluginStrings(config._activeLocale?.id || 'en');
 
   return {
@@ -103,6 +92,9 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
     bodyScriptsHtml: `<script>window.__threads_authors=${scriptLiteral(authors)};window.__threads_config=${scriptLiteral(clientConfig)};window.__threads_i18n=${scriptLiteral(i18nStrings)}</script>`
   };
 }
+
+/** Languages the picker's emoji data is built for (build.js copies the same list). */
+const EMOJI_LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 
 export function getAssets(_options?: any): any[] {
   // Resolve relative to the compiled output location
@@ -120,6 +112,31 @@ export function getAssets(_options?: any): any[] {
       dest: 'assets/css/threads.css',
       type: 'css',
       location: 'head'
+    },
+    // The any-emoji picker: copied to the site but never given a script tag; threads-reactions
+    // import()s it on the first + click.
+    {
+      src: path.join(distDir, 'emoji-picker.js'),
+      dest: 'assets/js/threads-emoji-picker.js',
+      type: 'js',
+      location: 'none'
+    },
+    // Emoji data for the picker, served with the site (never from a CDN), one file per language.
+    ...EMOJI_LANGS.map((lang) => ({
+      src: path.join(distDir, 'emoji', `${lang}.json`),
+      dest: `assets/threads/emoji/${lang}.json`,
+      type: 'static'
+    })),
+    // Licence texts that travel with the vendored picker and its data (Apache-2.0).
+    {
+      src: path.join(distDir, 'threads-emoji-picker.LICENSE.txt'),
+      dest: 'assets/threads/threads-emoji-picker.LICENSE.txt',
+      type: 'static'
+    },
+    {
+      src: path.join(distDir, 'emoji', 'LICENSE'),
+      dest: 'assets/threads/emoji/LICENSE',
+      type: 'static'
     }
   ];
 }

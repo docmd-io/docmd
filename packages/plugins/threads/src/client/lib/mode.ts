@@ -5,6 +5,7 @@
  */
 
 import type { DraftMode } from '../../types';
+import { tCount } from './plural';
 
 export interface PublishTimerOptions {
   /** Seconds of quiet after the last edit before an auto publish. */
@@ -103,8 +104,8 @@ export interface WidgetState {
 const FALLBACK: Record<string, string> = {
   unpublishedCount: '{n} unpublished comments',
   unpublishedCountOne: '{n} unpublished comment',
-  lostAnchor: '{n} of your comments lost its anchor',
-  lostAnchorPlural: '{n} of your comments lost their anchor',
+  lostAnchor: '{n} of your comments lost their anchor',
+  lostAnchorOne: '{n} of your comments lost its anchor',
 };
 
 export function widgetState(input: WidgetStateInput): WidgetState {
@@ -122,9 +123,9 @@ export function widgetState(input: WidgetStateInput): WidgetState {
     showPlayPause: input.autoPublish,
     publishDisabled: input.publishing || pendingCount < 1,
     ringRunning: input.autoPublish && input.mode === 'auto' && input.armed && !input.publishing && pendingCount >= 1,
-    label: !known ? '…' : tr(pendingCount === 1 ? 'unpublishedCountOne' : 'unpublishedCount').replace('{n}', String(pendingCount)),
+    label: !known ? '…' : tCount('unpublishedCount', pendingCount, tr),
     errorLine: input.error || null,
-    orphanLine: orphaned < 1 ? null : tr(orphaned === 1 ? 'lostAnchor' : 'lostAnchorPlural').replace('{n}', String(orphaned)),
+    orphanLine: orphaned < 1 ? null : tCount('lostAnchor', orphaned, tr),
     playPauseAction: input.mode === 'auto' ? 'pause' : 'play',
   };
 }
