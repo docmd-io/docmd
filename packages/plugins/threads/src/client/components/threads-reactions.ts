@@ -353,7 +353,7 @@ export class ThreadsReactions extends LitElement {
         @pointerenter=${() => this.clearWhoTimers()} @pointerleave=${() => this.hideWhoSoon()}>
         ${reaction
           ? html`<ul>${reaction.reactors.map((p) => html`<li>${p.href
-              ? html`<a href=${p.href} rel="nofollow noopener">${p.name}</a>`
+              ? html`<a href=${p.href} rel="nofollow noopener ugc">${p.name}</a>`
               : p.name}</li>`)}</ul>`
           : nothing}
       </div>

@@ -14,3 +14,13 @@ test('every element registers through defineOnce, never @customElement, so a sec
     if (/extends LitElement/.test(src)) assert.match(src, /defineOnce\('threads-[a-z-]+', \w+\)/, `${f} does not call defineOnce`);
   }
 });
+
+test('every profile link in a component carries rel="nofollow noopener ugc"', () => {
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.ts'))) {
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const m of src.matchAll(/<a\b[^>]*href=\$\{[^}]*\}[^>]*>/g)) {
+      if (/class="link"/.test(m[0])) continue; // in-page links to a thread, not people
+      assert.match(m[0], /rel="nofollow noopener ugc"/, `${f}: ${m[0]}`);
+    }
+  }
+});

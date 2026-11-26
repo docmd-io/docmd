@@ -154,7 +154,7 @@ export class ThreadsComment extends LitElement {
           <div class="main">
             <div class="meta" part="meta">
               ${href
-                ? html`<a class="author" part="author" href=${href} rel="nofollow noopener">${shownName}</a>`
+                ? html`<a class="author" part="author" href=${href} rel="nofollow noopener ugc">${shownName}</a>`
                 : html`<span class="author" part="author">${shownName}</span>`}
               <time part="date" datetime=${c.date}>${c.date}</time>
               ${c.edited_at ? html`<span part="edited" title=${c.edited_at}>${t('edited')}</span>` : nothing}

@@ -82,7 +82,7 @@ export class ThreadsReviewsPanel extends LitElement {
           <span class="title" part="title">${r.title || r.id}</span>
           <span class="badge" part="badge" data-testid="review-state">${discarded ? t('discarded') : t('published')}</span>
         </div>
-        <div class="meta" part="meta">${href ? html`<a href=${href}>${r.authorName}</a>` : r.authorName} · ${new Date(r.publishedAt).toLocaleDateString()}</div>
+        <div class="meta" part="meta">${href ? html`<a part="author" href=${href} rel="nofollow noopener ugc">${r.authorName}</a>` : r.authorName} · ${new Date(r.publishedAt).toLocaleDateString()}</div>
         <ul class="ops" part="ops">
           ${r.ops.map(op => html`
             <li><a class="link" part="link" data-testid="review-op"
