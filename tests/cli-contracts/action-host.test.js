@@ -111,6 +111,43 @@ export const test = runTestFile({
     const { createOriginVerify, createOriginAllowlist } = await import(coreDist('utils/ws-origin-guard.js'));
     const { loadPlugins, hooks, TUI } = await import(apiDist('index.js'));
 
+    // ── workspace: ctx.docsRootOf maps a page to its subproject's own src ──
+    {
+      const { loadProjectDocsRoot } = await import(coreDist('engine/workspace.js'));
+      const { createActionDispatcher } = await import(apiDist('index.js'));
+      const ws = setup('action-host-workspace-docs-root');
+      writeFile(ws, 'main/docmd.config.js', `export default { title: 'Main', src: 'docs' }`);
+      writeFile(ws, 'main/docs/index.md', '# Main\n');
+      writeFile(ws, 'api/docmd.config.json', JSON.stringify({ title: 'API', src: 'content' }));
+      writeFile(ws, 'api/content/guide.md', '# Guide\n');
+      writeFile(ws, 'bare/docs/index.md', '# Zero config\n');
+      const projects = [
+        { prefix: '/', src: 'main' },
+        { prefix: '/api', src: 'api' },
+        { prefix: '/bare', src: 'bare' },
+        { prefix: '/ghost', src: 'ghost' },
+      ];
+      const wsConfig = { workspace: { projects } };
+      const roots = new Map();
+      for (const p of projects) {
+        const docsRoot = await loadProjectDocsRoot(p, wsConfig, ws);
+        if (docsRoot) roots.set(path.join(ws, p.src), docsRoot);
+      }
+      assert(roots.get(path.join(ws, 'main')) === path.join(ws, 'main/docs'), 'loadProjectDocsRoot: a JS config\'s src, resolved in its project');
+      assert(roots.get(path.join(ws, 'api')) === path.join(ws, 'api/content'), 'loadProjectDocsRoot: a JSON config\'s src, resolved in its project');
+      assert(roots.get(path.join(ws, 'bare')) === path.join(ws, 'bare/docs'), 'loadProjectDocsRoot: a zero-config project gets its detected src');
+      assert(!roots.has(path.join(ws, 'ghost')), 'loadProjectDocsRoot: null for a project with no config and no docs');
+
+      const probe = { actions: { 'ws:root': async (p, ctx) => ctx.docsRootOf(p.file) }, events: {} };
+      const rootOf = async (config, file, docsRoots) =>
+        (await createActionDispatcher(probe, { projectRoot: ws, config, broadcast() {}, workspaceDocsRoots: docsRoots }).handleCall('ws:root', { file })).result;
+      assert(await rootOf(wsConfig, 'content/guide.md', roots) === path.join(ws, 'api/content'), 'ctx.docsRootOf: a page of a subproject maps to that subproject\'s src');
+      assert(await rootOf(wsConfig, 'docs/index.md', roots) === path.join(ws, 'main/docs'), 'ctx.docsRootOf: same subproject readFile picks for the page');
+      assert(await rootOf(wsConfig, undefined, roots) === ws, 'ctx.docsRootOf: no page falls back to <projectRoot>/<config.src || .>');
+      assert(await rootOf(wsConfig, 'content/guide.md', undefined) === ws, 'ctx.docsRootOf: without the host map the root config decides');
+      assert(await rootOf({ src: 'docs' }, 'docs/index.md', undefined) === path.join(ws, 'docs'), 'ctx.docsRootOf: single project is <projectRoot>/<config.src>');
+    }
+
     // ── allowlist rule ────────────────────────────
     {
       const guard = createOriginAllowlist(['http://127.0.0.1:4100', 'https://Docs.Example.com']);

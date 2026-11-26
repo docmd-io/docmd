@@ -129,6 +129,32 @@ test('get-threads on a file without threads returns [] and does not write', asyn
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false);
 });
 
+test('get-threads returns threads from every top-level threads block', async () => {
+  fs.writeFileSync(safePath(project.root, project.file), `# Split page
+
+::: threads
+  ::: thread t-first
+    ::: comment c-first "Alice" "2026-01-01"
+      First
+    :::
+  :::
+:::
+
+Discussion for the next section.
+
+::: threads
+  ::: thread t-second
+    ::: comment c-second "Bob" "2026-01-02"
+      Second
+    :::
+  :::
+:::
+`);
+  assert.deepEqual((await getThreads({})).map((t) => t.id), ['t-first', 't-second']);
+  const reply = await addComment('t-second');
+  assert.equal((await getThreads(ALICE)).find((t) => t.id === 't-second')?.comments[1].id, reply.id);
+});
+
 /** A published target and a drafted one for each of the five handlers. */
 interface Row {
   name: string;

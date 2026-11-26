@@ -78,6 +78,26 @@ test('markdown.typographer: false disables smart quotes and symbols', () => {
   assert.match(renderedDefault, /©/);
 });
 
+test('plaintext fenced blocks are escaped without syntax-highlight spans', () => {
+  const md = createMarkdownProcessor();
+  const rendered = md.render('```plaintext\nif (a < b) { return "x" }\n```');
+
+  assert.match(rendered, /<pre><code class="language-plaintext">/);
+  assert.match(rendered, /if \(a &lt; b\) \{ return &quot;x&quot; \}/);
+  assert.doesNotMatch(rendered, /hljs-/);
+  assert.doesNotMatch(rendered, /class="hljs"/);
+});
+
+test('text and txt fenced blocks also skip syntax highlighting', () => {
+  for (const language of ['text', 'txt']) {
+    const md = createMarkdownProcessor();
+    const rendered = md.render(`\`\`\`${language}\na < b\n\`\`\``);
+    assert.match(rendered, new RegExp(`<pre><code class="language-${language}">`));
+    assert.match(rendered, /a &lt; b/);
+    assert.doesNotMatch(rendered, /hljs-/);
+  }
+});
+
 test('markdown.breaks: false disables soft line breaks', () => {
   const mdNoBreaks = createMarkdownProcessor({ markdown: { breaks: false } });
   const renderedNoBreaks = mdNoBreaks.render('first line\nsecond line');

@@ -19,6 +19,15 @@ function getSourceFile(): string {
   return file;
 }
 
+/**
+ * The page, for calls that do not act on it: the server keeps its data in the docs root of the
+ * page's project (under a workspace, the subproject's). Omitted when the page has no source file.
+ */
+function pageFile(): { file: string } | Record<string, never> {
+  const file = document.body.dataset['sourceFile'];
+  return file ? { file } : {};
+}
+
 /** Identity for reads: whatever is stored. Page loads never prompt. */
 function storedIdentity(): { author: string; authorKey: string; avatarUrl: string } | Record<string, never> {
   return getStoredIdentity() ?? {};
@@ -26,7 +35,7 @@ function storedIdentity(): { author: string; authorKey: string; avatarUrl: strin
 
 export async function fetchAuthors(): Promise<AuthorsMap> {
   try {
-    return await docmd.call('threads:get-authors', {});
+    return await docmd.call('threads:get-authors', pageFile());
   } catch {
     // Fallback to injected global (static builds)
     return (window as any).__threads_authors || {};
@@ -35,7 +44,11 @@ export async function fetchAuthors(): Promise<AuthorsMap> {
 
 export async function upsertAuthor(authorKey: string | null, name: string, avatarUrl: string): Promise<void> {
   // A header identity names itself; the server rejects a client-sent key.
-  await docmd.call('threads:upsert-author', authorKey === null ? { name, avatarUrl } : { authorKey, name, avatarUrl });
+  const payload = authorKey === null
+    ? { ...pageFile(), name, avatarUrl }
+    : { ...pageFile(), authorKey, name, avatarUrl };
+  await docmd.call('threads:upsert-author', payload);
+}
 }
 
 export async function fetchThreads(): Promise<Thread[]> {
@@ -156,13 +169,13 @@ async function call<T>(action: string, payload: Record<string, unknown>): Promis
 
 /** The caller's journal. Read on every page load, so it never prompts for a name. */
 export function whoami(): Promise<WhoAmI> {
-  return call('threads:whoami', storedIdentity());
+  return call('threads:whoami', { ...pageFile(), ...storedIdentity() });
 }
 
 export function setMode(mode: DraftMode): Promise<Journal> {
-  return call('threads:set-mode', { ...getIdentityPayload(), mode });
+  return call('threads:set-mode', { ...pageFile(), ...getIdentityPayload(), mode });
 }
 
 export function publishReview(): Promise<PublishResult> {
-  return call('threads:publish-review', { ...getIdentityPayload() });
+  return call('threads:publish-review', { ...pageFile(), ...getIdentityPayload() });
 }
