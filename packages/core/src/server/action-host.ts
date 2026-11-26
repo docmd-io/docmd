@@ -63,6 +63,8 @@ export interface ActionHostOptions {
    * `caller.identity`; without it every write through the context is refused.
    */
   identityHeader?: string | null;
+  /** Workspace dev: subproject directory → its docs source directory, for `ctx.docsRootOf`. */
+  workspaceDocsRoots?: ReadonlyMap<string, string>;
 }
 
 export interface ActionHost {
@@ -204,6 +206,7 @@ export async function createActionHost(opts: ActionHostOptions): Promise<ActionH
     getWorkerPool: opts.getWorkerPool,
     requestRebuild: rebuild,
     identityHeader,
+    workspaceDocsRoots: opts.workspaceDocsRoots,
   });
 
   wss.on('connection', (ws, req: http.IncomingMessage) => {

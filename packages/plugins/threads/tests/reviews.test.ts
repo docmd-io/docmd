@@ -160,9 +160,11 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
   assert.equal(markOf(block.content), undefined);
   assert.equal(parser.parseThreadsFromContent(block.content).length, 3);
 
-  // text after the threads block is not part of the page body a mark may go in
+  // text after the threads block is page text too: it gets the mark, and no block is added
   const after = wrap(`${PAGE}\nClosing words here.\n`, 'Closing words');
-  assert.equal(markOf(after.content), undefined);
+  assert.equal(markOf(after.content), '==Closing words=={t-new}');
+  assert.equal(after.content.split('::: threads').length - 1, 1);
+  assert.ok(after.content.endsWith('==Closing words=={t-new} here.\n'));
 
   // a quote the highlight syntax cannot carry gets its anchor but no mark, and deleting the thread leaves the text alone
   for (const q of ['a == b', '=x', 'x=']) {
@@ -188,6 +190,52 @@ test('applyOps places marks: not in the frontmatter, an existing mark or the thr
     assert.deepEqual([r.applied.length, r.skipped.length], [0, 1]);
     assert.match(r.skipped[0].reason, /fence/);
   }
+});
+
+test('applyOps leaves a fenced `::: threads` example alone and writes to the real block', () => {
+  const example = '```markdown\n::: threads\n  ::: thread t-example\n    ::: comment c-x "Doc" "2026-01-01"\n      Example\n    :::\n  :::\n:::\n```\n';
+  const page = PAGE.replace('Some ==marked', `${example}\nSome ==marked`);
+  const { content, skipped } = applyOps(page, [
+    mk({ kind: 'add-comment', file: FILE, threadId: 't-2', commentId: 'c-reply', parentId: 'c-3', body: 'Reply' }),
+    mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor('plain target text'), body: 'New' }),
+  ], OPTS);
+  assert.deepEqual(skipped, []);
+  assert.ok(content.includes(example), 'the example is byte-identical');
+  assert.equal(content.split('::: threads').length - 1, 2, 'no block is added');
+  assert.deepEqual(parser.parseThreadsFromContent(content).map((t) => t.id), ['t-1', 't-2', 't-new']);
+});
+
+test('applyOps marks a quote below the first block, but never inside any block or a fenced example', () => {
+  const second = THREADS.replace('t-1', 't-3').replace('t-2', 't-4').replace(/c-(\d)/g, 'c-9$1');
+  const page = `${PAGE}\nBetween the blocks sits the target.\n\n${second}\nFooter.\n`;
+  const wrap = (p: string, quote: string) =>
+    applyOps(p, [mk({ kind: 'add-thread', file: FILE, threadId: 't-new', commentId: 'c-new', anchor: anchor(quote), body: 'x' })], OPTS).content;
+  const markOf = (p: string) => /==[^=]*=={t-new}/.exec(p)?.[0];
+
+  const between = wrap(page, 'the target');
+  assert.match(between, /Between the blocks sits ==the target=={t-new}\./);
+  assert.equal(between.split('::: threads').length - 1, 2);
+  assert.deepEqual(parser.parseThreadsFromContent(between).map((t) => t.id), ['t-1', 't-2', 't-3', 't-4', 't-new']);
+
+  // "Other." is only in comment bodies of both blocks
+  assert.equal(markOf(wrap(page, 'Other.')), undefined);
+
+  // a fenced `::: threads` example is code: not marked, and text after it is still page text
+  const example = '```markdown\n::: threads\nfenced target\n:::\n```\n';
+  const fenced = wrap(`Intro.\n\n${example}\nLater target.\n\n${THREADS}`, 'target');
+  assert.ok(fenced.includes(example));
+  assert.match(fenced, /Later ==target=={t-new}\./);
+});
+
+test('applyOps on a thread id held by two blocks writes to the first copy, the one get-threads shows', () => {
+  const copy = THREADS.replace('t-2', 't-9').replace(/c-(\d)/g, 'c-8$1');
+  const page = `${PAGE}\nBetween.\n\n${copy}`;
+  const { content } = applyOps(page, [mk({ kind: 'add-comment', file: FILE, threadId: 't-1', commentId: 'c-reply', parentId: 'c-2', body: 'Reply' })], OPTS);
+  const t1 = parser.parseThreadsFromContent(content).filter((t) => t.id === 't-1');
+  assert.equal(t1.length, 1);
+  assert.deepEqual(t1[0].comments.map((c) => c.id), ['c-1', 'c-2', 'c-reply']);
+  const later = parser.findThreadsBlocks(content.split('\n'))[1].threads;
+  assert.deepEqual(later.map((t) => [t.id, t.comments.map((c) => c.id)]), [['t-1', ['c-81', 'c-82']], ['t-9', ['c-83']]], 'the later copy is unchanged');
 });
 
 test('applyOps removes what delete-thread owns: single- and two-line marks, and an emptied block', () => {
@@ -364,6 +412,46 @@ test('publish uses the injected clock and ids', async () => {
   assert.equal(m.publishedAt, '2030-01-02T03:04:05.000Z');
   assert.equal(m.title, 'Comments by Alice: 1 comment on docmd _playground');
   assert.equal((await store().load('k-alice')).review.id, 'r-aaaaaaaa');
+});
+
+test('publish edits a thread in the second top-level block in place and leaves the first block byte-identical', async () => {
+  const page = `# Split page
+
+::: threads
+  ::: thread t-first
+    ::: comment c-first "Alice" "2026-01-01"
+      First
+    :::
+  :::
+:::
+
+Discussion for the next section.
+
+::: threads
+  ::: thread t-second
+    ::: comment c-second "Bob" "2026-01-02"
+      Second
+    :::
+  :::
+:::
+
+After both.
+`;
+  fs.writeFileSync(safePath(project.root, FILE), page);
+  const secondStart = page.indexOf('::: threads', page.indexOf('Discussion for the next section.'));
+  await fill('k-alice', [
+    { kind: 'add-comment', file: FILE, threadId: 't-second', commentId: 'c-reply', parentId: 'c-second', body: 'Reply in second' },
+  ]);
+  const result = await publishAction();
+  assert.deepEqual(result.skipped, []);
+  const out = read(FILE);
+  const firstBlock = page.slice(0, page.indexOf('Discussion for the next section.'));
+  const secondBlock = page.slice(secondStart);
+  assert.ok(out.startsWith(firstBlock), 'the first block is untouched');
+  assert.ok(out.includes(secondBlock.slice(0, secondBlock.indexOf('c-second') + 'c-second'.length)), 'the second block is not moved');
+  assert.match(out, /::: comment c-reply "Alice" "[0-9-]+" reply-to c-second/);
+  assert.deepEqual(pageThreads(FILE).map((t) => t.id), ['t-first', 't-second']);
+  assert.equal(pageThreads(FILE).find((t) => t.id === 't-second')!.comments[1].id, 'c-reply');
 });
 
 test('an empty or missing journal rejects with empty-review and writes nothing', async () => {

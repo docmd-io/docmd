@@ -88,6 +88,29 @@ export interface ApplyResult {
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
 const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
 
+/** Pattern for `==quote=={id}`; the quote may span lines. Group 1 is the quote. Without an id it matches any thread's mark. */
+const markPattern = (threadId?: string, flags = '') =>
+  new RegExp(`==((?:(?!==)[\\s\\S])+)==\\{${threadId === undefined ? '[^}]+' : escapeRe(threadId)}\\}`, flags);
+
+/**
+ * `content` with every threads block blanked to line breaks (same length, so offsets
+ * still match), and the ranges those blocks cover. Blank lines end any code span or
+ * mark that would otherwise reach across a block.
+ */
+function maskThreadsBlocks(content: string): { text: string; blocks: Array<[number, number]> } {
+  const lines = content.split('\n');
+  const starts: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    starts.push(offset);
+    offset += line.length + 1;
+  }
+  const blocks = parser.findThreadsBlocks(lines).map(({ start, end }): [number, number] => [starts[start], starts[end] + lines[end].length]);
+  let text = content;
+  for (const [a, b] of blocks) text = text.slice(0, a) + '\n'.repeat(b - a) + text.slice(b);
+  return { text, blocks };
+}
+
 /** Ranges of fenced code blocks and inline code spans, where `==q=={id}` would render literally. */
 function codeRanges(body: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
@@ -114,20 +137,20 @@ function codeRanges(body: string): Array<[number, number]> {
 const unmarkable = (quote: string) => quote.includes('==') || quote.startsWith('=') || quote.endsWith('=');
 
 /**
- * Wrap the first occurrence of `quote` in the body (after the frontmatter, above the
- * threads block) as `==quote=={id}`, skipping occurrences that touch an existing mark
- * or sit in code. No free occurrence: the content is returned unchanged (the anchor is
- * still recorded).
+ * Wrap the first occurrence of `quote` in the page text (after the frontmatter, outside
+ * every threads block) as `==quote=={id}`, skipping occurrences that touch an existing
+ * mark or sit in code. No free occurrence: the content is returned unchanged (the anchor
+ * is still recorded).
  */
 function wrapQuote(content: string, quote: string, threadId: string): string {
-  const { body, rest } = splitPage(content);
-  const from = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(body)?.[0].length ?? 0;
-  const spans = [...body.matchAll(markPattern(undefined, 'g'))].map((m) => [m.index, m.index + m[0].length]);
-  spans.push(...codeRanges(body));
-  let at = body.indexOf(quote, from);
-  while (at >= 0 && spans.some(([a, b]) => at < b && at + quote.length > a)) at = body.indexOf(quote, at + 1);
+  const { text, blocks } = maskThreadsBlocks(content);
+  const from = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(content)?.[0].length ?? 0;
+  const spans = [...text.matchAll(markPattern(undefined, 'g'))].map((m) => [m.index, m.index + m[0].length]);
+  spans.push(...codeRanges(text), ...blocks);
+  let at = content.indexOf(quote, from);
+  while (at >= 0 && spans.some(([a, b]) => at < b && at + quote.length > a)) at = content.indexOf(quote, at + 1);
   if (at < 0) return content;
-  return body.slice(0, at) + `==${quote}=={${threadId}}` + body.slice(at + quote.length) + rest;
+  return content.slice(0, at) + `==${quote}=={${threadId}}` + content.slice(at + quote.length);
 }
 
 const unwrapThread = (content: string, threadId: string) => content.replace(markPattern(threadId, 'g'), '$1');
@@ -431,8 +454,13 @@ function reverseInThread(
 // Manifests
 // ---------------------------------------------------------------------------
 
-/** `<docsRoot>`: the project root joined with the configured docs source folder. */
-export const docsRootOf = (ctx: Pick<ActionContext, 'projectRoot' | 'config'>): string => safePath(ctx.projectRoot, ctx.config?.src || '.');
+/**
+ * `<docsRoot>`: the docs source folder of the project that holds `file` (under a workspace, the
+ * subproject's own `src`), as the host resolves it; without a host resolver, the project root
+ * joined with the configured docs source folder.
+ */
+export const docsRootOf = (ctx: Pick<ActionContext, 'projectRoot' | 'config' | 'docsRootOf'>, file?: string): string =>
+  ctx.docsRootOf?.(file) ?? safePath(ctx.projectRoot, ctx.config?.src || '.');
 const reviewsDir = (ctx: ActionContext) => safePath(docsRootOf(ctx), path.join('.threads', 'reviews'));
 
 const isNotFound = (e: unknown): boolean => (e as NodeJS.ErrnoException)?.code === 'ENOENT';

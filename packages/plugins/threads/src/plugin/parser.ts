@@ -8,41 +8,66 @@ function generateCommentId(): string {
   return 'c-' + crypto.randomBytes(4).toString('hex');
 }
 
+export interface ThreadsBlock {
+  start: number;
+  end: number;
+  threads: Thread[];
+}
+
+const isThreadsOpen = (line: string) => line.trim() === '::: threads';
+const isContainerOpen = (line: string) => line.trim().startsWith('::: ');
+const isContainerClose = (line: string) => line.trim() === ':::';
+/** The run of backticks or tildes that opens or closes a fenced code block, if the line is one. */
+const codeFence = (line: string) => /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+
 /**
- * Find the start and end line indices of the top-level `::: threads` block.
- * Returns null if no block found.
+ * Find every top-level `::: threads` block. A page may place several blocks
+ * next to the sections they discuss; each is rendered, so each must be indexed.
+ * Fenced code is skipped: a `::: threads` example in a code block is not a block.
  */
-export function findThreadsBlockBounds(lines: string[]): { start: number; end: number } | null {
-  let start = -1;
+export function findThreadsBlocks(lines: string[]): ThreadsBlock[] {
+  const blocks: ThreadsBlock[] = [];
+  let fence: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === '::: threads') {
-      start = i;
-      break;
+    const run = codeFence(lines[i]);
+    if (fence) {
+      // A fence closes on the same character, at least as long as the opening run.
+      if (run && run[0] === fence[0] && run.length >= fence.length) fence = null;
+      continue;
     }
-  }
+    if (run) {
+      fence = run;
+      continue;
+    }
+    if (!isThreadsOpen(lines[i])) continue;
 
-  if (start === -1) return null;
-
-  // Track depth to find matching close
-  let depth = 1;
-  for (let i = start + 1; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (trimmed.startsWith('::: ') || (trimmed === ':::' + '')) {
-      // Distinguish opening vs closing
-      if (trimmed === ':::') {
+    let depth = 1;
+    let end = lines.length - 1;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (isContainerClose(lines[j])) {
         depth--;
         if (depth === 0) {
-          return { start, end: i };
+          end = j;
+          break;
         }
-      } else {
+      } else if (isContainerOpen(lines[j])) {
         depth++;
       }
     }
+
+    const threads = parseThreadContainers(lines.slice(i + 1, end));
+    blocks.push({ start: i, end, threads });
+    i = end;
   }
 
-  // Unclosed block - treat rest of file as the block
-  return { start, end: lines.length - 1 };
+  return blocks;
+}
+
+/** The first top-level `::: threads` block, or null. */
+export function findThreadsBlockBounds(lines: string[]): { start: number; end: number } | null {
+  const [first] = findThreadsBlocks(lines);
+  return first ? { start: first.start, end: first.end } : null;
 }
 
 /**
@@ -260,12 +285,7 @@ export function parseCommentContent(contentLines: string[]): { body: string; rea
 /**
  * Parse threads from markdown content.
  */
-export function parseThreadsFromContent(markdownContent: string): Thread[] {
-  const lines = markdownContent.split('\n');
-  const bounds = findThreadsBlockBounds(lines);
-  if (!bounds) return [];
-
-  const innerLines = lines.slice(bounds.start + 1, bounds.end);
+function parseThreadContainers(innerLines: string[]): Thread[] {
   const threadContainers = parseChildContainers(innerLines);
   const threads: Thread[] = [];
 
@@ -315,6 +335,18 @@ export function parseThreadsFromContent(markdownContent: string): Thread[] {
   }
 
   return threads;
+}
+
+/** Threads of every block, in document order. A thread id seen twice keeps its first copy. */
+export function parseThreadsFromContent(markdownContent: string): Thread[] {
+  const seen = new Set<string>();
+  return findThreadsBlocks(markdownContent.split('\n'))
+    .flatMap((block) => block.threads)
+    .filter((thread) => {
+      if (seen.has(thread.id)) return false;
+      seen.add(thread.id);
+      return true;
+    });
 }
 
 /**
@@ -390,32 +422,51 @@ export function serializeThreadsBlock(threads: Thread[]): string {
 }
 
 /**
- * Replace (or append) the threads block in a full markdown file.
+ * Write `threads` back into the markdown. Each existing block keeps the threads it
+ * already holds, in place; threads no block holds yet go into the last block, and a
+ * block is appended only when the page has none. A block left empty is removed. An id
+ * held twice is written at its first copy; later copies are kept unchanged, or
+ * removed with it.
  */
 export function replaceThreadsBlock(markdownContent: string, threads: Thread[]): string {
   const lines = markdownContent.split('\n');
-  const bounds = findThreadsBlockBounds(lines);
-  const serialized = serializeThreadsBlock(threads);
+  const blocks = findThreadsBlocks(lines);
+  const placed = new Set(blocks.flatMap((block) => block.threads.map((thread) => thread.id)));
+  const added = threads.filter((thread) => !placed.has(thread.id));
 
-  if (bounds) {
-    // Replace existing block
-    const before = lines.slice(0, bounds.start);
-    const after = lines.slice(bounds.end + 1);
-
-    if (serialized === '') {
-      // Remove block entirely, trim extra blank lines at boundary
-      const result = [...before, ...after].join('\n');
-      // Clean up double blank lines at the splice point
-      return result.replace(/\n{3,}/g, '\n\n');
-    }
-
-    return [...before, ...serialized.trimEnd().split('\n'), ...after].join('\n');
+  if (blocks.length === 0) {
+    const serialized = serializeThreadsBlock(added);
+    return serialized ? markdownContent.trimEnd() + '\n\n' + serialized : markdownContent;
   }
 
-  // No existing block - append
-  if (serialized === '') return markdownContent;
+  const byId = new Map<string, Thread>();
+  for (const thread of threads) if (!byId.has(thread.id)) byId.set(thread.id, thread);
+  const written = new Set<string>();
+  const out: string[] = [];
+  let cursor = 0;
+  let removed = false;
 
-  // Ensure there's a blank line before the threads block
-  const trimmedContent = markdownContent.trimEnd();
-  return trimmedContent + '\n\n' + serialized;
+  blocks.forEach((block, n) => {
+    out.push(...lines.slice(cursor, block.start));
+    const own = block.threads.flatMap((thread) => {
+      const current = byId.get(thread.id);
+      if (!current) return [];
+      // A later copy of an id is not what the parser returns: keep it as it was.
+      if (written.has(thread.id)) return [thread];
+      written.add(thread.id);
+      return [current];
+    });
+    if (n === blocks.length - 1) own.push(...added);
+    const orderMap = new Map(threads.map((t, idx) => [t.id, idx]));
+    own.sort((a, b) => (orderMap.get(a.id) ?? 999999) - (orderMap.get(b.id) ?? 999999));
+    const serialized = serializeThreadsBlock(own);
+    if (serialized === '') removed = true;
+    else out.push(...serialized.trimEnd().split('\n'));
+    cursor = block.end + 1;
+  });
+
+  out.push(...lines.slice(cursor));
+  const result = out.join('\n');
+  // Removing a block can leave two blank lines at its old boundaries.
+  return removed ? result.replace(/\n{3,}/g, '\n\n') : result;
 }
