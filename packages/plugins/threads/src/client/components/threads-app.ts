@@ -5,26 +5,22 @@ import * as api from '../lib/api';
 import { initIdentity, getIdentityPayload, canShowFor } from '../lib/identity';
 import { deleteCommentTarget } from '../lib/can-show';
 import { computeAnchor, getContentArea, getSelectionPosition, isWithinContent } from '../lib/selection';
-import { initThemeBridge } from '../lib/theme';
+import { injectComponentStyles } from './styles';
 import { t } from '../lib/i18n';
-import { limitMessage } from '../lib/limit-message';
 import { createSvgElement, getThreadSvg } from '../lib/icons';
 import { createPublishMount } from '../lib/publish-mount';
 import { threadIdFromHash } from '../lib/reviews-view';
 import { planDraftMarks, type PageMark } from '../lib/draft-marks';
 import { hideRawSidebars } from '../lib/raw-sidebars';
 
-import './threads-popover';
-import './threads-inline-editor';
+import './threads-button';
+import './threads-dialog';
+import './threads-editor';
 import './threads-identity';
 import './threads-publish-widget';
 import './threads-reviews-panel';
 import type { ThreadsReviewsPanel } from './threads-reviews-panel';
 import type { ThreadsPublishWidget } from './threads-publish-widget';
-
-import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
-import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 
 /** Text under these is never a target when highlighting drafts after a load: thread cards, the panel, scripts. */
 const SKIP_WRAP = '.threads-thread, .tc-panel, threads-app, script, style';
@@ -35,9 +31,6 @@ export class ThreadsApp extends LitElement {
 
   @state() private threads: Thread[] = [];
   @state() private authorsMap: AuthorsMap = {};
-  @state() private popoverActive = false;
-  @state() private popoverX = 0;
-  @state() private popoverY = 0;
 
   /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
   private identityReady: Promise<void> = Promise.resolve();
@@ -92,7 +85,7 @@ export class ThreadsApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    initThemeBridge();
+    injectComponentStyles();
     document.addEventListener('mouseup', this.handleMouseUp);
     document.addEventListener('mousedown', this.handleOutsidePopoverClick);
     document.addEventListener('docmd:page-mounted', this.handlePageMounted as EventListener);
@@ -188,27 +181,16 @@ export class ThreadsApp extends LitElement {
   private startNewThread(heading: Element): void {
     this.removeInlineEditor();
 
-    const editor = document.createElement('threads-inline-editor') as any;
-    editor.quote = '';
-
-    editor.addEventListener('inline-submit', async (e: CustomEvent) => {
-      const identity = getIdentityPayload();
+    const editor = this.createEditor('', async (body) => {
       try {
-        await api.createThread({
-          anchor: null,
-          ...identity,
-          body: e.detail.body,
-        });
-        this.removeInlineEditor();
-        await this.loadThreads();
+        await api.createThread({ anchor: null, ...getIdentityPayload(), body });
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
-        editor.message = limitMessage(err) ?? '';
-        editor.submitting = false;
+        throw err;
       }
+      this.removeInlineEditor();
+      await this.loadThreads();
     });
-
-    editor.addEventListener('inline-cancel', () => this.removeInlineEditor());
 
     heading.insertAdjacentElement('afterend', editor);
     this.inlineEditorEl = editor;
@@ -232,12 +214,11 @@ export class ThreadsApp extends LitElement {
       }
       return;
     }
-    const popover = this.querySelector('threads-popover');
-    if (popover?.contains(e.target as Node)) return;
+    if (e.composedPath().includes(this.selectionButton() as EventTarget)) return;
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
-      this.popoverActive = false;
+      this.hideSelectionButton();
       return;
     }
 
@@ -263,17 +244,40 @@ export class ThreadsApp extends LitElement {
 
     this.pendingAnchor = anchor;
     this.pendingBlockEl = blockEl;
-    this.popoverX = pos.x;
-    this.popoverY = pos.y;
-    this.popoverActive = true;
+    this.showSelectionButton(pos.x, pos.y);
   };
 
   private handleOutsidePopoverClick = (e: MouseEvent): void => {
-    const popover = this.querySelector('threads-popover');
-    if (popover && !e.composedPath().includes(popover)) {
-      this.popoverActive = false;
-    }
+    const button = this.selectionButton();
+    if (button && !e.composedPath().includes(button)) this.hideSelectionButton();
   };
+
+  /** The "Add comment" button, a popover=manual `threads-button` rendered by this element. */
+  private selectionButton(): HTMLElement | null {
+    return this.querySelector<HTMLElement>('threads-button.threads-selection');
+  }
+
+  /** Put the button above the point (x, y of the viewport) in the top layer. */
+  private showSelectionButton(x: number, y: number): void {
+    const button = this.selectionButton();
+    if (!button) return;
+    button.style.setProperty('--threads-selection-x', `${x}px`);
+    button.style.setProperty('--threads-selection-y', `${y}px`);
+    try {
+      if (!button.matches(':popover-open')) button.showPopover();
+    } catch (err) {
+      console.error('[threads] Could not show the selection button:', err);
+    }
+  }
+
+  private hideSelectionButton(): void {
+    const button = this.selectionButton();
+    try {
+      if (button?.matches(':popover-open')) button.hidePopover();
+    } catch {
+      // No popover support or already hidden: nothing to take back.
+    }
+  }
 
   /**
    * Handle popover "add comment" - open inline editor after the block.
@@ -282,7 +286,7 @@ export class ThreadsApp extends LitElement {
     if (!this.pendingAnchor || !this.pendingBlockEl) return;
 
     this.removeInlineEditor();
-    this.popoverActive = false;
+    this.hideSelectionButton();
 
     const anchor = this.pendingAnchor;
     const blockEl = this.pendingBlockEl;
@@ -290,30 +294,20 @@ export class ThreadsApp extends LitElement {
     this.pendingBlockEl = null;
     window.getSelection()?.removeAllRanges();
 
-    const editor = document.createElement('threads-inline-editor') as any;
-    editor.quote = anchor.quote || '';
-
-    editor.addEventListener('inline-submit', async (e: CustomEvent) => {
-      const identity = getIdentityPayload();
+    const editor = this.createEditor(anchor.quote || '', async (body) => {
+      let createdThread: Thread;
       try {
-        const createdThread = await api.createThread({
-          anchor,
-          ...identity,
-          body: e.detail.body,
-        });
-        this.removeInlineEditor();
-        if (anchor?.quote && createdThread?.id && blockEl) {
-          this.wrapAnchorInMark(blockEl, anchor.quote, createdThread.id);
-        }
-        await this.loadThreads();
+        createdThread = await api.createThread({ anchor, ...getIdentityPayload(), body });
       } catch (err) {
         console.error('[threads] Failed to create thread:', err);
-        editor.message = limitMessage(err) ?? '';
-        editor.submitting = false;
+        throw err;
       }
+      this.removeInlineEditor();
+      if (anchor?.quote && createdThread?.id && blockEl) {
+        this.wrapAnchorInMark(blockEl, anchor.quote, createdThread.id);
+      }
+      await this.loadThreads();
     });
-
-    editor.addEventListener('inline-cancel', () => this.removeInlineEditor());
 
     blockEl.insertAdjacentElement('afterend', editor);
     this.inlineEditorEl = editor;
@@ -375,7 +369,7 @@ export class ThreadsApp extends LitElement {
   };
 
   private handlePageMounted = (_e: CustomEvent): void => {
-    this.popoverActive = false;
+    this.hideSelectionButton();
     this.deepLinkDone = false;
     void this.identityReady.then(() => {
       this.loadThreads();
@@ -618,13 +612,7 @@ export class ThreadsApp extends LitElement {
         delBtn.title = t('deleteComment');
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          if (totalComments === 1) {
-            this.deleteTarget = { type: 'thread', id: threadId };
-          } else {
-            this.deleteTarget = { type: 'comment', id: commentId, threadId };
-          }
-          const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-          if (dialog) dialog.open = true;
+          this.askDelete(totalComments === 1 ? { type: 'thread', id: threadId } : { type: 'comment', id: commentId, threadId });
         });
         actions.appendChild(delBtn);
         }
@@ -754,27 +742,16 @@ export class ThreadsApp extends LitElement {
   private openReplyEditor(threadEl: HTMLElement, threadId: string, parentCommentId: string | null): void {
     this.removeInlineEditor();
 
-    const editor = document.createElement('threads-inline-editor') as any;
-    editor.quote = '';
-
-    editor.addEventListener('inline-submit', async (e: CustomEvent) => {
-      const identity = getIdentityPayload();
+    const editor = this.createEditor('', async (body) => {
       try {
-        await api.addComment(threadId, {
-          ...identity,
-          body: e.detail.body,
-          parentId: parentCommentId,
-        });
-        this.removeInlineEditor();
-        await this.loadThreads();
+        await api.addComment(threadId, { ...getIdentityPayload(), body, parentId: parentCommentId });
       } catch (err) {
         console.error('[threads] Failed to add comment:', err);
-        editor.message = limitMessage(err) ?? '';
-        editor.submitting = false;
+        throw err;
       }
+      this.removeInlineEditor();
+      await this.loadThreads();
     });
-
-    editor.addEventListener('inline-cancel', () => this.removeInlineEditor());
 
     if (parentCommentId) {
       // Insert editor after the specific comment (or its replies container)
@@ -830,6 +807,24 @@ export class ThreadsApp extends LitElement {
   }
 
   // ─── Inline editor helpers ────────────────────────────────────────
+
+  /**
+   * An editor for one write. `submit` does the write and throws when it fails: the editor stays
+   * open with the error (the limit message, or a generic one) under the text, and keeps the text.
+   */
+  private createEditor(quote: string, submit: (body: string) => Promise<void>): HTMLElement {
+    const editor = document.createElement('threads-editor');
+    editor.className = 'threads-inline-editor';
+    editor.label = t('writeComment');
+    editor.placeholder = t('writeComment');
+    editor.quote = quote;
+    editor.addEventListener('threads-submit', (e) => {
+      const { body, waitUntil } = (e as CustomEvent<{ body: string; waitUntil(p: Promise<unknown>): void }>).detail;
+      waitUntil(submit(body));
+    });
+    editor.addEventListener('threads-cancel', () => this.removeInlineEditor());
+    return editor;
+  }
 
   private removeInlineEditor(): void {
     this.inlineEditorEl?.remove();
@@ -1227,9 +1222,7 @@ export class ThreadsApp extends LitElement {
     delBtn.title = t('deleteComment');
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.deleteTarget = { type: 'comment', id: comment.id, threadId };
-      const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-      if (dialog) dialog.open = true;
+      this.askDelete({ type: 'comment', id: comment.id, threadId });
     });
     actions.appendChild(delBtn);
     }
@@ -1306,19 +1299,25 @@ export class ThreadsApp extends LitElement {
   private handleDeleteRequest(e: CustomEvent, type: 'thread' | 'comment'): void {
     const id = type === 'thread' ? e.detail.threadId : e.detail.commentId;
     const threadId = type === 'comment' ? e.detail.threadId : undefined;
-    this.deleteTarget = { type, id, threadId };
-    const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+    this.askDelete({ type, id, threadId });
+  }
+
+  /** Open the confirmation for one thread or comment. */
+  private askDelete(target: { type: 'thread' | 'comment'; id: string; threadId?: string }): void {
+    this.deleteTarget = target;
+    this.requestUpdate(); // the question names what is deleted
+    const dialog = this.querySelector('threads-dialog');
     if (dialog) dialog.open = true;
   }
 
-  private async confirmDelete(): Promise<void> {
-    const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-    if (dialog) dialog.open = false;
-
-    if (!this.deleteTarget) return;
+  /** The dialog stays busy until this settles; a failure keeps it open with the error. */
+  private confirmDelete(e: CustomEvent<{ waitUntil(p: Promise<unknown>): void }>): void {
     const target = this.deleteTarget;
-    this.deleteTarget = null;
+    if (!target) return;
+    e.detail.waitUntil(this.deleteNow(target));
+  }
 
+  private async deleteNow(target: { type: 'thread' | 'comment'; id: string; threadId?: string }): Promise<void> {
     try {
       if (target.type === 'thread') {
         await api.deleteThread(target.id);
@@ -1334,30 +1333,36 @@ export class ThreadsApp extends LitElement {
       }
     } catch (err) {
       console.error('[threads] Failed to delete:', err);
+      throw err;
     }
-    await this.loadThreads();
+    this.deleteTarget = null;
+    void this.loadThreads();
   }
 
-  private cancelDelete(): void {
-    const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-    if (dialog) dialog.open = false;
-    this.deleteTarget = null;
+  /** Any way of closing the question but confirming it forgets the target. */
+  private handleDeleteClose(e: CustomEvent<{ reason: string }>): void {
+    if (e.detail.reason !== 'confirmed') this.deleteTarget = null;
   }
 
   override render() {
     return html`
-      <threads-popover
-        ?active=${this.popoverActive}
-        .x=${this.popoverX}
-        .y=${this.popoverY}
-        @add-comment=${this.handleAddComment}
-      ></threads-popover>
+      <threads-button
+        class="threads-selection"
+        popover="manual"
+        size="sm"
+        variant="ghost"
+        icon="chat-left-text"
+        @click=${this.handleAddComment}
+      >${t('addComment')}</threads-button>
 
-      <sl-dialog id="delete-dialog" label=${t('confirmDelete')}>
-        ${t('confirmDeleteMessage')} ${this.deleteTarget?.type ?? 'item'}?
-        <sl-button slot="footer" variant="neutral" @click=${this.cancelDelete}>${t('cancel')}</sl-button>
-        <sl-button slot="footer" variant="danger" @click=${this.confirmDelete}>${t('delete')}</sl-button>
-      </sl-dialog>
+      <threads-dialog
+        heading=${t('confirmDelete')}
+        tone="danger"
+        confirm-label=${t('delete')}
+        cancel-label=${t('cancel')}
+        @threads-confirm=${this.confirmDelete}
+        @threads-close=${this.handleDeleteClose}
+      >${t('confirmDeleteMessage')} ${this.deleteTarget?.type ?? 'item'}?</threads-dialog>
     `;
   }
 }

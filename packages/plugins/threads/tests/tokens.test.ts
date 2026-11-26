@@ -131,9 +131,13 @@ test('highlight palette is complete in both modes', () => {
   }
 });
 
+/** Per-use inputs the app sets on one element, not tokens: where the selection button is placed. */
+const POSITION_PROPS = new Set(['selection-x', 'selection-y']);
+
 test('code under src/client refers only to declared --threads-* tokens', () => {
   for (const file of clientFiles()) {
     for (const m of read(file).matchAll(/--threads-([a-z0-9-]+)/g)) {
+      if (POSITION_PROPS.has(m[1])) continue;
       assert.ok(m[1] in light, `${file} uses undeclared --threads-${m[1]}`);
     }
   }

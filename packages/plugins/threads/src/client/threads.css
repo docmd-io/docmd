@@ -102,3 +102,29 @@
   --threads-hl-orange: hsl(28 100% 62% / 0.22);
   --threads-hl-orange-strong: hsl(28 100% 65%);
 }
+
+/*
+ * The selection button: a popover=manual threads-button the app places above the selected text
+ * from two custom properties. The top layer needs no z-index.
+ */
+threads-button.threads-selection {
+  position: fixed;
+  inset: auto;
+  left: var(--threads-selection-x, 0px);
+  top: var(--threads-selection-y, 0px);
+  margin: 0;
+  padding: 4px;
+  overflow: visible;
+  transform: translate(-50%, calc(-100% - 10px));
+  border: 1px solid var(--threads-border);
+  border-radius: var(--threads-radius);
+  background: var(--threads-surface);
+  box-shadow: var(--threads-shadow-lg);
+}
+threads-button.threads-selection::part(base) {
+  color: var(--threads-fg);
+  font-weight: 500;
+}
+
+/* An editor the app places in the page, after a block, a heading or a comment. */
+threads-editor.threads-inline-editor { margin: 16px 0; }
