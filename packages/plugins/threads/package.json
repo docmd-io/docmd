@@ -55,6 +55,7 @@
     "@docmd/api": "workspace:*",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.11",
+    "emoji-picker-element-data": "1.8.0",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15"
   },

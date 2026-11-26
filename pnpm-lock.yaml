@@ -539,6 +539,9 @@ importers:
       '@types/node':
         specifier: ^26.6.11
         version: 26.6.11
+      emoji-picker-element-data:
+        specifier: 1.8.0
+        version: 1.8.0
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -1530,6 +1533,9 @@ packages:
 
   embed-lite@0.1.6:
     resolution: {integrity: sha512-iL9W49mLcEAla5U2l5MtwCyp+F4r938Z+HFo+/qruEXfGhpwm+qg0WqbfpsxPlm2rQAuXih7skAtyM3dVLCuXA==}
+
+  emoji-picker-element-data@1.8.0:
+    resolution: {integrity: sha512-VfRuRJNEDLS1JKlNS4olaqhjX5S1nnZ+ZHG73b/dV8QeZyi0yPruTPEE72EmF6XO3k/9hj3lybMIYMOYXb/57A==}
 
   entities@8.1.0:
     resolution: {integrity: sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA==}
@@ -2921,6 +2927,8 @@ snapshots:
   elkjs@0.12.2: {}
 
   embed-lite@0.1.6: {}
+
+  emoji-picker-element-data@1.8.0: {}
 
   entities@8.1.0: {}
 

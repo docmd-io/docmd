@@ -93,6 +93,9 @@ export function generateScripts(config: any, options?: any): { headScriptsHtml: 
   };
 }
 
+/** Languages the picker's emoji data is built for (build.js copies the same list). */
+const EMOJI_LANGS = ['en', 'hi', 'ko', 'zh'];
+
 export function getAssets(_options?: any): any[] {
   // Resolve relative to the compiled output location
   const distDir = path.resolve(__dirname, '..', 'dist', 'client');
@@ -109,6 +112,31 @@ export function getAssets(_options?: any): any[] {
       dest: 'assets/css/threads.css',
       type: 'css',
       location: 'head'
+    },
+    // The any-emoji picker: copied to the site but never given a script tag; threads-reactions
+    // import()s it on the first + click.
+    {
+      src: path.join(distDir, 'emoji-picker.js'),
+      dest: 'assets/js/threads-emoji-picker.js',
+      type: 'js',
+      location: 'none'
+    },
+    // Emoji data for the picker, served with the site (never from a CDN), one file per language.
+    ...EMOJI_LANGS.map((lang) => ({
+      src: path.join(distDir, 'emoji', `${lang}.json`),
+      dest: `assets/threads/emoji/${lang}.json`,
+      type: 'static'
+    })),
+    // Licence texts that travel with the vendored picker and its data (Apache-2.0).
+    {
+      src: path.join(distDir, 'threads-emoji-picker.LICENSE.txt'),
+      dest: 'assets/threads/threads-emoji-picker.LICENSE.txt',
+      type: 'static'
+    },
+    {
+      src: path.join(distDir, 'emoji', 'LICENSE'),
+      dest: 'assets/threads/emoji/LICENSE',
+      type: 'static'
     }
   ];
 }

@@ -691,5 +691,9 @@ test('plugin surface: descriptor, hooks and action names', () => {
   const html = md.render('==x=={t-1}\n\n::: threads\n  ::: thread t-1\n    ::: comment c-1 "a" "2026-01-01"\n      hi\n    :::\n  :::\n:::\n');
   assert.ok(html.includes('threads-thread'));
   assert.ok(html.includes('<mark'));
-  assert.deepEqual(assets.map((a: { dest: string }) => a.dest), ['assets/js/threads.js', 'assets/css/threads.css']);
+  assert.deepEqual(assets.map((a: { dest: string }) => a.dest), [
+    'assets/js/threads.js', 'assets/css/threads.css', 'assets/js/threads-emoji-picker.js',
+    'assets/threads/emoji/en.json', 'assets/threads/emoji/hi.json', 'assets/threads/emoji/ko.json', 'assets/threads/emoji/zh.json',
+    'assets/threads/threads-emoji-picker.LICENSE.txt', 'assets/threads/emoji/LICENSE',
+  ]);
 });
