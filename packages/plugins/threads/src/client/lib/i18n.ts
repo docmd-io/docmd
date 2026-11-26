@@ -72,6 +72,7 @@ const defaults: Record<string, string> = {
   published: 'Published',
   noReviews: 'No reviews yet.',
   reviewTitle: 'Review title',
+  reviewSummary: 'Summary',
   saveFailed: 'Could not save the review',
 };
 

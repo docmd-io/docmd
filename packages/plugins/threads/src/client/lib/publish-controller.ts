@@ -31,8 +31,12 @@ export interface PublishView {
   reviewId: string | null;
   /** The open review's title as the journal has it; null for the default title or while unknown. */
   reviewTitle: string | null;
-  /** Unpublished operations in the open review; 0 while unknown. */
+  /** The open review's summary as the journal has it; null for none or while unknown. */
+  reviewSummary: string | null;
+  /** Unpublished changes in the open review: its operations plus one for a pending profile; 0 while unknown. */
   pendingCount: number;
+  /** Unpublished comments (operations) in the open review, without the profile; 0 while unknown. */
+  opCount: number;
   /** The caller's published threads that lost their anchor, from the latest `whoami`; 0 before the first answer and after a failed one. */
   orphanedMine: number;
   /** The countdown ring, while one is running: re-created per `updatedAt`, started `delayMs` into the countdown. */
@@ -59,7 +63,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
   let deferredFor: string | null = null;
 
   const mode = (): DraftMode => journal?.mode ?? 'collect';
-  const pending = (): number => (known ? (journal?.ops.length ?? 0) : 0);
+  const pending = (): number => (known ? (journal ? journal.ops.length + (journal.profile ? 1 : 0) : 0) : 0);
   const reason = (err: unknown, fallback: string): string => (err instanceof ThreadsClientError ? err.text : t(fallback));
 
   function syncTimer(): void {
@@ -103,7 +107,7 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
     }
     syncTimer();
     // The review is gone while a confirmation is open: it was discarded (here or elsewhere).
-    if (held && (!journal || pending() === 0)) release('discarded');
+    if (held && (!journal || journal.ops.length === 0)) release('discarded');
     // A fire held back by a confirmation that closed while nothing could be published yet.
     if (deferred && !held && pending() > 0) {
       deferred = false;
@@ -220,9 +224,11 @@ export function createPublishController({ api, timer, t, onChange }: PublishCont
         }),
         mode: mode(),
         pendingCount: pending(),
+        opCount: known ? (journal?.ops.length ?? 0) : 0,
         orphanedMine,
         reviewId: known ? (journal?.review.id ?? null) : null,
         reviewTitle: known ? (journal?.review.title ?? null) : null,
+        reviewSummary: known ? (journal?.review.summary ?? null) : null,
         ring: timer && remaining !== null && ringKey ? { key: ringKey, delayMs: ringDelay, totalMs: timer.totalMs() } : null,
       };
     },

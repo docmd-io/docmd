@@ -1,4 +1,4 @@
-import { test, before, after, beforeEach } from 'node:test';
+import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,8 +6,8 @@ import { safePath } from '@docmd/utils';
 import { tempProject, makeCtx, failingReset, failingWrites, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, makeOp, slug, type DraftStore } from '../src/plugin/drafts.ts';
-import { applyOps, defaultTitle, finishEarlierPublish, pageTitleOf, publish } from '../src/plugin/reviews.ts';
-import { createLock } from '../src/plugin/lock.ts';
+import { applyOps, defaultTitle, deriveTargets, finishEarlierPublish, pageTitleOf, publish } from '../src/plugin/reviews.ts';
+import { createLock, createNoGitSync } from '../src/plugin/lock.ts';
 import { ThreadsError } from '../src/plugin/errors.ts';
 import * as parser from '../src/plugin/parser.ts';
 import type { Comment, DraftOp, Journal, NewDraftOp, PublishResult, Thread } from '../src/types.ts';
@@ -278,6 +278,27 @@ test('applying twice gives the same page for add, edit and delete ops; a foreign
   assert.match(foreign.skipped[0].reason, /already exists/);
 });
 
+test('toggle ops set the state deriveTargets computed from the first read, so a re-run changes nothing', () => {
+  const ops = [
+    mk({ kind: 'resolve-thread', file: FILE, threadId: 't-1' }),
+    mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' }),
+    mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-1', emoji: '👍' }),
+    mk({ kind: 'toggle-reaction', file: FILE, threadId: 't-1', commentId: 'c-2', emoji: '🎉' }),
+  ];
+  const targets = deriveTargets(PAGE, ops, OPTS.authorName);
+  assert.deepEqual(targets, {
+    [ops[0].opId]: true, // t-1 is open in PAGE, so resolving it targets resolved
+    [ops[1].opId]: true,
+    [ops[2].opId]: false,
+    [ops[3].opId]: true,
+  });
+  const once = applyOps(PAGE, ops, { ...OPTS, targets });
+  assert.notEqual(once.content, PAGE);
+  assert.equal(applyOps(once.content, ops, { ...OPTS, targets }).content, once.content, 'same targets over the output change nothing');
+  assert.equal(applyOps(PAGE, ops, { ...OPTS, targets }).content, once.content, 'a retry on the original page ends the same');
+  assert.notEqual(applyOps(once.content, ops, OPTS).content, once.content, 'without targets a re-run flips the toggles back');
+});
+
 test('pageTitleOf prefers frontmatter, then the first heading, else null', () => {
   const cases: Array<[string, string | null]> = [
     ['---\ntitle: "Quoted"\n---\n# Heading', 'Quoted'],
@@ -340,7 +361,7 @@ const getThreads = (file = FILE, payload: Record<string, unknown> = who, extra: 
 const call = (name: string, payload: Record<string, unknown>) =>
   (actions[name] as (p: unknown, c: TestCtx) => Promise<unknown>)(payload, ctx());
 const pageThreads = (rel: string) => parser.parseThreadsFromContent(read(rel));
-const deps = (s: DraftStore = store()) => ({ store: s, lock: createLock(), now: () => Date.parse('2030-01-02T03:04:05.000Z'), newId: () => 'r-aaaaaaaa' });
+const deps = (s: DraftStore = store()) => ({ store: s, sync: createNoGitSync(createLock()), now: () => Date.parse('2030-01-02T03:04:05.000Z'), newId: () => 'r-aaaaaaaa' });
 
 /** The projection published and drafted views must agree on. */
 const shape = (threads: Thread[]) =>
@@ -348,6 +369,31 @@ const shape = (threads: Thread[]) =>
     id: t.id, resolved: t.resolved, resolved_by: t.resolved_by,
     comments: t.comments.map((c: Comment) => ({ id: c.id, author: c.author, body: c.body, edited_at: c.edited_at, reactions: c.reactions })),
   }));
+
+test('a retried apply reuses the first read\'s toggle targets', async () => {
+  await call('threads:resolve-thread', { file: FILE, threadId: 't-thread2', ...who });
+  await call('threads:toggle-reaction', { file: FILE, threadId: 't-thread2', commentId: 'c2-1', emoji: '🎉', ...who });
+  const j = await store().load('k-alice');
+  assert.equal(j.ops.length, 2);
+  const once = pageThreads(FILE).find((t) => t.id === 't-thread2')!;
+  // A sync that runs apply twice without restoring the files: a replay must not flip the toggles back.
+  let runs = 0;
+  const twice = {
+    withLock: <T,>(fn: () => Promise<T>) => fn(),
+    publishWithRetry: async (apply: () => Promise<{ title: string }>) => {
+      await apply();
+      runs++;
+      await apply();
+      runs++;
+    },
+  };
+  await publish(ALICE, ctx() as never, { ...deps(), sync: twice });
+  assert.equal(runs, 2);
+  const after = pageThreads(FILE).find((t) => t.id === 't-thread2')!;
+  assert.equal(after.resolved, !once.resolved, 'resolved by the first attempt, still resolved after the second');
+  const reactions = after.comments.find((c) => c.id === 'c2-1')!.reactions ?? [];
+  assert.equal(reactions.some((r) => r.emoji === '🎉' && r.authors.includes('Alice')), true);
+});
 
 test('publish-review writes two pages and a manifest; the journal is emptied; get-threads is unchanged by it', async () => {
   const added = (await call('threads:add-thread', { file: FILE, ...who, body: 'New on index', anchor: anchor('parser rules') })) as Thread;
@@ -380,7 +426,7 @@ test('publish-review writes two pages and a manifest; the journal is emptied; ge
   assert.ok(pageThreads(FILE).some((t) => t.id === added.id && t.comments[0].id === added.comments[0].id), 'drafted ids are kept');
 
   const m = JSON.parse(readAt(manifestPath(result.reviewId)));
-  assert.deepEqual(Object.keys(m).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'skipped', 'state', 'title', 'version']);
+  assert.deepEqual(Object.keys(m).sort(), ['authorKey', 'authorName', 'id', 'ops', 'publishedAt', 'skipped', 'state', 'summary', 'title', 'version']);
   assert.deepEqual([m.version, m.id, m.state, m.authorKey, m.authorName], [1, result.reviewId, 'published', 'k-alice', 'Alice']);
   assert.match(m.title, /^Comments by Alice: 3 comments on docmd _playground, \+1 page$/);
   assert.ok(!Number.isNaN(Date.parse(m.publishedAt)));
@@ -525,6 +571,72 @@ test('when the restore fails too, the error names the files and keeps the first 
     assert.match(String((e.cause as Error).message), /disk full/);
     return true;
   });
+});
+
+const authorsPath = () => path.join(docsRoot, '.threads', 'authors.json');
+const readAuthors = () => JSON.parse(readAt(authorsPath()));
+const PROFILE = { name: 'Alice B', avatarUrl: 'http://a/b.png' };
+const withProfile = (key: string, profile = PROFILE, s: DraftStore = store()) => s.transact(key, (j) => void (j.profile = profile));
+const COMMENT: NewDraftOp = { kind: 'add-comment', file: FILE, threadId: 't-thread1', commentId: 'c-p', parentId: null, body: 'p' };
+
+test('a failure after the profile write puts authors.json and the pages back and keeps the ops and the profile', async () => {
+  fs.mkdirSync(safePath(docsRoot, '.threads'), { recursive: true });
+  fs.writeFileSync(safePath(path.dirname(authorsPath()), 'authors.json'), JSON.stringify({ bob: { name: 'Bob', avatarUrl: '' } }));
+  await fill('k-alice', [COMMENT]);
+  await withProfile('k-alice');
+  const bytes = { page: read(FILE), authors: readAt(authorsPath()) };
+  // the manifest is written last, after the profile: a stubbed write of it fails exactly there (a stub, not chmod: it holds as root)
+  const realWrite = fs.promises.writeFile;
+  const stub = mock.method(fs.promises, 'writeFile', ((file: unknown, ...rest: unknown[]) =>
+    String(file).includes(`${path.sep}reviews${path.sep}`)
+      ? Promise.reject(new Error('manifest write denied'))
+      : (realWrite as (...a: unknown[]) => Promise<void>)(file, ...rest)) as typeof fs.promises.writeFile);
+  try {
+    await assert.rejects(publish(ALICE, ctx() as never, deps()), /manifest write denied/);
+    assert.equal(read(FILE), bytes.page);
+    assert.equal(readAt(authorsPath()), bytes.authors);
+    const kept = await store().load('k-alice');
+    assert.deepEqual([kept.ops.length, kept.profile], [1, PROFILE]);
+
+    // with no authors.json before, the undo removes the file it created
+    fs.rmSync(authorsPath());
+    await assert.rejects(publish(ALICE, ctx() as never, deps()), /manifest write denied/);
+    assert.equal(fs.existsSync(authorsPath()), false);
+  } finally {
+    stub.mock.restore();
+  }
+});
+
+test('a profile edited again while the publish runs stays in the journal with the newer value', async () => {
+  await fill('k-alice', [COMMENT]);
+  await withProfile('k-alice');
+  const newer = { name: 'Alice C', avatarUrl: '' };
+  let edited = false;
+  const during: Partial<TestCtx> = {
+    async writeFile(rel: string, content: string) {
+      fs.writeFileSync(safePath(project.root, rel), content);
+      if (!edited) {
+        edited = true;
+        await withProfile('k-alice', newer);
+      }
+    },
+  };
+  await publish(ALICE, ctx(during) as never, deps());
+  assert.deepEqual(readAuthors()['k-alice'], PROFILE, 'the value read at the start was written');
+  assert.deepEqual((await store().load('k-alice')).profile, newer);
+});
+
+test('on the failed-reset path the earlier manifest is only finished: the profile is not written again and stays in the journal', async () => {
+  await fill('k-alice', [COMMENT]);
+  await withProfile('k-alice');
+  const real = store();
+  await assert.rejects(publish(ALICE, ctx() as never, deps(failingReset(real))), /journal write failed/);
+  assert.deepEqual(readAuthors()['k-alice'], PROFILE);
+  const newer = { name: 'Alice D', avatarUrl: '' };
+  await withProfile('k-alice', newer, real);
+  await publish(ALICE, ctx() as never, deps(real));
+  assert.deepEqual(readAuthors()['k-alice'], PROFILE, 'not written by the finishing publish');
+  assert.deepEqual((await real.load('k-alice')).profile, newer);
 });
 
 test('after a failed journal reset the next publish does not apply again; it returns the manifest skipped list and empties the journal', async () => {
@@ -690,13 +802,13 @@ test('a second publish waits for the first to finish; both comments land and eac
         pages.set(rel, content);
       },
     }) as never;
-  const lock = createLock();
+  const sync = createNoGitSync(createLock());
   // Alice sits inside the lock, at her first store call, until the gate opens.
   const onLoad = async (key: string) => {
     log.push(`load:${key}`);
     if (key === 'k-alice') await gate.promise;
   };
-  const base = { store: memStore(journals, onLoad), lock };
+  const base = { store: memStore(journals, onLoad), sync };
   const alice = publish({ key: 'k-alice', name: 'Alice' }, memCtx('alice'), base);
   const bob = publish({ key: 'k-bob', name: 'Bob' }, memCtx('bob'), base);
 

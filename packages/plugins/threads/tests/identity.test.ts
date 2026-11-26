@@ -139,6 +139,42 @@ test('upsert-author under serve: a foreign key is forbidden, the caller\'s own e
   await assert.rejects(run('upsert-author', {}, serve('alice')), /^ThreadsError: threads\/invalid: threads:upsert-author: name is required/);
 });
 
+const GIT = { branch: 'main', committer: { name: 'Bot', email: 'bot@x.invalid' } };
+
+test('upsert-author under serve with git waits in the caller\'s journal and leaves authors.json alone; without git, and in dev, it is written at once', async () => {
+  const gitServe = serve('alice', { git: GIT });
+  writeAuthors({ alice: { name: 'Alice', avatarUrl: 'http://a/a.png' } });
+  const before = fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8');
+  const stamp = '2020-01-01T00:00:00.000Z';
+  fs.mkdirSync(safePath(threadsDir(), 'drafts'), { recursive: true });
+  fs.writeFileSync(safePath(threadsDir(), 'drafts/alice.json'), JSON.stringify({ version: 1, mode: 'collect', review: { id: 'r-1', updatedAt: stamp, title: null, summary: null }, ops: [] }));
+
+  await assert.rejects(run('upsert-author', { authorKey: 'bob', name: 'Mallory' }, gitServe), /^ThreadsError: threads\/forbidden: /);
+  assert.deepEqual((await run<WhoAmI>('whoami', {}, gitServe)).journal!.review.updatedAt, stamp, 'a refusal journals nothing');
+
+  await run('upsert-author', { name: 'Alice B' }, gitServe);
+  const me = await run<WhoAmI>('whoami', {}, gitServe);
+  assert.deepEqual(me.journal!.profile, { name: 'Alice B', avatarUrl: 'http://a/a.png' }, 'the avatar defaults to the current one');
+  assert.notEqual(me.journal!.review.updatedAt, stamp, 'the auto-publish countdown restarts');
+  assert.equal(me.identity!.name, 'Alice', 'the published name is unchanged until the publish');
+  await run('upsert-author', { name: 'Alice C', avatarUrl: '' }, gitServe);
+  assert.deepEqual((await run<WhoAmI>('whoami', {}, gitServe)).journal!.profile, { name: 'Alice C', avatarUrl: '' }, 'a later edit replaces it');
+  assert.equal(fs.readFileSync(safePath(threadsDir(), 'authors.json'), 'utf8'), before, 'authors.json is byte-identical');
+
+  // no file at all stays no file
+  fs.rmSync(safePath(threadsDir(), 'authors.json'));
+  await run('upsert-author', { name: 'Alice D' }, gitServe);
+  assert.equal(fs.existsSync(safePath(threadsDir(), 'authors.json')), false);
+
+  // serve without git, dev with a full git option: written at once, no journal profile
+  await run('upsert-author', { name: 'Zoe' }, serve('zoe'));
+  await run('upsert-author', { authorKey: 'dev', name: 'Dev' }, { ...dev, config: { src: 'docs', plugins: { threads: { git: GIT } } } });
+  assert.deepEqual(readAuthors(), { zoe: { name: 'Zoe', avatarUrl: '' }, dev: { name: 'Dev', avatarUrl: '' } });
+  assert.equal((await run<WhoAmI>('whoami', {}, serve('zoe'))).journal!.profile, undefined);
+  assert.equal(fs.existsSync(path.join(threadsDir(), 'drafts', 'zoe.json')), false);
+  assert.equal(fs.existsSync(path.join(threadsDir(), 'drafts', 'dev.json')), false);
+});
+
 test('concurrent profile saves by two users under serve both land', async () => {
   const names = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'];
   await Promise.all(names.map((n) => run('upsert-author', { name: n.toUpperCase() }, serve(n))));

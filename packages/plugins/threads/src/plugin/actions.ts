@@ -5,9 +5,9 @@ import { ThreadsError } from './errors.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
-import { lockFor } from './lock.js';
+import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
-import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, publish, readManifest, summarize } from './reviews.js';
+import { discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, parseReviewFields, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
@@ -176,6 +176,12 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
     assertCan(caller, 'upsert-author', { authorKey: claimedAuthorKey(payload) }, getOptions(ctx).permissions);
     if (caller.source === 'header') {
       // The key is the trusted identity: only the caller's own entry changes.
+      if (gitOn(ctx)) {
+        // With git the working tree stays clean between publishes: the profile waits in the journal and goes out with the next publish.
+        const profile = headerProfile(payload, caller);
+        await getStore(ctx).transact(caller.key, (j) => void (j.profile = profile));
+        return { ok: true };
+      }
       await updateAuthors(ctx, (authors) => void (authors[caller.key] = headerProfile(payload, caller)));
       return { ok: true };
     }
@@ -231,16 +237,11 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
       .sort(newestFirst)
       .map(summarize),
 
-  /** Name the caller's open review (`null` clears it); the manifest takes it at publish. */
+  /** Name and/or summarize the caller's open review (`null` clears a field, an absent key keeps it); the manifest takes them at publish. */
   'threads:update-review': async (payload, ctx): Promise<Journal> => {
     const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
-    const title = payload?.title;
-    if (title !== null && typeof title !== 'string') {
-      throw new ThreadsError('invalid', 'threads:update-review: title must be a string or null');
-    }
-    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, {
-      title: title === null ? null : cleanTitle(title),
-    });
+    const fields = parseReviewFields(payload);
+    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, fields);
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
@@ -356,7 +357,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   /** Write the caller's drafts into the markdown and record a manifest: all pages or none. */
   'threads:publish-review': async (payload, ctx): Promise<PublishResult> =>
-    publish(await resolveCaller(ctx, payload), ctx, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) }),
+    publish(await resolveCaller(ctx, payload), ctx, { store: getStore(ctx), sync: getSync(ctx) }),
 
   /** Take a review back: reverse a published one from its manifest, or empty the caller's open one. */
   'threads:discard-review': async (payload, ctx): Promise<{ discarded: true }> => {
@@ -364,7 +365,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
     if (typeof payload.reviewId !== 'string') throw new ThreadsError('invalid', 'threads:discard-review: reviewId must be a string');
     const manifest = await readManifest(ctx, payload.reviewId);
     assertCan(caller, 'discard-review', { reviewAuthor: manifest ? (manifest.authorKey ?? null) : caller.key }, getOptions(ctx).permissions);
-    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), lock: lockFor(docsRootOf(ctx)) });
+    return discard(caller, ctx, payload.reviewId, { store: getStore(ctx), sync: getSync(ctx) });
   },
 };
 

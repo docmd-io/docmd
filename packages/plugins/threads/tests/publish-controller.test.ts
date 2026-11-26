@@ -14,11 +14,12 @@ const EN: Record<string, string> = JSON.parse(fs.readFileSync(safePath(pluginRoo
 const T0 = 1_000_000;
 const SECONDS = 60;
 
-const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(T0).toISOString()): Journal => ({
+const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(T0).toISOString(), profile?: Journal['profile']): Journal => ({
   version: 1,
   mode,
-  review: { id: 'r-1', updatedAt },
+  review: { id: 'r-1', updatedAt, title: null, summary: null },
   ops: Array.from({ length: ops }, (_, i) => ({ kind: 'delete-thread', opId: `o-${i}`, at: updatedAt, file: 'a.md', threadId: 't-1' })),
+  ...(profile ? { profile } : {}),
 });
 
 // Fakes, built once; `beforeEach` resets what a test steers.
@@ -102,6 +103,16 @@ test('refresh: the count is the ops of the latest whoami; no journal is 0', asyn
   s.journal = journal(1);
   await c.refresh();
   assert.equal(c.view().state.label, '1 unpublished comment');
+  const profile = { name: 'Ann', avatarUrl: '' };
+  s.journal = journal(2, 'collect', undefined, profile);
+  await c.refresh();
+  assert.equal(c.view().state.label, '3 unpublished comments', 'a pending profile counts as one change');
+  s.journal = journal(0, 'collect', undefined, profile);
+  await c.refresh();
+  assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().pendingCount, c.view().opCount], ['1 unpublished comment', false, 1, 0], 'no comment, so nothing for Discard or the title');
+  s.journal = journal(2, 'collect', undefined, profile);
+  await c.refresh();
+  assert.deepEqual([c.view().pendingCount, c.view().opCount], [3, 2]);
   s.journal = null;
   await c.refresh();
   assert.deepEqual([c.view().state.label, c.view().state.publishDisabled, c.view().state.errorLine], ['0 unpublished comments', true, null]);
@@ -117,6 +128,20 @@ test('view.reviewId and pendingCount follow the journal after a refresh, and are
   s.whoamiError = new Error('socket closed');
   await c.refresh();
   assert.deepEqual([c.view().reviewId, c.view().pendingCount], [null, 0]);
+});
+
+test('view.reviewSummary is the journal\'s summary, and null before a refresh, with none, and after a failed one', async () => {
+  const { c } = build();
+  assert.equal(c.view().reviewSummary, null);
+  s.journal = journal(1);
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, null);
+  s.journal = { ...journal(1), review: { ...journal(1).review, summary: 'Why it changes.' } };
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, 'Why it changes.');
+  s.whoamiError = new Error('socket closed');
+  await c.refresh();
+  assert.equal(c.view().reviewSummary, null);
 });
 
 test('view.orphanedMine follows the latest whoami, and is 0 before one and after a failed one', async () => {
@@ -269,12 +294,19 @@ test('auto: the timer fire publishes once; collect never does', async () => {
   assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1);
   assert.equal(c.view().ring, null, 'the ring goes when the timer fires');
 
+  s.journal = journal(0, 'auto', new Date(clock).toISOString(), { name: 'Ann', avatarUrl: '' });
+  await c.refresh();
+  assert.notEqual(c.view().ring, null, 'a profile alone starts the countdown');
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 2, 'and the fire publishes it');
+
   s.journal = journal(1, 'collect');
   await c.refresh();
   assert.equal(c.view().ring, null);
   advance(SECONDS * 5000);
   await settle();
-  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 1, 'collect mode never auto-publishes');
+  assert.equal(s.calls.filter((x) => x === 'publishReview').length, 2, 'collect mode never auto-publishes');
 });
 
 test('auto: a failed auto publish shows its error, drops the ring and does not retry until the journal changes', async () => {
@@ -409,6 +441,16 @@ test('discard confirmation: a newer journal while held moves the deadline; Cance
   advance(SECONDS * 1000);
   await settle();
   assert.equal(publishes(), 1, 'fires at the new deadline');
+});
+
+test('discard confirmation: a refresh that finds no comments left releases the hold, whatever profile is pending', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  s.journal = journal(0, 'auto', undefined, { name: 'Ann', avatarUrl: '' });
+  await c.refresh();
+  assert.equal(c.isHeld(), false);
 });
 
 test('discard confirmation: a failed Confirm drops the due fire without publishing; a newer edit re-arms it', async () => {
