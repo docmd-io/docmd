@@ -62,3 +62,9 @@ test('requestErrorMessage: the limit codes get their own text, anything else the
   assert.equal(requestErrorMessage('a string'), 'Could not save. Try again.');
   assert.equal(requestErrorMessage(null), 'Could not save. Try again.');
 });
+
+test('requestErrorMessage: a reaction the site does not allow says so; other codes stay generic', () => {
+  assert.equal(requestErrorMessage(new Error('threads/reaction-not-allowed: 🦄 is not on the list')), 'This emoji is not allowed on this site');
+  assert.equal(requestErrorMessage(new Error('threads/invalid: not an emoji')), 'Could not save. Try again.');
+  assert.equal(requestErrorMessage(new Error('threads/forbidden: not yours')), 'Could not save. Try again.');
+});

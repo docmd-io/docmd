@@ -102,5 +102,12 @@
   "emojiPicker.category.activities": "Activities",
   "emojiPicker.category.objects": "Objects",
   "emojiPicker.category.symbols": "Symbols",
-  "emojiPicker.category.flags": "Flags"
+  "emojiPicker.category.flags": "Flags",
+  "moreEmoji": "More emoji",
+  "chooseReaction": "Choose a reaction",
+  "reactionNotAllowed": "This emoji is not allowed on this site",
+  "editComment": "Edit comment",
+  "edited": "edited",
+  "unpublished": "Unpublished",
+  "replyingTo": "Replying to {name}"
 }

@@ -102,5 +102,12 @@
   "emojiPicker.category.activities": "गतिविधियां",
   "emojiPicker.category.objects": "वस्तुएं",
   "emojiPicker.category.symbols": "प्रतीक",
-  "emojiPicker.category.flags": "झंडे"
+  "emojiPicker.category.flags": "झंडे",
+  "moreEmoji": "और इमोजी",
+  "chooseReaction": "प्रतिक्रिया चुनें",
+  "reactionNotAllowed": "इस साइट पर यह इमोजी स्वीकृत नहीं है",
+  "editComment": "टिप्पणी संपादित करें",
+  "edited": "संपादित",
+  "unpublished": "अप्रकाशित",
+  "replyingTo": "{name} को उत्तर"
 }

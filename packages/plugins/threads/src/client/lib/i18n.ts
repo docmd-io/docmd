@@ -106,6 +106,14 @@ const defaults: Record<string, string> = {
   'emojiPicker.category.objects': 'Objects',
   'emojiPicker.category.symbols': 'Symbols',
   'emojiPicker.category.flags': 'Flags',
+  moreEmoji: 'More emoji',
+  addReaction: 'Add reaction',
+  chooseReaction: 'Choose a reaction',
+  reactionNotAllowed: 'This emoji is not allowed on this site',
+  editComment: 'Edit comment',
+  edited: 'edited',
+  unpublished: 'Unpublished',
+  replyingTo: 'Replying to {name}',
 };
 
 /** Strings a host app set with setThreadsStrings; they win over the page's injected strings. */

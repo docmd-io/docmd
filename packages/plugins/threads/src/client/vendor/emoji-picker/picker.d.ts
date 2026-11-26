@@ -20,6 +20,11 @@ export default class PickerElement extends HTMLElement {
   dataSource: string;
   locale: string;
   i18n: EmojiPickerI18n;
+  /** Resolves once the emoji data is in IndexedDB; rejects when it cannot be loaded. */
+  readonly database: { ready(): Promise<void> };
 }
 
 export function rescueElementPrototype(element: Element): void;
+
+/** The picker element, as `document.createElement('threads-emoji-picker')` returns it. */
+export type EmojiPickerElement = PickerElement;

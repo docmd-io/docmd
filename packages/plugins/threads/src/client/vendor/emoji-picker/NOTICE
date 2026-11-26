@@ -21,3 +21,4 @@ Changes:
    from the plugin's own translations. The upstream i18n files are not included.
 
 Nothing else differs from the upstream files, apart from the two comment headers.
+picker.d.ts is not upstream: it is a small hand-written type declaration for the plugin's own use.

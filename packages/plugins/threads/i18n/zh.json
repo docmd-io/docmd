@@ -70,7 +70,7 @@
   "saveFailed": "无法保存评审",
   "limitChars": "此评论过长。请缩短后重试。",
   "rateLimited": "您评论得太快了。请等待一分钟后重试。",
-  "addReaction": "添加回应",
+  "addReaction": "添加表情回应",
   "resolve": "标记解决",
   "unresolve": "取消解决",
   "couldNotSave": "无法保存。请重试。",
@@ -102,5 +102,12 @@
   "emojiPicker.category.activities": "活动",
   "emojiPicker.category.objects": "物体",
   "emojiPicker.category.symbols": "符号",
-  "emojiPicker.category.flags": "旗帜"
+  "emojiPicker.category.flags": "旗帜",
+  "moreEmoji": "更多表情",
+  "chooseReaction": "选择表情回应",
+  "reactionNotAllowed": "此站点不允许使用该表情",
+  "editComment": "编辑评论",
+  "edited": "已编辑",
+  "unpublished": "未发布",
+  "replyingTo": "回复 {name}"
 }

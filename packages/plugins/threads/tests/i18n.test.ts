@@ -78,3 +78,13 @@ test('the strings the primitives use exist in all four languages', () => {
     }
   }
 });
+
+test('the strings the comment and reactions components use exist in all four languages', () => {
+  for (const lang of LANGS) {
+    const dict = load(lang);
+    for (const key of ['moreEmoji', 'addReaction', 'chooseReaction', 'reactionNotAllowed', 'editComment', 'edited', 'unpublished', 'replyingTo', 'emojiPickerFailed', 'reply', 'replyToComment', 'deleteComment', 'save']) {
+      assert.ok(dict[key], `${lang}.${key}`);
+    }
+    assert.ok(dict['replyingTo']!.includes('{name}'), `${lang}.replyingTo keeps its placeholder`);
+  }
+});

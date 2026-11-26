@@ -102,5 +102,13 @@
   "emojiPicker.category.activities": "활동",
   "emojiPicker.category.objects": "사물",
   "emojiPicker.category.symbols": "기호",
-  "emojiPicker.category.flags": "깃발"
+  "emojiPicker.category.flags": "깃발",
+  "moreEmoji": "더 많은 이모지",
+  "addReaction": "반응 추가",
+  "chooseReaction": "반응 선택",
+  "reactionNotAllowed": "이 사이트에서는 허용되지 않는 이모지입니다",
+  "editComment": "댓글 수정",
+  "edited": "수정됨",
+  "unpublished": "게시되지 않음",
+  "replyingTo": "{name}님에게 답글"
 }

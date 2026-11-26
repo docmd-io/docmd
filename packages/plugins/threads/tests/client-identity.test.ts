@@ -17,8 +17,8 @@ test('identityFromWhoami: header, payload, none', () => {
 
 test('canShow matches the server decision table', () => {
   for (const [label, caller, action, target, resolve, allowed] of rows) {
-    // Only the actions the live UI renders a button for; edits and profile writes are server-only here.
-    if (action !== 'delete-comment' && action !== 'delete-thread' && action !== 'resolve-thread' && action !== 'discard-review') continue;
+    // Only the actions the live UI renders a button for; profile writes are server-only here.
+    if (action === 'upsert-author') continue;
     const shown = canShow(action, { callerKey: caller.key, isAdmin: caller.isAdmin, source: caller.source, resolveRule: resolve }, target);
     assert.equal(shown, allowed, label);
   }

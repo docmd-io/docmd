@@ -3,7 +3,7 @@
  * (src/plugin/permissions.ts); the server stays the authority and still answers
  * `threads/forbidden`. DOM-free.
  */
-export type ShowAction = 'delete-comment' | 'delete-thread' | 'resolve-thread' | 'discard-review';
+export type ShowAction = 'edit-comment' | 'delete-comment' | 'delete-thread' | 'resolve-thread' | 'discard-review';
 
 export interface ShowContext {
   callerKey: string | null;
@@ -28,6 +28,7 @@ export function canShow(action: ShowAction, ctx: ShowContext, target: ShowTarget
   const mine = (key: string | null | undefined) => !!key && key === ctx.callerKey;
   if (ctx.isAdmin || target.drafted) return true;
   switch (action) {
+    case 'edit-comment':
     case 'delete-comment':
       return mine(target.authorKey);
     case 'delete-thread':

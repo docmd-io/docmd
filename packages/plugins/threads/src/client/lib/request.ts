@@ -1,4 +1,4 @@
-import { limitMessage } from './limit-message';
+import { errorCode, limitMessage } from './limit-message';
 import { t } from './i18n';
 
 /** What a request event's `detail` carries on top of its own data. */
@@ -26,7 +26,16 @@ export function dispatchRequest<D extends object>(target: EventTarget, type: str
   return pending.length === 1 ? pending[0] : Promise.all(pending);
 }
 
+/** Rejections other than the limits that have their own message. */
+const CODE_KEYS: Record<string, string> = {
+  'threads/reaction-not-allowed': 'reactionNotAllowed',
+};
+
 /** The text a component shows in its error line for a rejected request. */
 export function requestErrorMessage(err: unknown): string {
-  return limitMessage(err) ?? t('couldNotSave');
+  const limit = limitMessage(err);
+  if (limit) return limit;
+  const code = errorCode(err);
+  const key = code ? CODE_KEYS[code] : undefined;
+  return key ? t(key) : t('couldNotSave');
 }
