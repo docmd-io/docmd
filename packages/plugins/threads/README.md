@@ -64,7 +64,7 @@ Each person can choose, in their profile panel, where their own name links to:
 
 | Choice | What it does |
 |---|---|
-| Automatic | Uses `profileUrl`. Shown only when the site sets `profileUrl` and the identity comes from the server. |
+| Automatic | Uses `profileUrl`. Shown whenever the site sets `profileUrl`, in dev and under a trusted-header proxy alike. |
 | Custom link | Their own `http:` or `https:` URL (at most 2048 characters). |
 | No link | Their name is never a link. |
 
