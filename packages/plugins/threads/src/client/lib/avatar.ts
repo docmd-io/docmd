@@ -19,15 +19,20 @@ function hideBrokenImage(e: Event): void {
   (e.target as HTMLElement).style.display = 'none';
 }
 
+/** The picture loaded: undo an earlier hide (the same `<img>` is reused when its `src` changes). */
+function showLoadedImage(e: Event): void {
+  (e.target as HTMLElement).style.display = '';
+}
+
 /**
  * A round avatar: the initial sits behind the picture and shows when the picture is missing or
- * fails to load (the `<img>` hides itself on `error`). A template function, not an element: it has
+ * fails to load (the `<img>` hides itself on `error` and shows again on a later `load`). A template function, not an element: it has
  * no state or events. Render it inside a component whose styles include `avatarStyles` and `tokens`.
  */
 export function avatar({ src, name, size = 28 }: AvatarOptions): TemplateResult {
   return html`<span class="avatar" part="avatar" style="--_avatar-size:${size}px" aria-hidden="true"
     ><span class="avatar__initial">${avatarInitial(name)}</span
-    >${src ? html`<img class="avatar__img" src=${src} alt="" @error=${hideBrokenImage} />` : nothing}</span
+    >${src ? html`<img class="avatar__img" src=${src} alt="" @error=${hideBrokenImage} @load=${showLoadedImage} />` : nothing}</span
   >`;
 }
 
