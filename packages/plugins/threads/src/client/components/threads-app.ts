@@ -177,6 +177,7 @@ export class ThreadsApp extends LitElement {
     for (const heading of headings) {
       // Only target direct-ish headings inside the content area
       if (!HEADING_TAGS.has(heading.tagName)) continue;
+      if (heading.classList.contains('docmd-focus-title')) continue;
 
       heading.classList.add('threads-heading-wrap');
 
@@ -549,7 +550,7 @@ export class ThreadsApp extends LitElement {
     this.injectReplyButtons();
 
     // 5. Hide the raw .threads-sidebar markdown-it renders for every threads block
-    hideRawSidebars(document);
+    hideRawSidebars(document, !this.sidebarEnabled);
 
     // 6. If sidebar mode or panel is open, populate the right sidebar panel
     if (this.sidebarEnabled || document.body.classList.contains('tc-panel-open')) {

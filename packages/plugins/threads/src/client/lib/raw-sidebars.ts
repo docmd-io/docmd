@@ -1,9 +1,11 @@
 /**
  * Hide the raw `.threads-sidebar` markdown-it renders for each `::: threads` block.
- * A page may hold several blocks; the app shows their threads itself.
+ * When onlyIfEmpty is true, leaves sidebars that still contain un-relocated thread cards visible.
  */
-export function hideRawSidebars(root: ParentNode): void {
+export function hideRawSidebars(root: ParentNode, onlyIfEmpty = false): void {
   root.querySelectorAll<HTMLElement>('.threads-sidebar').forEach((el) => {
-    el.style.display = 'none';
+    if (!onlyIfEmpty || el.querySelectorAll('.threads-thread').length === 0) {
+      el.style.display = 'none';
+    }
   });
 }

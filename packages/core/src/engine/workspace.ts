@@ -579,6 +579,56 @@ export async function loadProjectDocsRoot(
   }
 }
 
+/**
+ * Collect and merge plugins from the workspace root config and all subprojects.
+ */
+export async function collectWorkspacePlugins(
+  workspaceConfig: WorkspaceRootConfig,
+  cwd: string = process.cwd()
+): Promise<Record<string, any>> {
+  const merged: Record<string, any> = {};
+
+  const addPlugins = (plugins: unknown) => {
+    if (!plugins) return;
+    if (Array.isArray(plugins)) {
+      for (const item of plugins) {
+        if (typeof item === 'string' && merged[item] === undefined) {
+          merged[item] = true;
+        }
+      }
+    } else if (typeof plugins === 'object') {
+      for (const [name, val] of Object.entries(plugins)) {
+        if (val !== false && (merged[name] === undefined || merged[name] === false)) {
+          merged[name] = val;
+        }
+      }
+    }
+  };
+
+  addPlugins(workspaceConfig.plugins);
+
+  const globalDefaults: Record<string, unknown> = {};
+  for (const key of Object.keys(workspaceConfig)) {
+    if (!['workspace', 'projects', 'out', '_resolvedPath'].includes(key) && !key.startsWith('_')) {
+      globalDefaults[key] = workspaceConfig[key];
+    }
+  }
+
+  if (workspaceConfig.workspace?.projects) {
+    for (const project of workspaceConfig.workspace.projects) {
+      const projectDir = path.resolve(cwd, project.src);
+      try {
+        const pConfig = await loadConfig('docmd.config.js', { cwd: projectDir, isDev: true, quiet: true, _globalDefaults: globalDefaults });
+        addPlugins(pConfig?.plugins);
+      } catch {
+        // ignore errors reading child project config
+      }
+    }
+  }
+
+  return merged;
+}
+
 /* ── Dev Server Wrapper ────────────────────────────────────── */
 
 /**
@@ -637,14 +687,22 @@ export async function devWorkspace(
     // WebSocket server and the plugin dispatcher.
     (async () => {
       try {
+        const workspacePlugins = await collectWorkspacePlugins(workspaceConfig, CWD);
+        const actionHostConfig = {
+          ...workspaceConfig,
+          plugins: workspacePlugins,
+        };
+        const subprojectDirs = (workspaceConfig.workspace?.projects || []).map((p) => path.resolve(CWD, p.src));
+        const subprojectNodeModules = subprojectDirs.map((dir) => path.join(dir, 'node_modules'));
+
         host = await createActionHost({
           server,
           mode: 'dev',
           projectRoot: CWD,
-          config: workspaceConfig as any,
+          config: actionHostConfig as any,
           verifyClient: createOriginVerify(networkIp ? [networkIp] : []),
           getWorkerPool: () => undefined,
-          resolvePaths: [CWD],
+          resolvePaths: [CWD, path.join(CWD, 'node_modules'), ...subprojectDirs, ...subprojectNodeModules],
           workspaceDocsRoots: docsRoots,
           // Workspace dev has no per-project rebuild entry point: its watcher
           // rebuilds and reloads. Plugins calling requestRebuild get this error.

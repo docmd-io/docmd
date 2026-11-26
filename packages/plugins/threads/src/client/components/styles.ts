@@ -882,6 +882,9 @@ export function injectComponentStyles(): void {
       flex-wrap: nowrap;
       gap: 12px;
     }
+    .docmd-focus-title.threads-heading-wrap:not(body.focus-mode *) {
+      display: none !important;
+    }
     .threads-heading-wrap .threads-new-thread-btn {
       margin-left: auto;
       flex-shrink: 0;
