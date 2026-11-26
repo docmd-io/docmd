@@ -6,8 +6,20 @@ interface Renderer {
   render(source: string, env: Record<string, unknown>): string;
 }
 
-/** One Markdown instance per process: made from the config of the first call, like the build's own. */
-let shared: Renderer | undefined;
+/** One Markdown instance per config object: each site (docs root) keeps the renderer made from its own options. */
+const renderers = new WeakMap<object, Renderer>();
+/** The renderer for a call with no config object (a bare call, as the tests make). */
+let bare: Renderer | undefined;
+
+function rendererFor(config: unknown): Renderer {
+  if (typeof config !== 'object' || config === null) return (bare ??= createMarkdownProcessor({}, undefined) as Renderer);
+  let renderer = renderers.get(config);
+  if (!renderer) {
+    renderer = createMarkdownProcessor(config, undefined) as Renderer;
+    renderers.set(config, renderer);
+  }
+  return renderer;
+}
 
 /**
  * Render a comment body to HTML the way the build renders published ones: the site's
@@ -16,13 +28,13 @@ let shared: Renderer | undefined;
  * is published and the page HTML takes over.
  */
 export function renderBodyHtml(config: unknown, body: string): string {
-  shared ??= createMarkdownProcessor((config ?? {}) as object, undefined) as Renderer;
-  const previous = shared.options.html;
-  shared.options.html = false;
+  const renderer = rendererFor(config);
+  const previous = renderer.options.html;
+  renderer.options.html = false;
   try {
-    return shared.render(body, { isInsideContainer: true });
+    return renderer.render(body, { isInsideContainer: true });
   } finally {
-    shared.options.html = previous;
+    renderer.options.html = previous;
   }
 }
 
