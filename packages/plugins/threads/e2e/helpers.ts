@@ -18,6 +18,9 @@ const site = process.env["THREADS_E2E_SITE"];
 if (!site) throw new Error("e2e: THREADS_E2E_SITE is unset (run the suite with `pnpm test:e2e`)");
 const PLAYGROUND_INDEX = path.join(site, "docs/index.md");
 
+/** The callers' draft journals (see src/plugin/drafts.ts); they outlive a restore of the markdown. */
+const DRAFTS_DIR = path.join(site, "docs/.threads/drafts");
+
 /** Path to the fixture copy of the original playground markdown. */
 const FIXTURE_INDEX = path.resolve(__dirname, "fixtures/playground-index.md");
 
@@ -33,7 +36,9 @@ export function mainOf(html: string): string {
 
 /**
  * Restore the playground markdown to its fixture state, removing any dynamically-added
- * threads/highlights from test runs, and wait until the dev server serves the clean page
+ * threads/highlights from test runs, drop every caller's unpublished drafts (they would
+ * otherwise show up in the next test's view and ride into its publish), and wait until
+ * the dev server serves the clean page
  * (global-setup.ts recorded its `<main>`), so no rebuild of the restore lands in the test.
  *
  * Until `docmd dev` stops dropping saves made within 1 s of a rebuild finishing, a restore
@@ -45,6 +50,7 @@ export async function cleanThreads(page: Page): Promise<void> {
   if (!clean) throw new Error("e2e: THREADS_E2E_CLEAN_MAIN is unset (global-setup did not run)");
   const fixtureContent = fs.readFileSync(FIXTURE_INDEX, "utf-8");
   const served = async () => mainOf(await (await page.request.get("/")).text()) === clean;
+  fs.rmSync(DRAFTS_DIR, { recursive: true, force: true });
   for (let attempt = 1; ; attempt++) {
     fs.writeFileSync(PLAYGROUND_INDEX, fixtureContent, "utf-8");
     try {
@@ -56,11 +62,50 @@ export async function cleanThreads(page: Page): Promise<void> {
   }
 }
 
+/** The `<main>` the dev server serves for the page open in `page`. */
+async function servedMain(page: Page): Promise<string> {
+  return mainOf(await (await page.request.get(new URL(page.url()).pathname)).text());
+}
+
+/**
+ * Publish the open review of the caller `author` (`authorKey` defaults to the name, as the
+ * server does when a call sends none). Mutations only write the caller's draft journal;
+ * publishing writes them into the markdown. Resolves once the dev server serves the rebuilt
+ * page, so a reload right after sees the published threads.
+ */
+export async function publishReview(
+  page: Page,
+  author = "TestUser",
+  authorKey?: string,
+): Promise<{ reviewId: string }> {
+  const before = await servedMain(page);
+  const result = await page.evaluate(
+    ({ author, authorKey }) =>
+      docmd.call("threads:publish-review", authorKey ? { author, authorKey } : { author }),
+    { author, authorKey },
+  );
+  await expect
+    .poll(() => servedMain(page), { message: "dev server rebuild of the page after publishing", timeout: 5_000 })
+    .not.toBe(before);
+  return result;
+}
+
+/**
+ * The author key the client stored after a UI action (it derives one from the name on the
+ * first comment). Drafts made through the UI live in the journal of this key.
+ */
+export async function clientKey(page: Page): Promise<string> {
+  const key = await page.evaluate(() => localStorage.getItem("threads_author_key"));
+  if (!key) throw new Error("e2e: the client has not stored an author key yet (comment through the UI first)");
+  return key;
+}
+
 /**
  * Seed a thread via the WebSocket action dispatcher.
  * Must be called after the page is loaded and docmd global is available.
  *
- * Each WebSocket call writes to the markdown file, which may trigger the
+ * Each step is published (as its author), so the thread is in the markdown and the
+ * server renders it. Each publish writes to the markdown file, which may trigger the
  * dev server's file watcher to hot-reload the page. To avoid execution
  * context destruction, we split multi-step operations (add-thread +
  * add-comment replies) across separate page.evaluate() calls with page
@@ -108,6 +153,7 @@ export async function seedThread(
     },
     { author, body, anchor },
   );
+  await publishReview(page, author);
 
   const commentIds = [thread.comments[0].id];
 
@@ -136,6 +182,7 @@ export async function seedThread(
       },
     );
     commentIds.push(comment.id);
+    await publishReview(page, reply.author ?? "TestUser");
   }
 
   // Step 3: Resolve if requested
@@ -152,11 +199,13 @@ export async function seedThread(
         return docmd.call("threads:resolve-thread", {
           file,
           threadId,
+          author: resolvedBy,
           resolved_by: resolvedBy,
         });
       },
       { threadId: thread.id, resolvedBy: author },
     );
+    await publishReview(page, author);
   }
 
   return {
