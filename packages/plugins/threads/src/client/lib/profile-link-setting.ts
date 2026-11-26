@@ -11,6 +11,11 @@ export type LinkValue = string | false | null;
 
 export type LinkResult = { ok: true; value: LinkValue } | { ok: false };
 
+/** Whether the site's `profileUrl` pattern can apply to anyone: it is set. The server and the client link a key by it in every mode, so the setting offers Automatic whenever it is. */
+export function autoLinkAvailable(profileUrl: unknown): boolean {
+  return typeof profileUrl === 'string' && profileUrl !== '';
+}
+
 /** Which radio is selected for a stored `link` (absent = automatic). Without the automatic option, absent reads as no link. */
 export function choiceFromLink(link: string | false | undefined, autoAvailable: boolean): LinkChoice {
   if (link === false) return 'none';

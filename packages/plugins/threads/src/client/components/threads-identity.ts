@@ -17,7 +17,7 @@ import { baseStyles } from './tokens';
 import { fieldStyles } from './fields';
 import './threads-button';
 import { upsertAuthor, fetchAuthors, ThreadsClientError } from '../lib/api';
-import { choiceFromLink, linkFromChoice, type LinkChoice } from '../lib/profile-link-setting';
+import { autoLinkAvailable, choiceFromLink, linkFromChoice, type LinkChoice } from '../lib/profile-link-setting';
 
 /**
  * The person's avatar button in the page header and the profile panel it opens (name, GitHub user, e-mail
@@ -131,10 +131,9 @@ export class ThreadsIdentity extends LitElement {
     if (this.panelOpen) void this.loadLink();
   }
 
-  /** Whether the site's profile URL pattern can apply to this person: it needs an identity key from the server. */
+  /** Whether the site's profile URL pattern applies to this person: whenever the site sets one, in any mode. */
   private get autoAvailable(): boolean {
-    const url = (window.__threads_config as { profileUrl?: unknown } | undefined)?.profileUrl;
-    return typeof url === 'string' && url !== '' && getIdentityMode().mode === 'header';
+    return autoLinkAvailable((window.__threads_config as { profileUrl?: unknown } | undefined)?.profileUrl);
   }
 
   private myKey(): string | null {

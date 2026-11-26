@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { choiceFromLink, linkFromChoice, LINK_MAX } from '../src/client/lib/profile-link-setting.ts';
+import { autoLinkAvailable, choiceFromLink, linkFromChoice, LINK_MAX } from '../src/client/lib/profile-link-setting.ts';
 
 test('choiceFromLink: absent is automatic when the site has a pattern, else no link', () => {
   assert.equal(choiceFromLink(undefined, true), 'auto');
@@ -37,4 +37,9 @@ test('linkFromChoice: other schemes, relative, empty and over-long links are ref
   const exact = 'https://a.b/' + 'x'.repeat(LINK_MAX - 'https://a.b/'.length);
   assert.equal(exact.length, LINK_MAX);
   assert.deepEqual(linkFromChoice('custom', exact, true), { ok: true, value: exact });
+});
+
+test('autoLinkAvailable: offered whenever the site sets a pattern, in any identity mode', () => {
+  assert.equal(autoLinkAvailable('https://github.com/{id}'), true);
+  for (const none of ['', undefined, null, 5, {}]) assert.equal(autoLinkAvailable(none), false);
 });

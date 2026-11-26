@@ -186,7 +186,18 @@ async function recordProfile(ctx: ActionContext, caller: Caller, payload: Payloa
 }
 
 const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise<unknown>> = {
-  'threads:get-authors': async (_payload, ctx): Promise<AuthorsMap> => readAuthors(ctx),
+  /**
+   * authors.json, with the caller's own pending profile laid over their entry: with git on a profile
+   * change waits in the journal until the next publish, and the caller's views show it at once.
+   */
+  'threads:get-authors': async (payload, ctx): Promise<AuthorsMap> => {
+    const authors = await readAuthors(ctx);
+    if (!gitOn(ctx)) return authors;
+    const caller = await findCaller(ctx, payload ?? {});
+    if (!caller || caller.source !== 'header') return authors;
+    const pending = (await getStore(ctx).load(caller.key)).profile;
+    return pending ? { ...authors, [caller.key]: { ...pending } } : authors;
+  },
 
   'threads:upsert-author': async (payload, ctx): Promise<{ ok: boolean }> => {
     const caller = await begin(ctx, payload, 'threads:upsert-author', ctx.mode === 'serve' ? ['name'] : ['authorKey', 'name']);
