@@ -40,8 +40,8 @@ export function translations(localeId: string): Record<string, string> {
   return loadPluginStrings(localeId || 'en');
 }
 
-export function markdownSetup(md: any, _options?: any): void {
-  setupContainers(md);
+export function markdownSetup(md: any, options?: any): void {
+  setupContainers(md, options);
   setupHighlightRule(md);
 }
 

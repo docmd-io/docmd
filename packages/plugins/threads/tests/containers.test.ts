@@ -417,3 +417,19 @@ test('build links: identity keys are never in the output, and names are escaped 
   has(html, '>&lt;b&gt;Eve&lt;/b&gt;</a></strong>');
   has(html, '>Q &lt;i&gt;</a>');
 });
+
+test('build links: through the engine pipeline with the env the generator builds and the options markdownSetup receives', async () => {
+  const { createMarkdownProcessor, processContentAsync } = await import('@docmd/parser');
+  const { markdownSetup } = await import('../src/index.ts');
+  const src = writeAuthors(siteAuthors);
+  const options = { profileUrl: 'https://github.com/{id}' };
+  const processor = createMarkdownProcessor({}, (m: any) => markdownSetup(m, options));
+  // The generator's env.config: base, strict and src, with no `plugins`.
+  const env = { config: { base: '/', strict: false, src } };
+  const result = await processContentAsync(linkedPage, processor, {}, env, null);
+  const html: string = result.htmlContent;
+  has(html, `<a href="https://github.com/alice" ${REL}>Alice Smith</a>`);
+  has(html, `<a href="https://bob.example/~bob?a=1&amp;b=&quot;2&quot;" ${REL}>Bob</a>`);
+  has(html, `<li>👍 <a href="https://github.com/alice" ${REL}>Alice Smith</a>`);
+  has(html, '<strong>Walt</strong>');
+});

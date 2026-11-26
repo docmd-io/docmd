@@ -31,16 +31,18 @@ interface LinkContext {
 const profileUrlOf = new WeakMap<object, string | null>();
 
 /**
- * The link context of one render, read from the render env's site config (`env.config`: the
- * `plugins.threads` options, and `src`, the docs folder that holds `.threads/authors.json`).
+ * The link context of one render: the `profileUrl` from the plugin options the engine passed to
+ * markdownSetup (or `env.config.plugins.threads`), and `env.config.src`, the docs folder that
+ * holds `.threads/authors.json`.
  * Null (names stay plain text) when the env carries no `src`: without the docs folder the authors
  * file cannot be found, and guessing could link a person who turned linking off. An invalid
  * `profileUrl` is treated as none; the page scripts report it.
  */
-function linkContext(env: { config?: { src?: unknown; plugins?: { threads?: unknown } } } | undefined): LinkContext | null {
+function linkContext(env: { config?: { src?: unknown; plugins?: { threads?: unknown } } } | undefined, pluginOptions?: unknown): LinkContext | null {
   const config = env?.config;
   if (!config || typeof config.src !== 'string') return null;
-  const raw = config.plugins?.threads;
+  // The options the engine gave markdownSetup win; an env that carries its own plugins.threads is the fallback.
+  const raw = pluginOptions ?? config.plugins?.threads;
   let profileUrl: string | null;
   if (typeof raw === 'object' && raw !== null && profileUrlOf.has(raw)) {
     profileUrl = profileUrlOf.get(raw) as string | null;
@@ -231,7 +233,7 @@ function setupAnchorContainer(md: AnchorMarkdown): void {
  * would print them. The raw lines go through `parseReactions` and come out as
  * `<div class="threads-reactions"><ul><li>👍 Alice, Bob</li></ul></div>`: names only, escaped.
  */
-function setupReactionsContainer(md: AnchorMarkdown): void {
+function setupReactionsContainer(md: AnchorMarkdown, pluginOptions?: unknown): void {
   md.block.ruler.before('fence', 'custom_reactions', (state, startLine, endLine, silent) => {
     const start = state.bMarks[startLine] + state.tShift[startLine];
     if (!/^:::\s*reactions$/.test(state.src.slice(start, state.eMarks[startLine]).trim())) return false;
@@ -248,7 +250,7 @@ function setupReactionsContainer(md: AnchorMarkdown): void {
     const lines: string[] = [];
     for (let i = startLine + 1; i < nextLine; i++) lines.push(state.src.slice(state.bMarks[i], state.eMarks[i]));
     const esc = md.utils.escapeHtml;
-    const ctx = linkContext(state.env);
+    const ctx = linkContext(state.env, pluginOptions);
     const items = parseReactions(lines).map((r) => {
       const names = r.reactors.map((p) => {
         // A person with an authors.json entry is shown under their current name, as in the page's own view.
@@ -351,7 +353,7 @@ export function parseCommentInfo(info: string): CommentInfo {
 /**
  * Register all thread-related container rules on a markdown-it instance.
  */
-export function setup(md: any): void {
+export function setup(md: any, pluginOptions?: unknown): void {
   // 1. threads - outer wrapper
   createDepthTrackingContainer(
     md,
@@ -397,12 +399,12 @@ export function setup(md: any): void {
     return (
       `<div class="threads-comment${replyClass}"${idAttr}${parentAttr} data-author="${safeAuthor}" data-date="${safeDate}"${editedAttr}>` +
       `<div class="threads-comment__avatar-col"></div>` +
-      `<div class="threads-comment__meta"><strong>${nameHtml(md.utils.escapeHtml, parsed.author, parsed.authorKey, linkContext(env))}</strong> &middot; ${safeDate}</div>` +
+      `<div class="threads-comment__meta"><strong>${nameHtml(md.utils.escapeHtml, parsed.author, parsed.authorKey, linkContext(env, pluginOptions))}</strong> &middot; ${safeDate}</div>` +
       `<div class="threads-comment__body">\n`
     );
   };
   md.renderer.rules.custom_comment_close = () => '</div></div>\n';
 
   // 4. reactions - names only, never keys
-  setupReactionsContainer(md);
+  setupReactionsContainer(md, pluginOptions);
 }
