@@ -7,17 +7,17 @@
 
 const STYLE_ID = 'tc-button-styles';
 
-const HEIGHT = '28px';
+const HEIGHT = 'var(--threads-control-height)';
 
 const BASE = `
   box-sizing: border-box;
   height: ${HEIGHT};
   min-height: 0;
   padding: 0 12px;
-  font-family: var(--tc-font, var(--docmd-font-family, inherit));
-  font-size: 13px;
+  font-family: var(--threads-font);
+  font-size: var(--threads-font-size-sm);
   line-height: 1;
-  border-radius: 6px;
+  border-radius: var(--threads-radius);
 `;
 
 const CSS = `
@@ -26,20 +26,20 @@ const CSS = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--sl-color-neutral-300, currentColor);
+    border: 1px solid var(--threads-border);
     background: transparent;
     color: inherit;
     cursor: pointer;
   }
   .tc-btn:disabled { opacity: 0.5; cursor: default; }
   .tc-btn--primary {
-    border-color: var(--sl-color-primary-600, currentColor);
-    background: var(--sl-color-primary-600, transparent);
-    color: var(--sl-color-neutral-0, inherit);
+    border-color: var(--threads-accent-strong);
+    background: var(--threads-accent-strong);
+    color: var(--threads-on-accent);
   }
   .tc-btn--danger {
-    border-color: var(--sl-color-danger-600, currentColor);
-    color: var(--sl-color-danger-600, inherit);
+    border-color: var(--threads-danger);
+    color: var(--threads-danger);
   }
   /* icon-only: keeps the height, font size and radius; width and padding are its own */
   .tc-btn.tc-btn--icon { width: ${HEIGHT}; padding: 0; border: none; }

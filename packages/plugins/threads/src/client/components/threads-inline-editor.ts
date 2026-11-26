@@ -1,24 +1,25 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { t } from '../lib/i18n';
+import { baseStyles } from './tokens';
 
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/textarea/textarea.js';
 
 @customElement('threads-inline-editor')
 export class ThreadsInlineEditor extends LitElement {
-  static override styles = css`
+  static override styles = [baseStyles, css`
     :host {
       display: block;
       margin: 16px 0;
     }
     .editor {
-      border: 1px solid var(--tc-border, hsl(0 0% 89.8%));
-      border-radius: var(--tc-radius, 6px);
+      border: 1px solid var(--_border);
+      border-radius: var(--_radius-lg);
       overflow: hidden;
       font-size: 14px;
-      background: var(--tc-card, hsl(0 0% 100%));
-      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      background: var(--_surface);
+      box-shadow: var(--_shadow);
     }
     .editor-body {
       padding: 12px;
@@ -31,23 +32,23 @@ export class ThreadsInlineEditor extends LitElement {
       justify-content: space-between;
       align-items: center;
       padding: 8px 12px;
-      border-top: 1px solid var(--tc-border, hsl(0 0% 89.8%));
-      background: var(--sl-color-neutral-50, hsl(0 0% 96.1%));
+      border-top: 1px solid var(--_border);
+      background: var(--_surface-muted);
     }
     .hint {
       font-size: 12px;
-      color: var(--tc-muted-fg, hsl(0 0% 45.1%));
+      color: var(--_fg-muted);
     }
     .error {
       margin: 8px 0 0;
       font-size: 12px;
-      color: var(--sl-color-danger-700, inherit);
+      color: var(--_danger);
     }
     .actions {
       display: flex;
       gap: 6px;
     }
-  `;
+  `];
 
   @property({ type: String }) quote = '';
   /** A message shown under the text, e.g. why a submit was rejected; cleared on the next submit. */

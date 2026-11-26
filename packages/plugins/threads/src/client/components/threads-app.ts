@@ -893,7 +893,7 @@ export class ThreadsApp extends LitElement {
     const newThreadBtn = document.createElement('button');
     newThreadBtn.className = 'tc-panel__new-btn';
     newThreadBtn.title = t('newThread') || 'Start new discussion';
-    newThreadBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;display:inline-flex;align-items:center;margin-right:4px;border-radius:4px;';
+    newThreadBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--threads-fg-muted);padding:4px;display:inline-flex;align-items:center;margin-right:4px;border-radius:4px;';
     newThreadBtn.appendChild(createSvgElement('plus', 16));
     newThreadBtn.addEventListener('click', () => {
       const content = getContentArea();
@@ -908,7 +908,7 @@ export class ThreadsApp extends LitElement {
     const cBtn = document.createElement('button');
     cBtn.className = 'tc-panel__close-btn';
     cBtn.title = t('closePanel');
-    cBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--tc-muted-fg);padding:4px;display:inline-flex;align-items:center;border-radius:4px;';
+    cBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--threads-fg-muted);padding:4px;display:inline-flex;align-items:center;border-radius:4px;';
     cBtn.appendChild(createSvgElement('x', 16));
     cBtn.addEventListener('click', () => {
       document.body.classList.remove('tc-panel-open');
@@ -1000,9 +1000,9 @@ export class ThreadsApp extends LitElement {
       const emptyState = document.createElement('div');
       emptyState.className = 'tc-panel__empty';
       emptyState.innerHTML = `
-        <div style="text-align:center;padding:40px 16px;color:var(--tc-muted-fg);">
+        <div style="text-align:center;padding:40px 16px;color:var(--threads-fg-muted);">
           <div style="margin-bottom:12px;opacity:0.6;display:flex;justify-content:center;">${createSvgElement('messages-square', 32).outerHTML}</div>
-          <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--tc-fg);">${t('noThreads') || 'No discussions yet'}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:6px;color:var(--threads-fg);">${t('noThreads') || 'No discussions yet'}</div>
           <div style="font-size:12px;line-height:1.5;">Select any text on this page to leave a comment, or click the <strong>+</strong> button beside any heading.</div>
         </div>
       `;
@@ -1124,7 +1124,7 @@ export class ThreadsApp extends LitElement {
     // Resolve / Unresolve button
     const resolveBtn = document.createElement('button');
     resolveBtn.className = 'threads-resolve-btn';
-    resolveBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;padding:4px 8px;margin-left:auto;color:' + (thread.resolved ? 'var(--tc-muted-fg)' : 'hsl(142 60% 45%)') + ';display:inline-flex;align-items:center;gap:4px;font-family:var(--tc-font);';
+    resolveBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;padding:4px 8px;margin-left:auto;color:' + (thread.resolved ? 'var(--threads-fg-muted)' : 'var(--threads-hl-green-strong)') + ';display:inline-flex;align-items:center;gap:4px;font-family:var(--threads-font);';
     resolveBtn.appendChild(createSvgElement(thread.resolved ? 'x' : 'check', 13));
     resolveBtn.appendChild(document.createTextNode(thread.resolved ? ' ' + (t('unresolve') || 'Unresolve') : ' ' + (t('resolve') || 'Resolve')));
     resolveBtn.addEventListener('click', async (e) => {
@@ -1179,7 +1179,7 @@ export class ThreadsApp extends LitElement {
     } else {
       const avatarPlaceholder = document.createElement('div');
       avatarPlaceholder.className = 'threads-comment__avatar';
-      avatarPlaceholder.style.cssText = 'display:flex;align-items:center;justify-content:center;background:var(--tc-muted);color:var(--tc-muted-fg);border-radius:50%;font-size:11px;font-weight:600;';
+      avatarPlaceholder.style.cssText = 'display:flex;align-items:center;justify-content:center;background:var(--threads-surface-muted);color:var(--threads-fg-muted);border-radius:50%;font-size:11px;font-weight:600;';
       avatarPlaceholder.textContent = (comment.author || '?').charAt(0).toUpperCase();
       avatarCol.appendChild(avatarPlaceholder);
     }

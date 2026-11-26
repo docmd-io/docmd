@@ -1,0 +1,104 @@
+/*
+ * Threads design tokens, host page side.
+ *
+ * Each token is a var() chain: the summer template's variable first, then the default template
+ * and theme variable, then a literal. They are declared on :root because docmd and its themes
+ * declare theirs on :root and :root[data-theme=...]; a var() chain resolves on the element that
+ * declares it, so ours follow dark mode and themes with no extra rules.
+ *
+ * The dark block redeclares only the tokens whose dark value differs from what the chain gives.
+ * Every dark entry repeats the full chain and changes only the last-resort literal: a bare
+ * literal there would beat the template's and the themes' own dark values. Tokens defined by a
+ * formula over other tokens are declared once, in the light block, and recompute from the dark
+ * values on their own. A few tokens skip the docmd variable in one mode because it fails contrast.
+ *
+ * Components never read these directly: components/tokens.ts aliases each one as --_name with a
+ * light literal fallback, so a component also renders sensibly with no stylesheet at all.
+ * Change a token by setting --threads-* on :root, body, threads-app or any ancestor.
+ */
+
+:root {
+  /* Colour: surfaces and text */
+  --threads-surface: var(--summer-surface, var(--bg-color, #ffffff));
+  --threads-surface-raised: color-mix(in oklab, var(--threads-fg) 3%, var(--threads-surface));
+  --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #fafafa));
+  --threads-fg: var(--summer-fg, var(--text-color, #1f1f20));
+  --threads-fg-strong: var(--summer-fg, var(--text-heading, var(--threads-fg)));
+  --threads-fg-muted: var(--summer-fg-muted, var(--text-muted, #6b6b75));
+  --threads-border: var(--summer-border, var(--border-color, #e4e4e7));
+  --threads-border-strong: var(--summer-border-strong, color-mix(in oklab, var(--threads-fg) 25%, var(--threads-surface)));
+
+  /* Colour: accent, danger, draft, focus */
+  --threads-accent: var(--summer-accent, var(--link-color, #068ad5));
+  --threads-accent-strong: color-mix(in oklab, var(--threads-accent) 75%, black);
+  --threads-accent-soft: var(--summer-accent-soft, color-mix(in oklab, var(--threads-accent) 14%, transparent));
+  --threads-on-accent: #ffffff;
+  --threads-danger: color-mix(in oklab, var(--summer-rose, #dc2626) 85%, black);
+  --threads-danger-soft: color-mix(in oklab, var(--threads-danger) 12%, transparent);
+  --threads-draft: #b45309;
+  --threads-focus: var(--threads-accent);
+
+  /* Highlight palette: marks in the text and the card's left border */
+  --threads-hl-yellow: hsl(48 96% 53% / 0.3);
+  --threads-hl-yellow-strong: hsl(48 96% 45%);
+  --threads-hl-blue: hsl(210 100% 55% / 0.3);
+  --threads-hl-blue-strong: hsl(210 100% 45%);
+  --threads-hl-green: hsl(142 60% 45% / 0.3);
+  --threads-hl-green-strong: hsl(142 60% 45%);
+  --threads-hl-pink: hsl(340 80% 55% / 0.3);
+  --threads-hl-pink-strong: hsl(340 80% 45%);
+  --threads-hl-purple: hsl(270 70% 55% / 0.3);
+  --threads-hl-purple-strong: hsl(270 70% 45%);
+  --threads-hl-orange: hsl(28 100% 55% / 0.3);
+  --threads-hl-orange-strong: hsl(28 100% 45%);
+  --threads-hl-neutral: var(--threads-border-strong);
+  --threads-hl-neutral-strong: var(--threads-border-strong);
+
+  /* Type */
+  --threads-font: var(--summer-font-sans, var(--font-family-sans, system-ui, sans-serif));
+  --threads-font-mono: var(--summer-font-mono, var(--font-family-mono, ui-monospace, monospace));
+  --threads-font-size: 14px;
+  --threads-font-size-sm: 13px;
+  --threads-line-height: 1.5;
+
+  /* Shape and depth */
+  --threads-radius: var(--summer-radius-sm, var(--radius-md, 6px));
+  --threads-radius-lg: var(--summer-radius-lg, var(--radius-lg, 12px));
+  --threads-shadow: var(--summer-shadow-sm, var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.06)));
+  --threads-shadow-lg: var(--summer-shadow-lg, var(--shadow-lg, 0 10px 30px rgb(0 0 0 / 0.15)));
+
+  /* Layout */
+  --threads-control-height: 28px;
+  --threads-control-height-sm: 24px;
+  --threads-panel-width: 380px;
+  --threads-z-panel: 3000;
+  --threads-z-fab: 2100;
+}
+
+:root[data-theme="dark"] {
+  --threads-surface: var(--summer-surface, var(--bg-color, #18181b));
+  --threads-surface-muted: var(--summer-surface-3, var(--sidebar-bg, #202024));
+  --threads-fg: var(--summer-fg, var(--text-color, #d4d4d8));
+  --threads-fg-muted: var(--summer-fg-muted, var(--text-muted, #94949e));
+  --threads-border: var(--summer-border, var(--border-color, #27272a));
+  --threads-accent: var(--summer-accent, var(--link-color, #38bdf8));
+  /* Dark accents are bright: use them as text as they are, with near-black text on buttons. */
+  --threads-accent-strong: var(--threads-accent);
+  --threads-on-accent: #0b0b0c;
+  /* Summer's rose is about 3.7:1 on its dark surface. */
+  --threads-danger: #f87171;
+  --threads-draft: var(--summer-amber, #fbbf24);
+
+  --threads-hl-yellow: hsl(48 96% 60% / 0.22);
+  --threads-hl-yellow-strong: hsl(48 96% 65%);
+  --threads-hl-blue: hsl(210 100% 62% / 0.22);
+  --threads-hl-blue-strong: hsl(210 100% 65%);
+  --threads-hl-green: hsl(142 60% 52% / 0.22);
+  --threads-hl-green-strong: hsl(142 60% 65%);
+  --threads-hl-pink: hsl(340 80% 62% / 0.22);
+  --threads-hl-pink-strong: hsl(340 80% 65%);
+  --threads-hl-purple: hsl(270 70% 65% / 0.22);
+  --threads-hl-purple-strong: hsl(270 70% 70%);
+  --threads-hl-orange: hsl(28 100% 62% / 0.22);
+  --threads-hl-orange-strong: hsl(28 100% 65%);
+}
