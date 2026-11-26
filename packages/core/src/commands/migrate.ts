@@ -391,9 +391,10 @@ export async function migrateProject(options: { docusaurus?: boolean; mkdocs?: b
     await fs.ensureDir(newDocsDir);
 
     if (isDocsInRoot) {
+      // The project root is the VitePress source dir: copy its folders too (guide/, public/).
       const files = await nativeFs.promises.readdir(backupDir);
       for (const file of files) {
-        if (file.endsWith('.md')) {
+        if (!file.startsWith('.')) {
           await fs.copy(path.resolve(backupDir, file), path.resolve(newDocsDir, file));
         }
       }
