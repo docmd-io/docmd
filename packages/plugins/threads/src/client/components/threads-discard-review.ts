@@ -16,7 +16,22 @@ import './threads-dialog';
  */
 export class ThreadsDiscardReview extends LitElement {
   static override styles = [baseStyles, errorStyles, css`
-    :host { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    :host { position: relative; display: inline-flex; }
+    /* An error floats under the button, so it never pushes the rows around it. */
+    .error {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      z-index: 1;
+      width: max-content;
+      max-width: min(260px, 70vw);
+      padding: 4px 8px;
+      border: 1px solid var(--_danger);
+      border-radius: var(--_radius);
+      background: var(--_surface);
+      text-align: end;
+    }
+    .confirm-text { margin: 0; }
   `];
 
   @property({ attribute: false }) reviewId = '';
@@ -55,7 +70,7 @@ export class ThreadsDiscardReview extends LitElement {
         .busy=${state === 'discarding'}
         @threads-confirm=${(e: CustomEvent<{ waitUntil(p: Promise<unknown>): void }>) => e.detail.waitUntil(this.controller.confirm())}
         @threads-close=${(e: CustomEvent<{ reason: string }>) => { if (e.detail.reason !== 'confirmed') this.controller.cancel(); }}
-      >${this.confirmText}</threads-dialog>
+      ><p class="confirm-text">${this.confirmText}</p></threads-dialog>
     `;
   }
 }
