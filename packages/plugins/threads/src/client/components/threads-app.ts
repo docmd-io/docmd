@@ -728,7 +728,7 @@ export class ThreadsApp extends LitElement {
         if (meta) {
           const authorEl = meta.querySelector('strong');
           if (authorEl) authorEl.classList.add('threads-comment__author');
-          let dateEl = meta.querySelector('.threads-comment__date');
+          let dateEl = meta.querySelector<HTMLElement>('.threads-comment__date');
           if (!dateEl) {
             const rawDate = commentEl.dataset.date || meta.textContent?.replace(authorEl?.textContent || '', '').replace(/^[·\s·\s]+/, '').trim() || '';
             const dateFormatted = formatDateTime(rawDate);
@@ -746,9 +746,11 @@ export class ThreadsApp extends LitElement {
             if (rawDate) dateEl.title = rawDate;
             meta.appendChild(dateEl);
           } else if (dateEl.textContent) {
-            const currentText = dateEl.textContent.trim();
-            dateEl.title = currentText;
-            dateEl.textContent = formatDateTime(currentText);
+            const rawDate = commentEl.dataset.date || dateEl.title || dateEl.textContent.trim();
+            if (rawDate) {
+              dateEl.title = rawDate;
+              dateEl.textContent = formatDateTime(rawDate);
+            }
           }
         }
 
