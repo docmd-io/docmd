@@ -449,6 +449,20 @@ export class ThreadsApp extends LitElement {
     this.updateFabBadge();
     void this.publishMount.widget?.refresh();
     this.handleDeepLink();
+
+    // Re-sync all reaction bars in the DOM (in-page and sidebar)
+    for (const thread of this.threads) {
+      for (const comment of thread.comments) {
+        if (comment.id) {
+          this.updateCommentReactionsInDOM(thread.id, comment.id, comment.reactions || []);
+        }
+      }
+    }
+
+    // Keep open sidebar panel in sync with fresh thread data
+    if (document.body.classList.contains('tc-panel-open')) {
+      this.populateSidebarPanel(true);
+    }
   }
 
   /** The review section reports its unpublished count: show it on the FAB and the toggle strip. */
@@ -490,24 +504,40 @@ export class ThreadsApp extends LitElement {
 
   /**
    * Scan the DOM for <mark class="threads-highlight" data-thread-id="..."> elements.
-   * Assigns cycling highlight colors, moves thread cards inline after the block
-   * containing the highlight, and attaches click handlers.
+   * Assigns semantic highlight colors (blue=published, orange=draft, green=resolved),
+   * moves thread cards inline after the block containing the highlight, and attaches click handlers.
    */
   private scanRenderedHighlights(): void {
     const marks = document.querySelectorAll<HTMLElement>('mark.threads-highlight[data-thread-id]');
     const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE']);
-    let colorIndex = 0;
 
     for (const mark of marks) {
       const threadId = mark.dataset.threadId;
       if (!threadId) continue;
 
-      // 1. Assign cycling highlight color
-      const colorClass = ThreadsApp.HIGHLIGHT_COLORS[colorIndex % ThreadsApp.HIGHLIGHT_COLORS.length];
-      mark.classList.add(colorClass);
-      colorIndex++;
-
       const threadData = this.threads.find(t => t.id === threadId);
+
+      // Semantic highlight color:
+      // Draft -> Orange/Amber (pending publish / local changes)
+      // Resolved -> Green/Muted
+      // Published -> Blue (pushed to git / live active)
+      let hlClasses = ['threads-hl-published', 'threads-hl-blue'];
+      let borderClasses = ['threads-border-published', 'threads-border-blue'];
+
+      if (threadData?.draft) {
+        hlClasses = ['threads-hl-draft', 'threads-hl-orange'];
+        borderClasses = ['threads-border-draft', 'threads-border-orange'];
+      } else if (threadData?.resolved) {
+        hlClasses = ['threads-hl-resolved', 'threads-hl-green'];
+        borderClasses = ['threads-border-resolved', 'threads-border-green'];
+      }
+
+      for (const c of Array.from(mark.classList)) {
+        if (c.startsWith('threads-hl-')) mark.classList.remove(c);
+      }
+      for (const cls of hlClasses) {
+        mark.classList.add(cls);
+      }
 
       // 2. In inline mode, ensure the thread card exists right after the block
       if (!this.sidebarEnabled) {
@@ -518,7 +548,12 @@ export class ThreadsApp extends LitElement {
 
         if (threadEl) {
           threadEl.classList.add('threads-thread--inline');
-          threadEl.classList.add(colorClass.replace('threads-hl-', 'threads-border-'));
+          for (const c of Array.from(threadEl.classList)) {
+            if (c.startsWith('threads-border-')) threadEl.classList.remove(c);
+          }
+          for (const cls of borderClasses) {
+            threadEl.classList.add(cls);
+          }
 
           let blockEl: Element | null = mark;
           while (blockEl && blockEl !== document.body) {
@@ -564,16 +599,77 @@ export class ThreadsApp extends LitElement {
 
   /**
    * Enhance thread cards: nest replies under parents, add per-comment reply & delete buttons,
-   * and a "+ New Comment" footer button for top-level comments.
+   * reaction bars, quote styling consistency, and a "+ New Comment" footer button for top-level comments.
    */
   private injectReplyButtons(): void {
     const threads = document.querySelectorAll<HTMLElement>('.threads-thread[data-thread-id]');
     for (const threadEl of threads) {
-      // Skip if already enhanced
-      if (threadEl.querySelector('.threads-new-comment-btn')) continue;
-
       const threadId = threadEl.dataset.threadId;
       if (!threadId) continue;
+
+      // Enhance quote badge if server-rendered blockquote.threads-anchor
+      const anchorEl = threadEl.querySelector<HTMLElement>('blockquote.threads-anchor');
+      if (anchorEl && !anchorEl.querySelector('.threads-thread__quote-text')) {
+        const text = anchorEl.textContent?.trim() || '';
+        anchorEl.textContent = '';
+        anchorEl.className = 'threads-thread__quote-badge';
+        anchorEl.appendChild(createSvgElement('quote', 12));
+        const textSpan = document.createElement('span');
+        textSpan.className = 'threads-thread__quote-text';
+        textSpan.textContent = `"${text}"`;
+        anchorEl.appendChild(textSpan);
+
+        const openBtn = document.createElement('button');
+        openBtn.className = 'threads-thread__open-panel-btn';
+        openBtn.title = 'Open discussion in sidebar';
+        openBtn.innerHTML = `<span>Sidebar</span>${getThreadSvg('external-link', 11)}`;
+        openBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.closeAiDrawerIfOpen();
+          document.body.classList.add('tc-panel-open');
+          this.selectTab('threads');
+          const targetInPanel = document.querySelector(`.tc-panel__body .threads-thread[data-thread-id="${threadId}"]`);
+          if (targetInPanel) {
+            targetInPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetInPanel.classList.add('threads-thread--flash');
+            setTimeout(() => targetInPanel.classList.remove('threads-thread--flash'), 2000);
+          }
+        });
+        anchorEl.appendChild(openBtn);
+      }
+
+      // Apply semantic border color based on status
+      const thread = this.threads.find(th => th.id === threadId);
+      if (thread) {
+        for (const c of Array.from(threadEl.classList)) {
+          if (c.startsWith('threads-border-')) threadEl.classList.remove(c);
+        }
+        if (thread.draft) {
+          threadEl.classList.add('threads-border-draft', 'threads-border-orange');
+        } else if (thread.resolved) {
+          threadEl.classList.add('threads-border-resolved', 'threads-border-green');
+        } else {
+          threadEl.classList.add('threads-border-published', 'threads-border-blue');
+        }
+      }
+
+      // Skip footer/button injection if already enhanced
+      if (threadEl.querySelector('.threads-new-comment-btn')) {
+        // Still update reaction bars in case thread state changed
+        const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
+        for (const commentEl of allComments) {
+          const commentId = commentEl.dataset.commentId;
+          if (!commentId) continue;
+          const comm = thread?.comments.find(c => c.id === commentId);
+          if (comm) {
+            const rxBar = commentEl.querySelector('.threads-comment__reactions-bar');
+            if (rxBar) {
+              rxBar.replaceWith(this.renderReactionsBar(threadId, commentId, comm.reactions || []));
+            }
+          }
+        }
+        continue;
+      }
 
       // Add per-comment reply, delete buttons, and reaction bars
       const allComments = threadEl.querySelectorAll<HTMLElement>('.threads-comment');
@@ -583,7 +679,6 @@ export class ThreadsApp extends LitElement {
         if (!commentId) continue;
 
         const meta = commentEl.querySelector('.threads-comment__meta');
-        if (!meta) continue;
 
         // Inject avatar into the avatar column if not already present
         const avatarCol = commentEl.querySelector('.threads-comment__avatar-col');
@@ -599,66 +694,71 @@ export class ThreadsApp extends LitElement {
           }
         }
 
-        // Skip if actions already added (re-render)
-        if (commentEl.querySelector('.threads-comment__actions')) continue;
-
-        // Actions container - pushed to the right via margin-left: auto
-        const actions = document.createElement('div');
-        actions.className = 'threads-comment__actions';
-
-        // Reply button
-        const replyBtn = document.createElement('button');
-        replyBtn.className = 'threads-comment-reply-btn';
-        replyBtn.appendChild(createSvgElement('reply', 13));
-        replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
-        replyBtn.title = t('replyToComment');
-        replyBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openReplyEditor(threadEl, threadId, commentId);
-        });
-        actions.appendChild(replyBtn);
-
-        // Delete button: only when the server would accept it (a lone comment deletes the thread)
-        const thread = this.threads.find(th => th.id === threadId);
-        // No thread to check against (load failed): fail closed, like the multi-comment path.
-        let deletable: boolean;
-        if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
-        else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
-        else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
-        if (deletable) {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'threads-delete-btn';
-        delBtn.appendChild(createSvgElement('trash', 13));
-        delBtn.title = t('deleteComment');
-        delBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (totalComments === 1) {
-            this.deleteTarget = { type: 'thread', id: threadId };
-          } else {
-            this.deleteTarget = { type: 'comment', id: commentId, threadId };
-          }
-          const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-          if (dialog) dialog.open = true;
-        });
-        actions.appendChild(delBtn);
+        // Restructure comment children into .threads-comment__content for clean flex column
+        let contentCol = commentEl.querySelector<HTMLElement>('.threads-comment__content');
+        if (!contentCol) {
+          contentCol = document.createElement('div');
+          contentCol.className = 'threads-comment__content';
+          if (meta) contentCol.appendChild(meta);
+          const bodyEl = commentEl.querySelector('.threads-comment__body');
+          if (bodyEl) contentCol.appendChild(bodyEl);
+          commentEl.appendChild(contentCol);
         }
 
-        meta.appendChild(actions);
+        // Actions container - pushed to the right via margin-left: auto
+        if (meta && !commentEl.querySelector('.threads-comment__actions')) {
+          const actions = document.createElement('div');
+          actions.className = 'threads-comment__actions';
 
-        // Attach reactions bar if not present
-        if (!commentEl.querySelector('.threads-comment__reactions-bar')) {
-          const rawReactions = commentEl.querySelector('.threads-reactions');
-          rawReactions?.remove();
-          const thread = this.threads.find(th => th.id === threadId);
-          const comm = thread?.comments.find(c => c.id === commentId);
-          const reactions = comm?.reactions || [];
-          const rxBar = this.renderReactionsBar(threadId, commentId, reactions);
-          const bodyEl = commentEl.querySelector('.threads-comment__body');
-          if (bodyEl) {
-            bodyEl.insertAdjacentElement('afterend', rxBar);
-          } else {
-            commentEl.appendChild(rxBar);
+          // Reply button
+          const replyBtn = document.createElement('button');
+          replyBtn.className = 'threads-comment-reply-btn';
+          replyBtn.appendChild(createSvgElement('reply', 13));
+          replyBtn.appendChild(document.createTextNode(' ' + t('reply')));
+          replyBtn.title = t('replyToComment');
+          replyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openReplyEditor(threadEl, threadId, commentId);
+          });
+          actions.appendChild(replyBtn);
+
+          // Delete button: only when the server would accept it (a lone comment deletes the thread)
+          let deletable: boolean;
+          if (!thread) deletable = canShowFor('delete-comment', { authorKey: null });
+          else if (totalComments === 1) deletable = canShowFor('delete-thread', { authorKeys: thread.comments.filter(c => !c.draft).map(c => c.authorKey) });
+          else deletable = canShowFor('delete-comment', deleteCommentTarget(thread.comments, commentId));
+          if (deletable) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'threads-delete-btn';
+            delBtn.appendChild(createSvgElement('trash', 13));
+            delBtn.title = t('deleteComment');
+            delBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (totalComments === 1) {
+                this.deleteTarget = { type: 'thread', id: threadId };
+              } else {
+                this.deleteTarget = { type: 'comment', id: commentId, threadId };
+              }
+              const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+              if (dialog) dialog.open = true;
+            });
+            actions.appendChild(delBtn);
           }
+
+          meta.appendChild(actions);
+        }
+
+        // Attach reactions bar
+        const rawReactions = commentEl.querySelector('.threads-reactions');
+        rawReactions?.remove();
+        const comm = thread?.comments.find(c => c.id === commentId);
+        const reactions = comm?.reactions || [];
+        const existingRxBar = commentEl.querySelector('.threads-comment__reactions-bar');
+        const rxBar = this.renderReactionsBar(threadId, commentId, reactions);
+        if (existingRxBar) {
+          existingRxBar.replaceWith(rxBar);
+        } else {
+          contentCol.appendChild(rxBar);
         }
       }
 
@@ -772,7 +872,9 @@ export class ThreadsApp extends LitElement {
       if (!repliesContainer) {
         repliesContainer = document.createElement('div');
         repliesContainer.className = 'threads-replies';
-        parentEl.appendChild(repliesContainer);
+        const contentCol = parentEl.querySelector('.threads-comment__content');
+        if (contentCol) contentCol.appendChild(repliesContainer);
+        else parentEl.appendChild(repliesContainer);
       }
 
       commentEl.classList.add('threads-comment--reply');
@@ -817,11 +919,16 @@ export class ThreadsApp extends LitElement {
         if (repliesContainer) {
           repliesContainer.appendChild(editor);
         } else {
-          const bodyEl = parentComment.querySelector('.threads-comment__body');
-          if (bodyEl) {
-            bodyEl.appendChild(editor);
+          const contentCol = parentComment.querySelector('.threads-comment__content');
+          if (contentCol) {
+            contentCol.appendChild(editor);
           } else {
-            parentComment.appendChild(editor);
+            const bodyEl = parentComment.querySelector('.threads-comment__body');
+            if (bodyEl) {
+              bodyEl.appendChild(editor);
+            } else {
+              parentComment.appendChild(editor);
+            }
           }
         }
       } else {
@@ -1072,6 +1179,15 @@ export class ThreadsApp extends LitElement {
     }
     threadEl.dataset.threadId = thread.id;
 
+    // Apply semantic border color based on status
+    if (thread.draft) {
+      threadEl.classList.add('threads-border-draft', 'threads-border-orange');
+    } else if (thread.resolved) {
+      threadEl.classList.add('threads-border-resolved', 'threads-border-green');
+    } else {
+      threadEl.classList.add('threads-border-published', 'threads-border-blue');
+    }
+
     // Anchor quote badge for both sidebar and inline preview
     const mark = document.querySelector<HTMLElement>(`mark.threads-highlight[data-thread-id="${thread.id}"]`);
     // An orphaned thread has no mark in the page: its stored quote is all that is left of the anchor.
@@ -1128,7 +1244,12 @@ export class ThreadsApp extends LitElement {
         for (const reply of replies) {
           repliesContainer.appendChild(this.renderCommentElement(thread.id, reply, true));
         }
-        commentEl.appendChild(repliesContainer);
+        const contentCol = commentEl.querySelector('.threads-comment__content');
+        if (contentCol) {
+          contentCol.appendChild(repliesContainer);
+        } else {
+          commentEl.appendChild(repliesContainer);
+        }
       }
       threadEl.appendChild(commentEl);
     }
@@ -1218,6 +1339,10 @@ export class ThreadsApp extends LitElement {
     }
     commentEl.appendChild(avatarCol);
 
+    // Main content column: meta -> body -> reactionsBar (flex column)
+    const content = document.createElement('div');
+    content.className = 'threads-comment__content';
+
     // Meta header
     const meta = document.createElement('div');
     meta.className = 'threads-comment__meta';
@@ -1254,21 +1379,21 @@ export class ThreadsApp extends LitElement {
 
     // Delete button
     if (canShowFor('delete-comment', deleteCommentTarget(this.threads.find(th => th.id === threadId)?.comments ?? [], comment.id))) {
-    const delBtn = document.createElement('button');
-    delBtn.className = 'threads-delete-btn';
-    delBtn.appendChild(createSvgElement('trash', 13));
-    delBtn.title = t('deleteComment');
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.deleteTarget = { type: 'comment', id: comment.id, threadId };
-      const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
-      if (dialog) dialog.open = true;
-    });
-    actions.appendChild(delBtn);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'threads-delete-btn';
+      delBtn.appendChild(createSvgElement('trash', 13));
+      delBtn.title = t('deleteComment');
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.deleteTarget = { type: 'comment', id: comment.id, threadId };
+        const dialog = this.querySelector<HTMLElement & { open: boolean }>('#delete-dialog');
+        if (dialog) dialog.open = true;
+      });
+      actions.appendChild(delBtn);
     }
 
     meta.appendChild(actions);
-    commentEl.appendChild(meta);
+    content.appendChild(meta);
 
     // Body
     const body = document.createElement('div');
@@ -1279,12 +1404,13 @@ export class ThreadsApp extends LitElement {
       p.textContent = pText;
       body.appendChild(p);
     }
-    commentEl.appendChild(body);
+    content.appendChild(body);
 
-    // Reactions bar
+    // Reactions bar on dedicated line
     const reactions = comment.reactions || [];
-    commentEl.appendChild(this.renderReactionsBar(threadId, comment.id, reactions));
+    content.appendChild(this.renderReactionsBar(threadId, comment.id, reactions));
 
+    commentEl.appendChild(content);
     return commentEl;
   }
 
@@ -1295,10 +1421,37 @@ export class ThreadsApp extends LitElement {
   private async handleToggleReaction(threadId: string, commentId: string, emoji: string): Promise<void> {
     try {
       const identity = getIdentityPayload();
-      await api.toggleReaction(threadId, commentId, { emoji, author: identity.author || 'Anonymous' });
+      const updatedReactions = await api.toggleReaction(threadId, commentId, { emoji, author: identity.author || 'Anonymous' });
+      // Instantly update all instances in DOM (both in-page and sidebar)
+      this.updateCommentReactionsInDOM(threadId, commentId, updatedReactions);
       await this.loadThreads();
     } catch (err) {
       console.error('[threads] Failed to toggle reaction:', err);
+    }
+  }
+
+  private updateCommentReactionsInDOM(threadId: string, commentId: string, reactions: Reaction[]): void {
+    const thread = this.threads.find(th => th.id === threadId);
+    const comm = thread?.comments.find(c => c.id === commentId);
+    if (comm) {
+      comm.reactions = reactions;
+    }
+    const comments = document.querySelectorAll<HTMLElement>(`.threads-comment[data-comment-id="${CSS.escape(commentId)}"]`);
+    for (const commentEl of comments) {
+      const existingBar = commentEl.querySelector('.threads-comment__reactions-bar');
+      const newBar = this.renderReactionsBar(threadId, commentId, reactions);
+      if (existingBar) {
+        existingBar.replaceWith(newBar);
+      } else {
+        const contentCol = commentEl.querySelector('.threads-comment__content');
+        if (contentCol) {
+          contentCol.appendChild(newBar);
+        } else {
+          const bodyEl = commentEl.querySelector('.threads-comment__body');
+          if (bodyEl) bodyEl.insertAdjacentElement('afterend', newBar);
+          else commentEl.appendChild(newBar);
+        }
+      }
     }
   }
 

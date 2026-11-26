@@ -39,29 +39,73 @@ export function injectComponentStyles(): void {
       --tc-thread-border: hsl(220 14% 24%);
     }
 
-    /* ========= Highlight colors (cycling palette) ========= */
+    /* ========= Semantic Threads Color System ========= */
     .threads-highlight {
       border-radius: 2px;
-      padding: 1px 0;
+      padding: 1px 2px;
       cursor: pointer;
-      transition: opacity 0.15s;
+      transition: opacity 0.15s, background-color 0.15s;
     }
-    .threads-highlight:hover { opacity: 0.75; }
+    .threads-highlight:hover { opacity: 0.8; }
 
-    .threads-hl-yellow  { background: hsl(48 96% 89% / 0.6);  border-bottom: 2px solid hsl(48 96% 53%); }
-    .threads-hl-blue    { background: hsl(210 100% 88% / 0.55); border-bottom: 2px solid hsl(210 100% 55%); }
-    .threads-hl-green   { background: hsl(142 60% 82% / 0.55); border-bottom: 2px solid hsl(142 60% 45%); }
-    .threads-hl-pink    { background: hsl(340 80% 88% / 0.55); border-bottom: 2px solid hsl(340 80% 55%); }
-    .threads-hl-purple  { background: hsl(270 70% 88% / 0.55); border-bottom: 2px solid hsl(270 70% 55%); }
-    .threads-hl-orange  { background: hsl(28 100% 86% / 0.55); border-bottom: 2px solid hsl(28 100% 55%); }
+    /* Published / Pushed to Git: Blue */
+    .threads-hl-published,
+    .threads-hl-blue {
+      background: hsl(210 100% 88% / 0.65);
+      border-bottom: 2px solid hsl(210 100% 55%);
+    }
+    .threads-border-published,
+    .threads-border-blue {
+      border-left-color: hsl(210 100% 55%) !important;
+    }
 
-    /* Matching left-border colors for thread cards */
-    .threads-border-yellow { border-left-color: hsl(48 96% 53%) !important; }
-    .threads-border-blue   { border-left-color: hsl(210 100% 55%) !important; }
-    .threads-border-green  { border-left-color: hsl(142 60% 45%) !important; }
+    /* Pending Publishing / Local Drafts: Warm Amber / Orange */
+    .threads-hl-draft,
+    .threads-hl-orange,
+    .threads-hl-yellow {
+      background: hsl(38 92% 50% / 0.22);
+      border-bottom: 2px solid hsl(38 92% 50%);
+    }
+    .threads-border-draft,
+    .threads-border-orange,
+    .threads-border-yellow {
+      border-left-color: hsl(38 92% 50%) !important;
+    }
+
+    /* Resolved: Green / Subtle Muted */
+    .threads-hl-resolved,
+    .threads-hl-green {
+      background: hsl(142 60% 82% / 0.4);
+      border-bottom: 2px solid hsl(142 60% 45%);
+    }
+    .threads-border-resolved,
+    .threads-border-green {
+      border-left-color: hsl(142 60% 45%) !important;
+    }
+
+    /* Fallback aliases for pink/purple if encountered */
+    .threads-hl-pink   { background: hsl(340 80% 88% / 0.55); border-bottom: 2px solid hsl(340 80% 55%); }
+    .threads-hl-purple { background: hsl(270 70% 88% / 0.55); border-bottom: 2px solid hsl(270 70% 55%); }
     .threads-border-pink   { border-left-color: hsl(340 80% 55%) !important; }
     .threads-border-purple { border-left-color: hsl(270 70% 55%) !important; }
-    .threads-border-orange { border-left-color: hsl(28 100% 55%) !important; }
+
+    /* Dark mode adjustments */
+    [data-theme="dark"] .threads-hl-published,
+    [data-theme="dark"] .threads-hl-blue {
+      background: hsl(210 100% 55% / 0.25);
+      border-bottom: 2px solid hsl(210 100% 65%);
+    }
+    [data-theme="dark"] .threads-hl-draft,
+    [data-theme="dark"] .threads-hl-orange,
+    [data-theme="dark"] .threads-hl-yellow {
+      background: hsl(38 92% 50% / 0.28);
+      border-bottom: 2px solid hsl(38 92% 55%);
+    }
+    [data-theme="dark"] .threads-hl-resolved,
+    [data-theme="dark"] .threads-hl-green {
+      background: hsl(142 60% 45% / 0.25);
+      border-bottom: 2px solid hsl(142 60% 55%);
+    }
 
     /* ========= Layout: fixed right sidebar column ========= */
     .tc-sidebar-column {
@@ -487,46 +531,82 @@ export function injectComponentStyles(): void {
 
     /* ========= Thread card ========= */
     .threads-thread {
-      margin: 18px 0;
+      margin: 14px 0 18px;
       border: 1px solid var(--tc-thread-border, var(--tc-border));
-      border-left: 4px solid var(--tc-ring);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--tc-thread-bg, var(--tc-card));
       overflow: hidden;
       font-family: var(--tc-font);
-      box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+      box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.06), 0 1px 4px -1px rgba(0, 0, 0, 0.04);
       transition: all 0.18s ease;
     }
     .threads-thread:hover {
-      box-shadow: 0 6px 20px -2px rgba(0, 0, 0, 0.09), 0 3px 8px -1px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.09), 0 2px 6px -1px rgba(0, 0, 0, 0.05);
     }
+
+    /* In-page thread cards: thinner 2.5px colored differentiator */
+    .threads-thread:not(.tc-panel .threads-thread),
     .threads-thread--inline {
-      margin: 20px 0 26px;
+      margin: 16px 0 22px;
       max-width: 740px;
+      border-left-width: 2.5px !important;
+      border-left-style: solid !important;
     }
     body.tc-panel-open .threads-thread--inline {
       display: none !important;
     }
-    .threads-thread--resolved {
-      opacity: 0.65;
+
+    /* Sidebar panel thread cards: no colored left border needed */
+    .tc-panel .threads-thread {
+      margin: 0 8px 10px;
+      border: 1px solid var(--tc-border);
+      border-left: 1px solid var(--tc-border) !important;
+      border-radius: 8px;
+      background: var(--tc-card);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .tc-panel .threads-thread:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
-    /* Anchor Quote Badge */
+    .threads-thread--resolved {
+      opacity: 0.7;
+    }
+
+    /* Anchor Quote Badge & In-page blockquote.threads-anchor */
+    blockquote.threads-anchor,
     .threads-thread__quote-badge {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 14px;
+      padding: 6px 10px;
+      margin: 0;
       background: color-mix(in srgb, var(--tc-muted) 80%, var(--tc-bg));
+      border: none;
       border-bottom: 1px solid var(--tc-thread-border, var(--tc-border));
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--tc-muted-fg);
+      font-style: italic;
       cursor: pointer;
       user-select: none;
       transition: background 0.15s;
     }
+    blockquote.threads-anchor:hover,
     .threads-thread__quote-badge:hover {
       background: color-mix(in srgb, var(--tc-muted) 92%, var(--tc-ring) 8%);
+    }
+    blockquote.threads-anchor::before {
+      content: "";
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      background-color: var(--tc-ring);
+      opacity: 0.85;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z'/%3E%3Cpath d='M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z'/%3E%3C/svg%3E") no-repeat center;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z'/%3E%3Cpath d='M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z'/%3E%3C/svg%3E") no-repeat center;
+      -webkit-mask-size: contain;
+      mask-size: contain;
     }
     .threads-thread__quote-text {
       font-weight: 500;
@@ -557,50 +637,59 @@ export function injectComponentStyles(): void {
       background: var(--tc-border);
     }
 
-    /* ========= Comment item ========= */
+    /* ========= Comment item (flex layout, no grid collisions) ========= */
     .threads-comment {
-      display: grid;
-      grid-template-columns: 28px 1fr;
-      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
       font-size: 13px;
-      column-gap: 12px;
-      row-gap: 6px;
+      box-sizing: border-box;
     }
     .threads-comment--reply {
-      padding-top: 6px;
-      padding-bottom: 6px;
-    }
-    @media (max-width: 768px) {
-      .threads-comment {
-        column-gap: 8px;
-      }
+      padding: 4px 0 !important;
+      gap: 6px;
     }
 
     /* Avatar column */
     .threads-comment__avatar-col {
-      grid-column: 1;
-      grid-row: 1;
+      flex-shrink: 0;
+      width: 24px;
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      padding-top: 2px;
+      padding-top: 1px;
     }
     .threads-comment__avatar {
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       object-fit: cover;
       margin: 0;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
+    .threads-comment--reply .threads-comment__avatar {
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
+    }
+
+    /* Main content column: meta -> body -> reactions -> replies */
+    .threads-comment__content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
 
     .threads-comment__meta {
-      grid-column: 2;
       display: flex;
       align-items: center;
       font-size: 11.5px;
       color: var(--tc-muted-fg);
       gap: 6px;
+      width: 100%;
     }
     .threads-comment__meta strong {
       color: var(--tc-fg);
@@ -639,32 +728,34 @@ export function injectComponentStyles(): void {
     }
 
     .threads-comment__body {
-      grid-column: 2;
       color: var(--tc-fg);
-      line-height: 1.55;
+      line-height: 1.5;
       font-size: 13px;
+      word-break: break-word;
     }
     .threads-comment__body p {
-      margin: 0 0 6px 0;
+      margin: 0 0 4px 0;
     }
     .threads-comment__body p:last-child {
       margin-bottom: 0;
     }
 
-    /* ========= Emoji reactions on comments ========= */
+    /* ========= Emoji reactions on comments: dedicated line ========= */
     .threads-comment__reactions-bar {
-      grid-column: 2;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
-      margin-top: 4px;
+      gap: 5px;
+      margin-top: 5px;
+      margin-bottom: 2px;
+      width: 100%;
+      clear: both;
     }
     .threads-reaction-pill {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 2px 8px;
+      padding: 2px 7px;
       border-radius: 999px;
       border: 1px solid var(--tc-border);
       background: var(--tc-card);
@@ -744,25 +835,13 @@ export function injectComponentStyles(): void {
 
     /* ========= Nested replies tree ========= */
     .threads-replies {
-      grid-column: 2;
-      margin-top: 8px;
-      padding-left: 12px;
-      border-left: 2px solid color-mix(in srgb, var(--tc-border) 75%, var(--tc-ring) 25%);
+      margin-top: 6px;
+      padding-left: 8px;
+      border-left: 1.5px solid var(--tc-border);
       display: flex;
       flex-direction: column;
-      gap: 6px;
-    }
-    .threads-comment--reply {
-      padding: 6px 0 !important;
-      grid-template-columns: 22px 1fr;
-      column-gap: 10px;
-    }
-    .threads-comment--reply .threads-comment__avatar {
-      width: 22px;
-      height: 22px;
-    }
-    .threads-comment--reply .threads-comment__body {
-      font-size: 12.5px;
+      gap: 4px;
+      width: 100%;
     }
 
     /* ========= Collapsed thread ========= */
@@ -855,12 +934,6 @@ export function injectComponentStyles(): void {
       background: var(--tc-muted);
     }
 
-    /* ========= Nested replies ========= */
-    .threads-replies {
-      grid-column: 2;
-      grid-row: 3;
-      margin-top: 12px;
-    }
 
 
     /* ========= Per-comment reply button ========= */
@@ -1206,12 +1279,12 @@ export function injectComponentStyles(): void {
       position: fixed;
       top: 50%;
       right: 0;
-      transform: translateY(-50%) translateX(12px);
-      opacity: 0.72;
+      transform: translateY(-50%) translateX(0);
+      opacity: 0.85;
       z-index: 2900;
-      width: 34px;
-      height: 44px;
-      border-radius: 10px 0 0 10px;
+      width: 38px;
+      height: 42px;
+      border-radius: 8px 0 0 8px;
       border: 1px solid var(--tc-border);
       border-right: none;
       background: var(--tc-card);
@@ -1220,33 +1293,33 @@ export function injectComponentStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.08);
-      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, width 0.2s ease, color 0.15s ease, background 0.15s ease, box-shadow 0.2s ease;
-      padding-left: 2px;
+      box-shadow: -2px 2px 10px rgba(0, 0, 0, 0.08);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, width 0.2s ease, color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+      padding: 0;
     }
     .threads-fab:hover {
-      transform: translateY(-50%) translateX(0);
+      transform: translateY(-50%) translateX(-4px);
       opacity: 1;
-      width: 40px;
       color: var(--tc-fg);
       border-color: var(--tc-ring);
-      box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.14);
+      box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.16);
     }
     body.tc-panel-open .threads-fab {
       opacity: 0;
       pointer-events: none;
-      transform: translateY(-50%) translateX(24px);
+      transform: translateY(-50%) translateX(40px);
     }
     .threads-fab__badge-wrap {
       position: absolute;
-      top: -8px;
-      left: -6px;
+      top: -6px;
+      left: -8px;
       display: inline-flex;
       align-items: center;
       border-radius: 999px;
       overflow: hidden;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
       pointer-events: none;
+      z-index: 1;
     }
     .threads-fab__badge {
       display: inline-block;
