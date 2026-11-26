@@ -414,8 +414,13 @@ test('build links: identity keys are never in the output, and names are escaped 
   const visible = html.replace(/ href="[^"]*"/g, '').replace(/ data-[a-z-]+="[^"]*"/g, '');
   lacks(visible, 'secret-key-1');
   lacks(visible, 'k%22ey');
-  has(html, '>&lt;b&gt;Eve&lt;/b&gt;</a></strong>');
-  has(html, '>Q &lt;i&gt;</a>');
+  // The comment shows the author's current name (escaped), as the reactors do
+  has(html, '>Q &lt;i&gt;</a></strong>');
+  has(html, '>Q &lt;i&gt;</a>, ');
+  // A stored name with no authors.json entry is escaped too
+  const unknown = md.render('::: threads\n  ::: thread t-y\n    ::: comment c-y "<b>Zed</b>" "2026-07-01" by zed\n      Body\n    :::\n  :::\n:::\n',
+    { config: { src, plugins: { threads: { profileUrl: 'https://p.example/{id}' } } } });
+  has(unknown, '>&lt;b&gt;Zed&lt;/b&gt;</a></strong>');
 });
 
 test('build links: through the engine pipeline with the env the generator builds and the options markdownSetup receives', async () => {
@@ -432,4 +437,37 @@ test('build links: through the engine pipeline with the env the generator builds
   has(html, `<a href="https://bob.example/~bob?a=1&amp;b=&quot;2&quot;" ${REL}>Bob</a>`);
   has(html, `<li>👍 <a href="https://github.com/alice" ${REL}>Alice Smith</a>`);
   has(html, '<strong>Walt</strong>');
+});
+
+test('build links: a comment author is shown under the current name, found by key, then by name, as in the page view', () => {
+  const src = writeAuthors({
+    alice: { name: 'Alice Smith', avatarUrl: '' },
+    bob: { name: 'Bob Jones', avatarUrl: '' },
+  });
+  const page = `::: threads
+  ::: thread t-n
+    ::: comment c-n1 "Old Alice" "2026-07-01" by alice
+      By key
+    :::
+
+    ::: comment c-n2 "Bob Jones" "2026-07-02"
+      Legacy, found by name
+    :::
+
+    ::: comment c-n3 "Bob" "2026-07-03"
+      Legacy, found by first name
+    :::
+
+    ::: comment c-n4 "Stranger" "2026-07-04" by nobody
+      Key with no entry
+    :::
+  :::
+:::
+`;
+  const html = md.render(page, { config: { src, plugins: { threads: { profileUrl: 'https://github.com/{id}' } } } });
+  has(html, `<strong><a href="https://github.com/alice" ${REL}>Alice Smith</a></strong>`);
+  assert.equal(html.includes('Old Alice</a>'), false, 'the stored name is replaced by the current one');
+  has(html, '<strong>Bob Jones</strong>');
+  has(html, `<strong><a href="https://github.com/nobody" ${REL}>Stranger</a></strong>`);
+  assert.equal((html.match(/<strong>Bob Jones<\/strong>/g) ?? []).length, 2);
 });

@@ -1,4 +1,4 @@
-import { profileHref } from '../../shared/profile-link';
+import { findCommentAuthor, profileHref } from '../../shared/profile-link';
 import type { AuthorsMap, Reaction } from '../../types';
 
 /** Pure helpers for reactions and comment authors: who is "me", who to show, and where names link. DOM-free. */
@@ -56,11 +56,7 @@ export function toAuthorView(
   profileUrl: string | null,
 ): AuthorView {
   const key = comment.authorKey ?? null;
-  const entries = Object.values(authors);
-  const info =
-    (key !== null && has(authors, key) ? authors[key] : undefined) ??
-    entries.find((a) => a.name === comment.author) ??
-    entries.find((a) => a.name.split(/\s+/)[0] === comment.author);
+  const info = findCommentAuthor(comment, authors);
   return {
     name: info?.name || comment.author,
     avatarUrl: info?.avatarUrl ?? '',

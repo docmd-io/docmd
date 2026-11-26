@@ -2,7 +2,7 @@
  * Where a person's name links to. Pure and free of Node APIs: the server (build-time comment and
  * reactions rules) and the client bundle both import it, so the two views agree.
  */
-import type { AuthorsMap } from '../types.js';
+import type { Author, AuthorsMap } from '../types.js';
 
 /** True for an absolute http or https URL. */
 export function isHttpUrl(value: string): boolean {
@@ -43,4 +43,19 @@ export function profileHref(key: string | null, authors: AuthorsMap, profileUrl:
   if (typeof link === 'string' && isHttpUrl(link)) return link;
   if (!profileUrl) return null;
   return profileUrl.split('{id}').join(encodeKey(key));
+}
+
+/**
+ * The authors.json entry for a comment's author: looked up by `authorKey`, and for legacy comments with no key
+ * (or a key with no entry) by display name, then by first name, which old comments sometimes carry. The page's
+ * own view and the build-time HTML both use it, so a name reads the same with and without JavaScript.
+ */
+export function findCommentAuthor(comment: { author: string; authorKey?: string | null }, authors: AuthorsMap): Author | undefined {
+  const key = comment.authorKey ?? null;
+  const entries = Object.values(authors);
+  return (
+    (key !== null && Object.hasOwn(authors, key) ? authors[key] : undefined) ??
+    entries.find((a) => a.name === comment.author) ??
+    entries.find((a) => a.name.split(/\s+/)[0] === comment.author)
+  );
 }

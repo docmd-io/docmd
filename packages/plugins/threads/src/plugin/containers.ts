@@ -3,7 +3,7 @@ import { createDepthTrackingContainer } from '@docmd/parser';
 import { parseReactions } from './parser.js';
 import { loadAuthorsFile } from './authors.js';
 import { normalizeOptions } from './config.js';
-import { profileHref } from '../shared/profile-link.js';
+import { findCommentAuthor, profileHref } from '../shared/profile-link.js';
 import type { AuthorsMap } from '../types.js';
 
 interface ThreadInfo {
@@ -387,6 +387,9 @@ export function setup(md: any, pluginOptions?: unknown): void {
 
     const safeId = parsed.id ? md.utils.escapeHtml(parsed.id) : null;
     const safeParentId = parsed.parentId ? md.utils.escapeHtml(parsed.parentId) : null;
+    const ctx = linkContext(env, pluginOptions);
+    // The name the page's own view shows: the author's current one from authors.json, else the stored one.
+    const shownName = (ctx && findCommentAuthor({ author: parsed.author, authorKey: parsed.authorKey }, ctx.authors)?.name) || parsed.author;
     const safeAuthor = md.utils.escapeHtml(parsed.author);
     const safeDate = md.utils.escapeHtml(parsed.date);
     const safeEdited = parsed.editedAt ? md.utils.escapeHtml(parsed.editedAt) : null;
@@ -399,7 +402,7 @@ export function setup(md: any, pluginOptions?: unknown): void {
     return (
       `<div class="threads-comment${replyClass}"${idAttr}${parentAttr} data-author="${safeAuthor}" data-date="${safeDate}"${editedAttr}>` +
       `<div class="threads-comment__avatar-col"></div>` +
-      `<div class="threads-comment__meta"><strong>${nameHtml(md.utils.escapeHtml, parsed.author, parsed.authorKey, linkContext(env, pluginOptions))}</strong> &middot; ${safeDate}</div>` +
+      `<div class="threads-comment__meta"><strong>${nameHtml(md.utils.escapeHtml, shownName, parsed.authorKey, ctx)}</strong> &middot; ${safeDate}</div>` +
       `<div class="threads-comment__body">\n`
     );
   };
