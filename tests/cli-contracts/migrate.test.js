@@ -239,6 +239,17 @@ export const test = runTestFile({
       assert(/out:\s*['"]my-site['"]/.test(written), 'N-22: MkDocs site_dir "my-site" is preserved in the generated config');
     }
 
+    // VitePress with a TypeScript config (`vitepress init` writes .vitepress/config.mts).
+    {
+      const dir = setup('migrate-vitepress-config-mts');
+      writeFile(dir, '.vitepress/config.mts', "export default { title: 'VP TS' }\n");
+      writeFile(dir, 'index.md', '# Home\n');
+
+      execFileSync(process.execPath, [DOCMD, 'migrate', '--vitepress'], { cwd: dir, stdio: 'pipe' });
+      const written = fs.readFileSync(path.join(dir, 'docmd.config.js'), 'utf8');
+      assert(/VP TS/.test(written), 'VitePress: .vitepress/config.mts is found and its title is used');
+    }
+
     // VitePress at the project root (the `vitepress init` default): pages in folders are migrated.
     {
       const dir = setup('migrate-vitepress-root-subfolders');
