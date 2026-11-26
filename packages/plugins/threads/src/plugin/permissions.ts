@@ -1,7 +1,7 @@
 import { ThreadsError } from './errors.js';
 import type { Caller } from '../types.js';
 
-export type PermissionAction = 'edit-comment' | 'delete-comment' | 'delete-thread' | 'resolve-thread' | 'upsert-author';
+export type PermissionAction = 'edit-comment' | 'delete-comment' | 'delete-thread' | 'resolve-thread' | 'discard-review' | 'upsert-author';
 
 /** What the action touches. A missing or null key is a legacy (unattributed) record. */
 export interface PermissionTarget {
@@ -11,6 +11,8 @@ export interface PermissionTarget {
   authorKeys?: Array<string | null | undefined>;
   /** resolve-thread: the key on the thread's first comment; null if legacy. */
   threadAuthor?: string | null;
+  /** discard-review: the key on the review's manifest; null if it has none. */
+  reviewAuthor?: string | null;
   /** The target is an op in the caller's own journal: always theirs. */
   drafted?: boolean;
 }
@@ -37,6 +39,8 @@ export function canDo(caller: Caller, action: PermissionAction, target: Permissi
       return (target.authorKeys ?? []).every(mine);
     case 'resolve-thread':
       return opts.resolve === 'anyone' || mine(target.threadAuthor);
+    case 'discard-review':
+      return mine(target.reviewAuthor);
   }
 }
 

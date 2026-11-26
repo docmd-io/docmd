@@ -107,6 +107,17 @@ test('refresh: the count is the ops of the latest whoami; no journal is 0', asyn
   assert.ok(changes() >= 3, 'every refresh asks for a render');
 });
 
+test('view.reviewId and pendingCount follow the journal after a refresh, and are null / 0 before one and after a failed one', async () => {
+  const { c } = build();
+  assert.deepEqual([c.view().reviewId, c.view().pendingCount], [null, 0]);
+  s.journal = journal(2);
+  await c.refresh();
+  assert.deepEqual([c.view().reviewId, c.view().pendingCount], ['r-1', 2]);
+  s.whoamiError = new Error('socket closed');
+  await c.refresh();
+  assert.deepEqual([c.view().reviewId, c.view().pendingCount], [null, 0]);
+});
+
 test('refresh: a rejected whoami shows …, disables Publish and shows the error text or the load-failed line', async () => {
   const { c } = build();
   s.journal = journal(2);
@@ -279,4 +290,128 @@ test('collect-only (no autoPublish): no play/pause, no timer, Publish works', as
   assert.deepEqual([c.view().state.variant, c.view().state.showPlayPause, c.view().ring], ['collect-only', false, null]);
   await c.publish();
   assert.deepEqual(s.calls.slice(0, 2), ['whoami', 'publishReview']);
+});
+
+const publishes = () => s.calls.filter((x) => x === 'publishReview').length;
+
+test('discard confirmation open: the deadline passing publishes nothing while it stays open', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 * 3);
+  await settle();
+  assert.equal(publishes(), 0);
+});
+
+test('discard confirmation: Cancel after the deadline publishes once, right after it closes', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  c.release('kept');
+  await settle();
+  assert.equal(publishes(), 1);
+  c.release('kept');
+  advance(SECONDS * 10_000);
+  await settle();
+  assert.equal(publishes(), 1, 'one publish only');
+});
+
+test('discard confirmation: Cancel before the deadline keeps the original deadline', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  advance(20_000);
+  c.hold();
+  advance(10_000);
+  c.release('kept');
+  await settle();
+  assert.equal(publishes(), 0, 'closing early does not publish');
+  advance(SECONDS * 1000 - 30_000 - 1);
+  await settle();
+  assert.equal(publishes(), 0, 'not restarted, not early');
+  advance(1);
+  await settle();
+  assert.equal(publishes(), 1, 'fires at updatedAt + seconds');
+});
+
+test('discard confirmation: Confirm publishes nothing, even when the deadline passed while it was open', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.journal = journal(0, 'auto');
+  c.release('discarded');
+  await c.refresh();
+  advance(SECONDS * 10_000);
+  await settle();
+  assert.equal(publishes(), 0);
+});
+
+test('discard confirmation: Confirm before the old journal is re-read cannot publish from a stale countdown', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  c.release('discarded');
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  assert.equal(publishes(), 0);
+});
+
+test('discard confirmation: a failed refresh while held is not a discard; the due fire publishes once after it recovers', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.whoamiError = new Error('offline');
+  await c.refresh();
+  c.release('kept'); // the widget lost the element
+  await settle();
+  assert.equal(publishes(), 0, 'count unknown: nothing to publish yet');
+  s.whoamiError = null;
+  await c.refresh();
+  await settle();
+  assert.equal(publishes(), 1);
+});
+
+test('discard confirmation: a newer journal while held moves the deadline; Cancel does not publish early', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  s.journal = journal(2, 'auto', new Date(clock).toISOString());
+  await c.refresh();
+  c.release('kept');
+  await settle();
+  assert.equal(publishes(), 0);
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(publishes(), 1, 'fires at the new deadline');
+});
+
+test('discard confirmation: a failed Confirm drops the due fire without publishing; a newer edit re-arms it', async () => {
+  const { c } = build();
+  s.journal = journal(1, 'auto');
+  await c.refresh();
+  c.hold();
+  advance(SECONDS * 1000 + 5);
+  await settle();
+  c.release('failed');
+  await settle();
+  assert.equal(publishes(), 0);
+  s.journal = journal(2, 'auto', new Date(clock).toISOString());
+  await c.refresh();
+  advance(SECONDS * 1000);
+  await settle();
+  assert.equal(publishes(), 1);
 });

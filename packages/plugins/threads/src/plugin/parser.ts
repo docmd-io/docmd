@@ -457,6 +457,8 @@ export function replaceThreadsBlock(markdownContent: string, threads: Thread[]):
       return [current];
     });
     if (n === blocks.length - 1) own.push(...added);
+    const orderMap = new Map(threads.map((t, idx) => [t.id, idx]));
+    own.sort((a, b) => (orderMap.get(a.id) ?? 999999) - (orderMap.get(b.id) ?? 999999));
     const serialized = serializeThreadsBlock(own);
     if (serialized === '') removed = true;
     else out.push(...serialized.trimEnd().split('\n'));

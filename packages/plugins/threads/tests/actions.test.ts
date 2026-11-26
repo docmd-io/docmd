@@ -11,14 +11,14 @@
  *    markup", "add-thread anchor does not match text inside the
  *    threads block", "delete-thread removes the highlight markup"   → moved to publish: tests/reviews.test.ts, "applyOps places marks…" and "applyOps removes…"
  *  - input validation, threads/<code> prefixes                      → kept
- *  - plugin surface                                                 → kept, plus the thirteen action names
+ *  - plugin surface                                                 → kept, plus the fourteen action names
  */
 import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { safePath } from '@docmd/utils';
-import { tempProject, makeCtx, MarkdownIt, failingReset, type TempProject, type TestCtx } from './helpers.ts';
+import { tempProject, makeCtx, MarkdownIt, failingReset, snapshotTree, type TempProject, type TestCtx } from './helpers.ts';
 import { actions } from '../src/plugin/actions.ts';
 import { createDraftStore, slug } from '../src/plugin/drafts.ts';
 import { createLock } from '../src/plugin/lock.ts';
@@ -293,22 +293,12 @@ const MUTATIONS: Array<[string, Record<string, unknown>]> = [
   ['threads:toggle-reaction', { threadId: 't-thread1', commentId: 'c1-1', emoji: '👍' }],
 ];
 
-/** Every file under the docs root with its bytes, to prove a refused call changed nothing. */
-function snapshotTree(dir: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const entry of fs.readdirSync(safePath(dir, '.'), { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile()) continue;
-    const file = path.join(entry.parentPath, entry.name);
-    out[path.relative(dir, file)] = fs.readFileSync(safePath(path.dirname(file), entry.name), 'utf8');
-  }
-  return out;
-}
-
 test('serve without a trusted identity refuses every write, with or without author; dev succeeds; reads work in both', async () => {
   const REFUSED: Array<[string, Record<string, unknown>]> = [
     ...MUTATIONS,
     ['threads:set-mode', { mode: 'collect' }],
     ['threads:publish-review', {}],
+    ['threads:discard-review', { reviewId: 'r-none' }],
     ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],
   ];
   const tree = snapshotTree(docsRoot);
@@ -318,7 +308,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   // No identity, then an e-mail-shaped one: each is refused first, before the payload is read, and nothing is written.
   for (const [identity, code] of [[null, 'no-identity'], [EMAIL, 'email-identity']] as const) {
     for (const [name, payload] of REFUSED) {
-      const bare = name === 'threads:set-mode' ? {} : payload; // no mode: the identity is still checked first
+      const bare = name === 'threads:set-mode' || name === 'threads:discard-review' ? {} : payload; // no mode, no reviewId: the identity is still checked first
       for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
         await assert.rejects(
           call(name, sent, { mode: 'serve', caller: { identity } }),
@@ -345,6 +335,14 @@ test('serve without a trusted identity refuses every write, with or without auth
   for (const [name, payload] of MUTATIONS) {
     await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
   }
+  await assert.rejects(
+    call('threads:discard-review', as(ALICE, {}), { mode: 'dev', caller: { identity: null } }),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
+  );
+  await assert.rejects(
+    call('threads:discard-review', as(ALICE, { reviewId: 1 }), { mode: 'dev', caller: { identity: null } }),
+    (e: unknown) => e instanceof ThreadsError && e.code === 'invalid',
+  );
   for (const mode of ['serve', 'dev'] as const) {
     const out = await getThreads(mode === 'dev' ? BOB : {}, { mode, caller: { identity: null } });
     assert.deepEqual(out.map((t) => t.id), ['t-thread1', 't-thread2', 't-thread3'], mode);
@@ -517,7 +515,7 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.equal(typeof plugin.actions, 'object');
   assert.deepEqual(Object.keys(plugin.actions).sort(), [
     'threads:add-comment', 'threads:add-thread', 'threads:delete-comment', 'threads:delete-thread',
-    'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:publish-review',
+    'threads:discard-review', 'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:publish-review',
     'threads:resolve-thread', 'threads:set-mode',
     'threads:toggle-reaction', 'threads:upsert-author', 'threads:whoami',
   ]);
