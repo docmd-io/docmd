@@ -124,6 +124,33 @@ test("get-threads returns published threads plus the caller's own drafts", async
   }
 });
 
+test('get-threads renders bodyHtml only for journal-sourced bodies', async () => {
+  const fenced = 'Hello **bold** <script>alert(1)</script>\n\n```js\nconst a = 1;\n```';
+  const draft = await addThread(ALICE, fenced);
+  await call('threads:edit-comment', as(ALICE, { threadId: 't-thread1', commentId: 'c1-1', body: 'edited *text*' }));
+
+  const mine = await getThreads(ALICE);
+  const published = mine.find((t) => t.id === 't-thread1')!;
+  const [edited, untouched] = published.comments;
+  assert.equal(edited.pendingEdit, true);
+  assert.match(edited.bodyHtml!, /<em>text<\/em>/);
+  assert.equal(Object.hasOwn(untouched, 'bodyHtml'), false, 'an unchanged published comment has no bodyHtml');
+  assert.equal(Object.hasOwn(untouched, 'pendingEdit'), false);
+
+  const html = mine.find((t) => t.id === draft.id)!.comments[0].bodyHtml!;
+  assert.match(html, /<strong>bold<\/strong>/);
+  assert.doesNotMatch(html, /<script>/, 'raw HTML is escaped');
+  assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /class="hljs"/, 'fenced code goes through the code highlighter');
+  assert.match(html, /hljs-/);
+
+  // Nobody else sees the draft or the edit, so there is nothing to render for them.
+  for (const other of [BOB, {}]) {
+    const theirs = await getThreads(other);
+    assert.deepEqual(theirs.flatMap((t) => t.comments).filter((c) => 'bodyHtml' in c || 'pendingEdit' in c), []);
+  }
+});
+
 test('get-threads on a file without threads returns [] and does not write', async () => {
   fs.writeFileSync(safePath(project.root, project.file), '# Plain\n');
   const { result, ctx } = await call<Thread[]>('threads:get-threads', as(ALICE, {}));

@@ -6,6 +6,7 @@ import { ThreadsError } from './errors.js';
 import { guardWrite } from './limits.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { withBodyHtml } from './body-html.js';
 import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { getSync, gitOn } from './git-sync.js';
 import { getOptions } from './config.js';
@@ -206,7 +207,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
     const store = getStore(ctx);
     await finishEarlierPublish(ctx, store, caller.key);
     const journal = await store.load(caller.key);
-    return overlay(published, journal.ops, payload.file, caller);
+    return withBodyHtml(ctx.config, overlay(published, journal.ops, payload.file, caller));
   },
 
   /**

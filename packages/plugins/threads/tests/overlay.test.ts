@@ -38,7 +38,13 @@ const table: Array<[string, DraftOp[], (t: Thread[]) => void]> = [
   ['edit-comment', [{ ...base, kind: 'edit-comment', threadId: 't-pub', commentId: 'c-1', body: 'edited' }], (t) => {
     assert.deepEqual([t[0].comments[0].body, t[0].comments[0].edited_at], ['edited', '2026-04-01']);
     assert.equal(Object.hasOwn(t[0].comments[0], 'draft'), false, 'an edit does not make a published comment a draft');
+    assert.equal(t[0].comments[0].pendingEdit, true, 'an edit of a published comment is flagged');
+    assert.equal(Object.hasOwn(t[0].comments[1], 'pendingEdit'), false);
   }],
+  ['edit-comment on a drafted comment is not a pending edit', [
+    { ...base, kind: 'add-comment', threadId: 't-pub', commentId: 'c-3', parentId: null, body: 'r' },
+    { ...base, opId: 'o2', kind: 'edit-comment', threadId: 't-pub', commentId: 'c-3', body: 'r2' },
+  ], (t) => assert.equal(Object.hasOwn(t[0].comments[2], 'pendingEdit'), false)],
   ['delete-comment', [{ ...base, kind: 'delete-comment', threadId: 't-pub', commentId: 'c-1' }], (t) => {
     assert.deepEqual(t[0].comments.map((c) => c.id), ['c-2']);
   }],

@@ -39,6 +39,7 @@ export function overlay(threads: Thread[], ops: DraftOp[], file: string, who: { 
         if (c) {
           c.body = op.body;
           c.edited_at = day(op.at);
+          if (!c.draft) c.pendingEdit = true;
         }
         break;
       }

@@ -33,6 +33,10 @@ export interface Comment {
   reactions: Reaction[];
   /** Set on the caller's own unpublished comments. */
   draft?: true;
+  /** Set when the caller has an unpublished edit of this published comment. */
+  pendingEdit?: true;
+  /** Set by `get-threads` on comments whose body comes from the caller's journal (drafts, pending edits): the body rendered to HTML. */
+  bodyHtml?: string;
 }
 
 export interface Reaction {
