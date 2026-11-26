@@ -1,0 +1,15 @@
+{
+  "ai.chatTitle": "AI 어시스턴트에게 질문하기",
+  "ai.inputPlaceholder": "이 문서에 대해 질문하세요...",
+  "ai.send": "전송",
+  "ai.thinking": "생각 중...",
+  "ai.greeting": "안녕하세요! AI 문서 어시스턴트입니다. 이 문서에 대해 무엇이든 물어보세요.",
+  "ai.clearChat": "대화 지우기",
+  "ai.close": "닫기",
+  "ai.copy": "복사",
+  "ai.copied": "복사됨!",
+  "ai.errorNoKey": "AI 공급자에 대해 구성된 API 키가 없습니다. 공급자 API 키를 설정해 주세요.",
+  "ai.errorGeneric": "응답을 가져오는 중 오류가 발생했습니다.",
+  "ai.citations": "출처:",
+  "ai.poweredBy": "docmd assistant 제공"
+}

@@ -1,0 +1,13 @@
+{
+  "lastUpdated": "अंतिम बार अद्यतन",
+  "recentCommits": "हाल के कमिट",
+  "viewCommitHistory": "कमिट इतिहास देखें",
+  "editOnGitHub": "GitHub पर संपादित करें",
+  "editOnGitLab": "GitLab पर संपादित करें",
+  "editOnBitbucket": "Bitbucket पर संपादित करें",
+  "editThisPage": "इस पृष्ठ को संपादित करें",
+  "justNow": "अभी-अभी",
+  "minutesAgo": "{n} मिनट पहले",
+  "hoursAgo": "{n} घंटे पहले",
+  "daysAgo": "{n} दिन पहले"
+}

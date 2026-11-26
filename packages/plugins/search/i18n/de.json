@@ -1,0 +1,12 @@
+{
+  "searchPlaceholder": "Dokumentation durchsuchen...",
+  "searchNoResults": "Keine Ergebnisse gefunden.",
+  "searchError": "Suchindex konnte nicht geladen werden.",
+  "searchOffline": "Die Suche erfordert einen Webserver. Öffnen Sie diese Website über http://localhost anstelle von file://, um die Suche zu aktivieren.",
+  "searchInitial": "Tippen Sie, um die Suche zu starten...",
+  "searchClose": "Suche schließen",
+  "searchNavigate": "zum Navigieren",
+  "searchEscape": "zum Schließen",
+  "searchVersionBadge": "v{version}",
+  "searchOfflineBuild": "Die Suche ist deaktiviert, da diese Dokumentation mit dem Flag --offline erstellt wurde. Erstellen Sie die Website ohne das Flag neu, um die Suche zu aktivieren."
+}

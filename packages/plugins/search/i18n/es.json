@@ -1,0 +1,12 @@
+{
+  "searchPlaceholder": "Buscar en la documentación...",
+  "searchNoResults": "No se encontraron resultados.",
+  "searchError": "No se pudo cargar el índice de búsqueda.",
+  "searchOffline": "La búsqueda requiere un servidor web. Abra este sitio a través de http://localhost en lugar de file:// para habilitar la búsqueda.",
+  "searchInitial": "Escriba para comenzar a buscar...",
+  "searchClose": "Cerrar búsqueda",
+  "searchNavigate": "para navegar",
+  "searchEscape": "para cerrar",
+  "searchVersionBadge": "v{version}",
+  "searchOfflineBuild": "La búsqueda está deshabilitada porque estos documentos se crearon con el indicador --offline. Vuelva a generar el sitio sin el indicador para habilitar la búsqueda."
+}
