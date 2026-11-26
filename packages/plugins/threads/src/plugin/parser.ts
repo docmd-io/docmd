@@ -293,32 +293,38 @@ function extractBody(lines: string[]): string {
   return stripped.join('\n');
 }
 
+/** True when a line of `text` would open or close a container (`:::` or `::: name`), so it could fake or end a block of the file. */
+export const hasContainerFence = (text: string): boolean =>
+  text.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
+
 /**
  * Parse a comment container's content lines into body and reactions.
+ * The writer puts the reactions block after the body, so the last closed block is the real one.
  */
 export function parseCommentContent(contentLines: string[]): { body: string; reactions: Reaction[] } {
-  // Find if there's a ::: reactions block
   let reactionsStart = -1;
   let reactionsEnd = -1;
 
   for (let i = 0; i < contentLines.length; i++) {
-    if (contentLines[i].trim() === '::: reactions') {
-      reactionsStart = i;
-      let depth = 1;
-      for (let j = i + 1; j < contentLines.length; j++) {
-        const t = contentLines[j].trim();
-        if (t === ':::') {
-          depth--;
-          if (depth === 0) {
-            reactionsEnd = j;
-            break;
-          }
-        } else if (t.startsWith('::: ')) {
-          depth++;
+    if (contentLines[i].trim() !== '::: reactions') continue;
+    let depth = 1;
+    let end = -1;
+    for (let j = i + 1; j < contentLines.length; j++) {
+      const t = contentLines[j].trim();
+      if (t === ':::') {
+        depth--;
+        if (depth === 0) {
+          end = j;
+          break;
         }
+      } else if (t.startsWith('::: ')) {
+        depth++;
       }
-      break;
     }
+    if (end < 0) break;
+    reactionsStart = i;
+    reactionsEnd = end;
+    i = end;
   }
 
   let reactions: Reaction[] = [];

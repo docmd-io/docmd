@@ -98,6 +98,13 @@ function requireFields(action: string, payload: Record<string, unknown>, fields:
  * source, so its fields are validated first (as before). Under serve identity comes first, so a
  * call without an identity never reaches validation, and `author` is not required.
  */
+/** A body may not hold a container fence: it could fake a reactions block or a comment of the file. */
+function assertBodySafe(action: string, body: unknown): void {
+  if (typeof body === 'string' && parser.hasContainerFence(body)) {
+    throw new ThreadsError('invalid', `${action}: a line of the body may not be ::: or start with "::: "`);
+  }
+}
+
 async function begin(ctx: ActionContext, payload: Payload, action: string, fields: string[]): Promise<Caller> {
   if (ctx.mode !== 'serve') requireFields(action, payload, fields);
   const caller = await resolveCaller(ctx, payload);
@@ -272,6 +279,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {
     const caller = await begin(ctx, payload, 'threads:add-thread', ['file', 'author', 'body']);
+    assertBodySafe('threads:add-thread', payload.body);
     guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const threadId = generateThreadId();
     const anchor = anchorFrom(payload.anchor);
@@ -284,6 +292,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:add-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:add-comment', ['file', 'threadId', 'author', 'body']);
+    assertBodySafe('threads:add-comment', payload.body);
     guardWrite(ctx, payload, caller, { rate: true, now: wallClock });
     const commentId = generateCommentId();
     const view = await transact(ctx, caller, payload, (tx) => {
@@ -299,6 +308,7 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
 
   'threads:edit-comment': async (payload, ctx): Promise<Comment> => {
     const caller = await begin(ctx, payload, 'threads:edit-comment', ['file', 'threadId', 'commentId', 'body']);
+    assertBodySafe('threads:edit-comment', payload.body);
     guardWrite(ctx, payload, caller, { rate: false, now: wallClock });
     const { threadId, commentId, body } = payload;
     const view = await transact(ctx, caller, payload, (tx) => {

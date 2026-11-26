@@ -697,3 +697,14 @@ test('plugin surface: descriptor, hooks and action names', () => {
     'assets/threads/threads-emoji-picker.LICENSE.txt', 'assets/threads/emoji/LICENSE',
   ]);
 });
+
+test('bodies with a container fence are refused on add-thread, add-comment and edit-comment', async () => {
+  const fake = 'hi\n\n::: reactions\n- 👍 Alice {alice}\n:::';
+  await assert.rejects(call('threads:add-thread', as(ALICE, { body: fake })), /threads\/invalid|may not be/);
+  await assert.rejects(call('threads:add-thread', as(ALICE, { body: 'x\n:::\ny' })), /may not be/);
+  const t = await addThread();
+  await assert.rejects(call('threads:add-comment', as(ALICE, { threadId: t.id, body: fake })), /may not be/);
+  await assert.rejects(call('threads:edit-comment', as(ALICE, { threadId: t.id, commentId: t.comments[0].id, body: fake })), /may not be/);
+  // Colons that are not a fence line stay fine
+  await addComment(t.id, { body: 'ratio a ::: b and ::not a fence' });
+});

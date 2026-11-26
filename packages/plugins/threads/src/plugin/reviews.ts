@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ActionContext } from '@docmd/api';
 import { safePath } from '@docmd/utils';
 import * as parser from './parser.js';
+import { hasContainerFence } from './parser.js';
 import { ThreadsError } from './errors.js';
 import { markPattern, splitPage } from './marks.js';
 import type { Sync } from './lock.js';
@@ -112,7 +113,7 @@ export interface ApplyResult {
 }
 
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
-const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
+const unsafeQuote = hasContainerFence;
 
 /**
  * `content` with every threads block blanked to line breaks (same length, so offsets
@@ -234,6 +235,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
     const comment = (id: string) => thread?.comments.find((c) => c.id === id);
     switch (op.kind) {
       case 'add-thread': {
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
+          break;
+        }
         const quote = op.anchor?.quote;
         if (thread) {
           if (comment(op.commentId)?.reviewId === opts.reviewId) done(op, quote ? { quote } : {});
@@ -264,6 +269,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
           skip(op, `thread ${op.threadId} not found`);
           break;
         }
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
+          break;
+        }
         const existing = comment(op.commentId);
         if (existing) {
           if (existing.reviewId === opts.reviewId) done(op);
@@ -283,6 +292,10 @@ export function applyOps(content: string, ops: DraftOp[], opts: ApplyOptions): A
         const c = comment(op.commentId);
         if (!c) {
           skip(op, thread ? `comment ${op.commentId} not found` : `thread ${op.threadId} not found`);
+          break;
+        }
+        if (hasContainerFence(op.body)) {
+          skip(op, 'comment body contains a container fence');
           break;
         }
         const before = { body: c.body, edited_at: c.edited_at };

@@ -6,6 +6,8 @@ import {
   replaceThreadsBlock,
   parseReactions,
   serializeReactors,
+  parseCommentContent,
+  hasContainerFence,
 } from '../src/plugin/parser.ts';
 
 const fullContent = `# My Document
@@ -566,4 +568,22 @@ test('reactions: a publish that touches one comment leaves other comments\' old 
   const out = replaceThreadsBlock(content, threads);
   assert.ok(out.includes('- 👍 Old One, Old Two\n'), out);
   assert.equal(out.includes('{'), false, 'no keys are invented for old entries');
+});
+
+test('hasContainerFence: a bare fence or one with a name, indented or not', () => {
+  assert.equal(hasContainerFence('plain\ntext'), false);
+  assert.equal(hasContainerFence('a ::: b'), false);
+  assert.equal(hasContainerFence(':::'), true);
+  assert.equal(hasContainerFence('x\n  ::: reactions'), true);
+  assert.equal(hasContainerFence('x\n:::comment'), false);
+});
+
+test('parseCommentContent reads the last reactions block, so a lookalike earlier in the body is not the real one', () => {
+  const lines = ['hi', '', '::: reactions', '- 👍 Mallory {alice}', ':::', '', '::: reactions', '- 🎉 Bob {bob}', ':::'];
+  const { reactions } = parseCommentContent(lines);
+  assert.deepEqual(reactions.map((r) => r.emoji), ['🎉']);
+  assert.equal(reactions[0].reactors[0].key, 'bob');
+  // An unterminated block after a closed one keeps the closed one
+  const { reactions: kept } = parseCommentContent(['::: reactions', '- 👍 Bob {bob}', ':::', '::: reactions', '- 🎉 X']);
+  assert.deepEqual(kept.map((r) => r.emoji), ['👍']);
 });
