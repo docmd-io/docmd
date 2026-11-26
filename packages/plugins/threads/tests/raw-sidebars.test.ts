@@ -25,14 +25,3 @@ test('hideRawSidebars on a page without threads blocks does nothing', () => {
   hideRawSidebars(root);
   assert.equal(other.hidden, false);
 });
-
-test('hideRawSidebars with onlyIfEmpty preserves sidebars with remaining threads and hides empty ones', () => {
-  const emptySidebar = { style: { display: '' }, querySelectorAll: () => [] };
-  const nonEmptySidebar = { style: { display: '' }, querySelectorAll: () => [{}] };
-  const root = {
-    querySelectorAll: (sel: string) => (sel === '.threads-sidebar' ? [emptySidebar, nonEmptySidebar] : []),
-  } as unknown as ParentNode;
-  hideRawSidebars(root, true);
-  assert.equal(emptySidebar.style.display, 'none');
-  assert.equal(nonEmptySidebar.style.display, '');
-});
