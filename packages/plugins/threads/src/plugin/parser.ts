@@ -222,8 +222,10 @@ function splitReactors(text: string): string[] {
 }
 
 /**
- * One reactor: `name {key}`. A trailing unescaped `{...}` is the key; an entry without one is an
- * old name-only entry (key null). An empty name or key leaves the whole entry as a name.
+ * One reactor: `name {key}`, the shape the serializer writes: a name with no unescaped brace, one space, then a
+ * key with no whitespace and no unescaped brace in `{}`. Anything else, including an old name-only entry that
+ * happens to end in braces (`Team {QA lead}`, `A {x} {y}`, `Team{QA}`), is a name with key null.
+ * An empty name or key leaves the whole entry as a name.
  */
 function parseReactor(entry: string): Reactor | null {
   const raw = entry.trim();
@@ -236,14 +238,22 @@ function parseReactor(entry: string): Reactor | null {
         break;
       }
     }
-    if (open >= 0) {
-      const name = unescapeReactorText(raw.slice(0, open).trim());
-      const key = unescapeReactorText(raw.slice(open + 1, -1));
-      if (name && key) return { key, name };
+    if (open > 0 && /\s/.test(raw[open - 1]!)) {
+      const rawName = raw.slice(0, open).trim();
+      const rawKey = raw.slice(open + 1, -1);
+      if (rawName && rawKey && !/\s/.test(rawKey) && !hasUnescapedBrace(rawName) && !hasUnescapedBrace(rawKey)) {
+        return { key: unescapeReactorText(rawKey), name: unescapeReactorText(rawName) };
+      }
     }
   }
   return { key: null, name: unescapeReactorText(raw) };
 }
+
+/** True when `text` holds a `{` or `}` that is not escaped. */
+const hasUnescapedBrace = (text: string): boolean => {
+  for (let i = 0; i < text.length; i++) if ((text[i] === '{' || text[i] === '}') && unescapedAt(text, i)) return true;
+  return false;
+};
 
 /**
  * Parse reactions from content lines inside a ::: reactions block.

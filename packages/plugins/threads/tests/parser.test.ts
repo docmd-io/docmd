@@ -511,6 +511,17 @@ test('reactions line: escaped commas, braces and backslashes in names and keys',
   assert.deepEqual(reactionLine('DOMAIN\\user'), [{ key: null, name: 'DOMAIN\\user' }]);
 });
 
+test('reactions line: an old name-only entry that ends in braces is a name unless it has the serializer shape', () => {
+  // whitespace in the braces, braces earlier in the name, or no space before the brace: not a key
+  assert.deepEqual(reactionLine('Team {QA lead}'), [{ key: null, name: 'Team {QA lead}' }]);
+  assert.deepEqual(reactionLine('Ops {x} {y z}'), [{ key: null, name: 'Ops {x} {y z}' }]);
+  assert.deepEqual(reactionLine('Team{QA}'), [{ key: null, name: 'Team{QA}' }]);
+  assert.deepEqual(reactionLine('Team { QA }, Bob {bob}'), [{ key: null, name: 'Team { QA }' }, { key: 'bob', name: 'Bob' }]);
+  // the serializer's own output still reads back as a key
+  assert.deepEqual(reactionLine('Team {QA}'), [{ key: 'QA', name: 'Team' }]);
+  assert.deepEqual(reactionLine(serializeReactors([{ key: 'k1', name: 'Odd {name}' }])), [{ key: 'k1', name: 'Odd {name}' }]);
+});
+
 test('reactions line: an empty key or name is not a key', () => {
   assert.deepEqual(reactionLine('Alice {}'), [{ key: null, name: 'Alice {}' }]);
   assert.deepEqual(reactionLine('{solo}'), [{ key: null, name: '{solo}' }]);
