@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { t, setThreadsStrings } from '../src/client/lib/i18n';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const LANGS = ['en', 'hi', 'ko', 'zh'];
+const LANGS = ['en', 'de', 'es', 'hi', 'ko', 'zh'];
 const load = (lang: string): Record<string, string> => JSON.parse(fs.readFileSync(path.join(here, '..', 'i18n', `${lang}.json`), 'utf8'));
 
 const g = globalThis as Record<string, unknown>;
@@ -70,7 +70,7 @@ test('every language file has exactly the keys of en.json, none empty', () => {
   }
 });
 
-test('the strings the primitives use exist in all four languages', () => {
+test('the strings the primitives use exist in every language', () => {
   for (const lang of LANGS) {
     const dict = load(lang);
     for (const key of ['couldNotSave', 'addComment', 'cmdEnterSubmit', 'cancel', 'submit', 'save', 'saving', 'limitChars', 'rateLimited']) {
@@ -79,7 +79,7 @@ test('the strings the primitives use exist in all four languages', () => {
   }
 });
 
-test('the strings the comment and reactions components use exist in all four languages', () => {
+test('the strings the comment and reactions components use exist in every language', () => {
   for (const lang of LANGS) {
     const dict = load(lang);
     for (const key of ['moreEmoji', 'addReaction', 'chooseReaction', 'reactionNotAllowed', 'editComment', 'edited', 'unpublished', 'replyingTo', 'emojiPickerFailed', 'reply', 'replyToComment', 'deleteComment', 'save']) {
@@ -89,11 +89,19 @@ test('the strings the comment and reactions components use exist in all four lan
   }
 });
 
-test('the strings the thread card and panel use exist in all four languages', () => {
+test('the strings the thread card and panel use exist in every language', () => {
   for (const lang of LANGS) {
     const dict = load(lang);
     for (const key of ['identityRequired', 'resolve', 'unresolve', 'emptyHint', 'sidebar', 'openInSidebar', 'jumpToHighlight', 'resolved', 'noThreads', 'newComment', 'collapseThread', 'expandThread', 'openThreadsPanel', 'closePanel', 'openCount', 'orphaned', 'unpublished']) {
       assert.ok(dict[key], `${lang}.${key}`);
     }
+  }
+});
+
+test('every translation keeps the placeholders of the English string', () => {
+  const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join(',');
+  const en = load('en');
+  for (const lang of LANGS) {
+    for (const [k, v] of Object.entries(load(lang))) assert.equal(placeholders(v), placeholders(en[k]!), `${lang}.${k} placeholders`);
   }
 });
