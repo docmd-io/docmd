@@ -82,7 +82,8 @@ export class ThreadsApp extends LitElement {
   /** Settles once `whoami` has answered; nothing that renders buttons or may prompt for a name runs before. */
   private identityReady: Promise<void> = Promise.resolve();
   private identityKnown = false;
-  private pendingMouseUp: MouseEvent | null = null;
+  /** The latest mouse-up seen before the identity was known: whether it landed in one of our components (its path is empty once replayed). */
+  private pendingMouseUp: { inThreads: boolean } | null = null;
   private pendingAnchor: Anchor | null = null;
   private pendingBlockEl: HTMLElement | null = null;
   private deleteTarget: { type: 'thread' | 'comment'; id: string; threadId?: string } | null = null;
@@ -258,24 +259,29 @@ export class ThreadsApp extends LitElement {
   // ─── Selection popover ────────────────────────────────────────────
 
   private handleMouseUp = (e: MouseEvent): void => {
+    // A mouse-up inside one of our components (a card's text, an editor, the selection button) is not a
+    // selection of the page: an inline card sits in the content area and would become the "block".
+    // The path is read now: a replayed event no longer has one.
+    this.processMouseUp(pathHasThreadsElement(e.composedPath() as Array<{ tagName?: string }>));
+  };
+
+  private processMouseUp(inThreads: boolean): void {
     // Starting a thread may ask for the caller's name: not before we know whether the server names them.
     // The selection outlives the click, so handle it once the answer is in instead of dropping it.
     if (!this.identityKnown) {
       // Only the latest selection matters: keep one pending event, not one replay per click.
       const first = this.pendingMouseUp === null;
-      this.pendingMouseUp = e;
+      this.pendingMouseUp = { inThreads };
       if (first) {
         void this.identityReady.then(() => {
           const latest = this.pendingMouseUp;
           this.pendingMouseUp = null;
-          if (latest && this.isConnected) this.handleMouseUp(latest);
+          if (latest && this.isConnected) this.processMouseUp(latest.inThreads);
         });
       }
       return;
     }
-    // A mouse-up inside one of our components (a card's text, an editor, the selection button) is not a
-    // selection of the page: an inline card sits in the content area and would become the "block".
-    if (pathHasThreadsElement(e.composedPath() as Array<{ tagName?: string }>)) return;
+    if (inThreads) return;
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -306,7 +312,7 @@ export class ThreadsApp extends LitElement {
     this.pendingAnchor = anchor;
     this.pendingBlockEl = blockEl;
     this.showSelectionButton(pos.x, pos.y);
-  };
+  }
 
   private handleOutsidePopoverClick = (e: MouseEvent): void => {
     const button = this.selectionButton();
