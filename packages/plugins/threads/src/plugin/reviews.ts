@@ -88,10 +88,6 @@ export interface ApplyResult {
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
 const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
 
-/** Pattern for `==quote=={id}`; the quote may span lines. Group 1 is the quote. Without an id it matches any thread's mark. */
-const markPattern = (threadId?: string, flags = '') =>
-  new RegExp(`==((?:(?!==)[\\s\\S])+)==\\{${threadId === undefined ? '[^}]+' : escapeRe(threadId)}\\}`, flags);
-
 /**
  * `content` with every threads block blanked to line breaks (same length, so offsets
  * still match), and the ranges those blocks cover. Blank lines end any code span or
