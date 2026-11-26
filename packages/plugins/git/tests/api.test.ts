@@ -247,4 +247,19 @@ describe('createGitClient local repo operations', () => {
     assert.equal(log[0].email, 'alice@example.com');
     assert.equal(log[0].message, 'Initial commit');
   });
+
+  test('validates remotes and branches against command line injection', async () => {
+    const client = createGitClient({ cwd: tmpDir });
+    await assert.rejects(async () => {
+      await client.fetch('--upload-pack=touch /tmp/bad', 'main');
+    }, /Invalid git remote/);
+
+    await assert.rejects(async () => {
+      await client.fetch('origin', '-b');
+    }, /Invalid git branch/);
+
+    await assert.rejects(async () => {
+      await client.push('origin', '--force-with-lease');
+    }, /Invalid git branch/);
+  });
 });

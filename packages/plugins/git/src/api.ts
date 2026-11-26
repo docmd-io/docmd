@@ -184,8 +184,14 @@ export function parseRemoteUrl(rawUrl: string): ParsedRemote {
     pathPart = trimmed;
   }
 
-  // Strip trailing slashes and .git suffix
-  const cleanPath = pathPart.replace(/\/+$/, '').replace(/\.git$/i, '');
+  // Strip trailing slashes and .git suffix safely without polynomial backtracking
+  let cleanPath = pathPart;
+  while (cleanPath.endsWith('/')) {
+    cleanPath = cleanPath.slice(0, -1);
+  }
+  if (cleanPath.toLowerCase().endsWith('.git')) {
+    cleanPath = cleanPath.slice(0, -4);
+  }
   const segments = cleanPath.split('/').filter(Boolean);
 
   let provider: GitProvider = 'generic';
@@ -235,7 +241,10 @@ export function buildRemoteUrls(
 ): GitRemoteUrls {
   const remote = typeof remoteInput === 'string' ? parseRemoteUrl(remoteInput) : remoteInput;
   const branch = options.branch || 'main';
-  const cleanFile = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  let cleanFile = filePath.replace(/\\/g, '/');
+  while (cleanFile.startsWith('/')) {
+    cleanFile = cleanFile.slice(1);
+  }
   const baseWebUrl = `https://${remote.hostname}/${remote.fullPath}`;
 
   let editUrl = '';
@@ -387,6 +396,44 @@ export function getAuthArgs(
   return ['-c', 'credential.helper=', '-c', `credential.helper=${createCredentialHelper(tokenEnvVar, username)}`];
 }
 
+/**
+ * Validate and sanitize a git remote (name or URL) against argument injection.
+ */
+export function sanitizeRemote(remote: string): string {
+  if (typeof remote !== 'string') {
+    throw new TypeError('Expected git remote to be a string');
+  }
+  const trimmed = remote.trim();
+  if (!trimmed || trimmed.startsWith('-')) {
+    throw new Error(`Invalid git remote: "${remote}" cannot start with a dash or be empty`);
+  }
+  if (trimmed.startsWith('--upload-pack') || trimmed.startsWith('--receive-pack')) {
+    throw new Error(`Forbidden git remote argument: "${remote}"`);
+  }
+  if (trimmed.includes('://') || trimmed.startsWith('git@')) {
+    if (!/^(https?|git|ssh):\/\/[^\s"';]+$/i.test(trimmed) && !/^git@[^\s"';]+:[^\s"';]+$/i.test(trimmed)) {
+      throw new Error(`Invalid git remote URL: "${remote}"`);
+    }
+  } else if (!/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
+    throw new Error(`Invalid git remote name: "${remote}"`);
+  }
+  return trimmed;
+}
+
+/**
+ * Validate and sanitize a git branch name against argument injection.
+ */
+export function sanitizeBranch(branch: string): string {
+  if (typeof branch !== 'string') {
+    throw new TypeError('Expected git branch to be a string');
+  }
+  const trimmed = branch.trim();
+  if (!trimmed || trimmed.startsWith('-') || !/^[a-zA-Z0-9._/-]+$/.test(trimmed)) {
+    throw new Error(`Invalid git branch name: "${branch}"`);
+  }
+  return trimmed;
+}
+
 // ---------------------------------------------------------------------------
 // Git Client Implementation
 // ---------------------------------------------------------------------------
@@ -397,6 +444,14 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
   const tokenEnvVar = options.tokenEnvVar || options.auth?.envTokenVar || 'DOCMD_GIT_TOKEN';
 
   const exec = async (args: string[], extraEnv: NodeJS.ProcessEnv = {}): Promise<{ stdout: string; stderr: string }> => {
+    for (const arg of args) {
+      if (typeof arg !== 'string') {
+        throw new TypeError('Git argument must be a string');
+      }
+      if (arg.startsWith('--upload-pack') || arg.startsWith('--receive-pack')) {
+        throw new Error(`Forbidden git argument: ${arg}`);
+      }
+    }
     return runExec('git', args, {
       cwd,
       env: {
@@ -521,7 +576,8 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
     },
 
     async getRemoteUrl(remote: string = 'origin'): Promise<string> {
-      const { stdout } = await exec(['remote', 'get-url', remote]);
+      const safeRemote = sanitizeRemote(remote);
+      const { stdout } = await exec(['remote', 'get-url', safeRemote]);
       return stdout.trim();
     },
 
@@ -535,18 +591,22 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
     },
 
     async fetch(remote: string = 'origin', branch: string = 'main'): Promise<void> {
+      const safeRemote = sanitizeRemote(remote);
+      const safeBranch = sanitizeBranch(branch);
       const authArgs = getAuthCLIArgs();
-      await exec([...authArgs, 'fetch', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`]);
+      await exec([...authArgs, 'fetch', safeRemote, `+refs/heads/${safeBranch}:refs/remotes/${safeRemote}/${safeBranch}`]);
     },
 
     async pull(remote: string = 'origin', branch: string = 'main', pullOpts: PullOptions = {}): Promise<void> {
-      await this.fetch(remote, branch);
+      const safeRemote = sanitizeRemote(remote);
+      const safeBranch = sanitizeBranch(branch);
+      await this.fetch(safeRemote, safeBranch);
       if (pullOpts.resetHard) {
-        await exec(['reset', '--hard', `${remote}/${branch}`]);
+        await exec(['reset', '--hard', `${safeRemote}/${safeBranch}`]);
       } else if (pullOpts.rebase) {
-        await exec(['rebase', `${remote}/${branch}`]);
+        await exec(['rebase', `${safeRemote}/${safeBranch}`]);
       } else {
-        await exec(['merge', '--ff-only', `${remote}/${branch}`]);
+        await exec(['merge', '--ff-only', `${safeRemote}/${safeBranch}`]);
       }
     },
 
@@ -578,8 +638,10 @@ export function createGitClient(options: GitClientOptions = {}): GitClient {
     },
 
     async push(remote: string = 'origin', branch: string = 'main', pushOpts: PushOptions = {}): Promise<void> {
+      const safeRemote = sanitizeRemote(remote);
+      const safeBranch = sanitizeBranch(branch);
       const authArgs = getAuthCLIArgs();
-      const args = [...authArgs, 'push', remote, `HEAD:refs/heads/${branch}`];
+      const args = [...authArgs, 'push', safeRemote, `HEAD:refs/heads/${safeBranch}`];
       if (pushOpts.force) args.push('--force');
       if (pushOpts.setUpstream) args.push('-u');
 
