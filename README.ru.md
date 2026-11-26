@@ -40,7 +40,7 @@
   <br/>
 
   <a href="https://docmd.io">
-    <img width="820" alt="Документация docmd — превью в светлом и темном режимах" src="https://raw.githubusercontent.com/docmd-io/docmd/refs/heads/main/assets/docmd-cover.webp" />
+    <img width="820" alt="Документация docmd — превью в светлом и темном режимах" src="https://raw.githubusercontent.com/docmd-io/docmd/refs/heads/main/assets/docmd-cover-0.10.0.webp" />
   </a>
 
 </div>
