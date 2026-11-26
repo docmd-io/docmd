@@ -39,7 +39,7 @@ const borderOf = (card: Locator): Promise<string> =>
 const strongOf = (page: import("@playwright/test").Page, name: "blue" | "green" | "orange", faded: boolean): Promise<string> =>
   resolved(page, faded ? `color-mix(in oklab, var(--threads-hl-${name}-strong) 50%, transparent)` : `var(--threads-hl-${name}-strong)`);
 
-/** The mark, the inline card and the panel's card of a thread all wear `name`, and the card's border is its strong token (half faded once resolved). */
+/** The mark, the inline card and the panel's card of a thread all wear `name`, and the inline card's edge is its strong token (half faded once resolved) and the panel's card stays neutral. */
 async function expectColour(page: import("@playwright/test").Page, id: string, name: "blue" | "green" | "orange", faded = false): Promise<void> {
   const strong = await strongOf(page, name, faded);
   const inline = inlineCard(page, id);
@@ -52,7 +52,8 @@ async function expectColour(page: import("@playwright/test").Page, id: string, n
   const card = panelCard(page, id);
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("color", name);
-  expect(await borderOf(card)).toBe(strong);
+  // The panel's card has no coloured edge: it is neutral all round
+  expect(await borderOf(card)).toBe(await resolved(page, "var(--threads-border)"));
 }
 
 test("a published open thread is blue, in the text, inline and in the sidebar", async ({ page }) => {

@@ -49,7 +49,10 @@ export class ThreadsThread extends LitElement {
     :host { display: block; }
     :host([variant='inline']) { max-width: 680px; margin: 16px 0 20px; }
     :host([variant='panel']) { margin: 0 0 12px; }
+    :host([variant='panel']) .card { border-left: 1px solid var(--_border); }
 
+    /* The in-page card has a thin edge in the thread's colour; the panel's cards are neutral all round
+       (the panel lists every thread, so the colour there would only be noise). */
     .card {
       box-sizing: border-box;
       border: 1px solid var(--_border);
@@ -59,21 +62,21 @@ export class ThreadsThread extends LitElement {
       box-shadow: var(--_shadow);
       overflow: hidden;
     }
-    :host([color='yellow']) .card { border-left-color: var(--_hl-yellow-strong); }
-    :host([color='blue']) .card { border-left-color: var(--_hl-blue-strong); }
-    :host([color='green']) .card { border-left-color: var(--_hl-green-strong); }
-    :host([color='pink']) .card { border-left-color: var(--_hl-pink-strong); }
-    :host([color='purple']) .card { border-left-color: var(--_hl-purple-strong); }
-    :host([color='orange']) .card { border-left-color: var(--_hl-orange-strong); }
+    :host([variant='inline'][color='yellow']) .card { border-left-color: var(--_hl-yellow-strong); }
+    :host([variant='inline'][color='blue']) .card { border-left-color: var(--_hl-blue-strong); }
+    :host([variant='inline'][color='green']) .card { border-left-color: var(--_hl-green-strong); }
+    :host([variant='inline'][color='pink']) .card { border-left-color: var(--_hl-pink-strong); }
+    :host([variant='inline'][color='purple']) .card { border-left-color: var(--_hl-purple-strong); }
+    :host([variant='inline'][color='orange']) .card { border-left-color: var(--_hl-orange-strong); }
 
     /* Resolved: the colour fades and the card sinks to the muted surface; text keeps full contrast. */
     :host([resolved]) .card { background: var(--_surface-muted); }
-    :host([resolved][color='yellow']) .card { border-left-color: color-mix(in oklab, var(--_hl-yellow-strong) 50%, transparent); }
-    :host([resolved][color='blue']) .card { border-left-color: color-mix(in oklab, var(--_hl-blue-strong) 50%, transparent); }
-    :host([resolved][color='green']) .card { border-left-color: color-mix(in oklab, var(--_hl-green-strong) 50%, transparent); }
-    :host([resolved][color='pink']) .card { border-left-color: color-mix(in oklab, var(--_hl-pink-strong) 50%, transparent); }
-    :host([resolved][color='purple']) .card { border-left-color: color-mix(in oklab, var(--_hl-purple-strong) 50%, transparent); }
-    :host([resolved][color='orange']) .card { border-left-color: color-mix(in oklab, var(--_hl-orange-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='yellow']) .card { border-left-color: color-mix(in oklab, var(--_hl-yellow-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='blue']) .card { border-left-color: color-mix(in oklab, var(--_hl-blue-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='green']) .card { border-left-color: color-mix(in oklab, var(--_hl-green-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='pink']) .card { border-left-color: color-mix(in oklab, var(--_hl-pink-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='purple']) .card { border-left-color: color-mix(in oklab, var(--_hl-purple-strong) 50%, transparent); }
+    :host([variant='inline'][resolved][color='orange']) .card { border-left-color: color-mix(in oklab, var(--_hl-orange-strong) 50%, transparent); }
 
     /* Orphans lost their mark: a dashed edge says so. */
     :host([orphaned]) .card { border-style: dashed; border-color: var(--_border-strong); }
@@ -124,7 +127,7 @@ export class ThreadsThread extends LitElement {
 
     .comments { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
     .comments[hidden] { display: none; }
-    .replies { margin-left: 14px; padding-left: 14px; border-left: 2px solid var(--_border); display: flex; flex-direction: column; gap: 12px; }
+    .replies { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--_border); display: flex; flex-direction: column; gap: 8px; }
 
     .footer {
       display: flex;
