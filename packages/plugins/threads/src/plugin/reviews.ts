@@ -5,14 +5,14 @@ import type { ActionContext } from '@docmd/api';
 import { safePath } from '@docmd/utils';
 import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
+import { markPattern, splitPage } from './marks.js';
 import type { Lock } from './lock.js';
 import type { DraftStore } from './drafts.js';
-import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, Thread } from '../types.js';
+import type { Caller, Comment, DraftOp, ManifestOp, PublishResult, ReviewManifest, ReviewSummary, Thread } from '../types.js';
 
 const TITLE_MAX = 120;
 
 const day = (iso: string) => iso.slice(0, 10);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 let tmpSeq = 0;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,9 @@ export function pageTitleOf(content: string): string | null {
 }
 
 const oneLine = (s: string, max: number) => s.replace(/[\r\n]+/g, ' ').trim().slice(0, max);
+
+/** A review title from the commenter: one line, at most 120 characters; empty means none. */
+export const cleanTitle = (title: string): string | null => oneLine(title, TITLE_MAX) || null;
 
 /**
  * `Comments by <name>: <N> comment(s) on <first page title>[, +K page(s)]`.
@@ -84,10 +87,6 @@ export interface ApplyResult {
 
 /** A quote line that parses as a container fence would corrupt the threads block on re-parse. */
 const unsafeQuote = (quote: string) => quote.split('\n').some((l) => l.trim() === ':::' || l.trim().startsWith('::: '));
-
-/** Pattern for `==quote=={id}`; the quote may span lines. Group 1 is the quote. Without an id it matches any thread's mark. */
-const markPattern = (threadId?: string, flags = '') =>
-  new RegExp(`==((?:(?!==)[\\s\\S])+)==\\{${threadId === undefined ? '[^}]+' : escapeRe(threadId)}\\}`, flags);
 
 /**
  * `content` with every threads block blanked to line breaks (same length, so offsets
@@ -494,6 +493,43 @@ export async function readManifest(ctx: ActionContext, id: string): Promise<Revi
   }
 }
 
+/** Every readable v1 manifest under the docs root, in no particular order; none when the directory is missing. */
+export async function listManifests(ctx: ActionContext): Promise<ReviewManifest[]> {
+  let names: string[];
+  try {
+    names = await fs.promises.readdir(safePath(reviewsDir(ctx), '.'));
+  } catch (e) {
+    if (isNotFound(e)) return [];
+    throw e;
+  }
+  const found = await Promise.all(
+    names.filter((n) => n.endsWith('.json')).map((n) => readManifest(ctx, n.slice(0, -'.json'.length)).catch(() => null)),
+  );
+  // A manifest the listing cannot project (no times or title, a non-object op) is left out like a corrupt file.
+  return found.filter(
+    (m): m is ReviewManifest =>
+      m !== null &&
+      typeof m.publishedAt === 'string' &&
+      typeof m.title === 'string' &&
+      m.ops.every((o) => o !== null && typeof o === 'object'),
+  );
+}
+
+/** Listing order: newest `publishedAt` first, equal times by id so the order never depends on the directory. */
+export const newestFirst = (a: Pick<ReviewManifest, 'id' | 'publishedAt'>, b: Pick<ReviewManifest, 'id' | 'publishedAt'>): number =>
+  b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id);
+
+/** The listing projection of a manifest. */
+export const summarize = (m: ReviewManifest): ReviewSummary => ({
+  id: m.id,
+  authorKey: m.authorKey,
+  authorName: m.authorName,
+  title: m.title,
+  publishedAt: m.publishedAt,
+  state: m.state,
+  ops: m.ops.map((o) => ({ file: o.file, threadId: o.threadId, quote: o.quote ?? null, pageTitle: o.pageTitle ?? null })),
+});
+
 // ---------------------------------------------------------------------------
 // Publish
 // ---------------------------------------------------------------------------
@@ -624,7 +660,7 @@ export async function publish(
       id: reviewId,
       authorKey: caller.key,
       authorName: caller.name,
-      title: defaultTitle(caller.name, applied.length ? applied : ops, titles),
+      title: journal.review.title || defaultTitle(caller.name, applied.length ? applied : ops, titles),
       state: 'published',
       publishedAt: new Date(now()).toISOString(),
       ops: applied,
@@ -636,6 +672,7 @@ export async function publish(
     await store.transact(caller.key, (j) => {
       j.ops = j.ops.filter((o) => !published.has(o.opId));
       j.review.id = newId('r-');
+      j.review.title = null;
     });
     return { reviewId, skipped };
   });
@@ -662,6 +699,7 @@ export async function finishEarlierPublish(
     if (j.review.id !== manifest.id) return;
     j.ops = j.ops.filter((o) => !done.has(o.opId));
     j.review.id = newId('r-');
+    j.review.title = null;
   });
 }
 

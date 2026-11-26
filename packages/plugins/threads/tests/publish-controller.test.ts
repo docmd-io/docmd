@@ -24,6 +24,7 @@ const journal = (ops: number, mode: DraftMode = 'collect', updatedAt = new Date(
 // Fakes, built once; `beforeEach` resets what a test steers.
 const s = {
   journal: null as Journal | null,
+  orphanedMine: 0,
   whoamiError: null as unknown,
   setModeError: null as unknown,
   publishError: null as unknown,
@@ -36,7 +37,7 @@ const s = {
 const api = {
   async whoami(): Promise<WhoAmI> {
     s.calls.push('whoami');
-    const answer = { journal: s.journal };
+    const answer = { identity: null, journal: s.journal, orphanedMine: s.orphanedMine };
     const gate = s.whoamiGates.shift();
     if (gate) await gate;
     if (s.whoamiError) throw s.whoamiError;
@@ -86,7 +87,7 @@ function build(autoPublish = true) {
 }
 
 beforeEach(() => {
-  Object.assign(s, { journal: null, whoamiError: null, setModeError: null, publishError: null, skipped: 0, gate: null, whoamiGates: [], setModeGate: null, calls: [] });
+  Object.assign(s, { journal: null, orphanedMine: 0, whoamiError: null, setModeError: null, publishError: null, skipped: 0, gate: null, whoamiGates: [], setModeGate: null, calls: [] });
   clock = T0;
   scheduled.clear();
 });
@@ -116,6 +117,17 @@ test('view.reviewId and pendingCount follow the journal after a refresh, and are
   s.whoamiError = new Error('socket closed');
   await c.refresh();
   assert.deepEqual([c.view().reviewId, c.view().pendingCount], [null, 0]);
+});
+
+test('view.orphanedMine follows the latest whoami, and is 0 before one and after a failed one', async () => {
+  const { c } = build();
+  assert.deepEqual([c.view().orphanedMine, c.view().state.orphanLine], [0, null]);
+  s.orphanedMine = 2;
+  await c.refresh();
+  assert.deepEqual([c.view().orphanedMine, c.view().state.orphanLine], [2, '2 of your comments lost their anchor']);
+  s.whoamiError = new Error('socket closed');
+  await c.refresh();
+  assert.deepEqual([c.view().orphanedMine, c.view().state.orphanLine], [0, null]);
 });
 
 test('refresh: a rejected whoami shows …, disables Publish and shows the error text or the load-failed line', async () => {

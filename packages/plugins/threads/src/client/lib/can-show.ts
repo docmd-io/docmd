@@ -3,7 +3,7 @@
  * (src/plugin/permissions.ts); the server stays the authority and still answers
  * `threads/forbidden`. DOM-free.
  */
-export type ShowAction = 'delete-comment' | 'delete-thread' | 'resolve-thread';
+export type ShowAction = 'delete-comment' | 'delete-thread' | 'resolve-thread' | 'discard-review';
 
 export interface ShowContext {
   callerKey: string | null;
@@ -17,6 +17,8 @@ export interface ShowTarget {
   authorKey?: string | null;
   authorKeys?: Array<string | null | undefined>;
   threadAuthor?: string | null;
+  /** discard-review: the key on the review's manifest; null if it has none. */
+  reviewAuthor?: string | null;
   /** An op in the caller's own journal: always theirs. */
   drafted?: boolean;
 }
@@ -32,6 +34,8 @@ export function canShow(action: ShowAction, ctx: ShowContext, target: ShowTarget
       return (target.authorKeys ?? []).every(mine);
     case 'resolve-thread':
       return ctx.resolveRule === 'anyone' || mine(target.threadAuthor);
+    case 'discard-review':
+      return mine(target.reviewAuthor);
   }
 }
 

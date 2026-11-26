@@ -4,13 +4,14 @@ import * as parser from './parser.js';
 import { ThreadsError } from './errors.js';
 import { createDraftStore, makeOp, type DraftStore } from './drafts.js';
 import { overlay } from './overlay.js';
+import { countOrphanedBy, fsOrphanScanDeps, markOrphans } from './orphans.js';
 import { lockFor } from './lock.js';
 import { getOptions } from './config.js';
-import { discard, docsRootOf, finishEarlierPublish, publish, readManifest } from './reviews.js';
+import { cleanTitle, discard, docsRootOf, finishEarlierPublish, listManifests, newestFirst, publish, readManifest, summarize } from './reviews.js';
 import { readAuthors, updateAuthors } from './authors.js';
 import { claimedAuthorKey, findCaller, headerProfile, payloadProfile, profileFromPayload, resolveCaller } from './identity.js';
 import { assertCan } from './permissions.js';
-import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, Anchor, DraftMode, WhoAmI } from '../types.js';
+import type { AuthorsMap, Thread, Comment, Reaction, Caller, DraftOp, Journal, NewDraftOp, PublishResult, ReviewSummary, Anchor, DraftMode, WhoAmI } from '../types.js';
 
 /** Upsert an author entry. Updates name/avatarUrl if provided. */
 async function upsertAuthor(ctx: ActionContext, authorKey: string, name: string, avatarUrl?: string): Promise<void> {
@@ -186,7 +187,8 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
   /** Published threads plus the caller's own drafts. */
   'threads:get-threads': async (payload, ctx): Promise<Thread[]> => {
     requireFields('threads:get-threads', payload, ['file']);
-    const published = parser.parseThreadsFromContent(await ctx.readFile(payload.file));
+    const content = await ctx.readFile(payload.file);
+    const published = markOrphans(content, parser.parseThreadsFromContent(content));
     const caller = await findCaller(ctx, payload);
     if (!caller) return published;
     // After a publish whose journal reset failed, the journal still holds ops the file already has.
@@ -203,11 +205,15 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
    */
   'threads:whoami': async (payload, ctx): Promise<WhoAmI> => {
     const identity = await findCaller(ctx, payload);
-    if (!identity) return { identity: null, journal: null };
+    if (!identity) return { identity: null, journal: null, orphanedMine: 0 };
     const store = getStore(ctx);
     // After a publish whose journal reset failed, the journal still holds ops the file already has.
     await finishEarlierPublish(ctx, store, identity.key);
-    return { identity, journal: await store.load(identity.key) };
+    const journal = await store.load(identity.key);
+    // A secondary counter: an unreadable file or directory must not cost the caller identity and journal.
+    const docsRoot = docsRootOf(ctx);
+    const orphanedMine = await countOrphanedBy(docsRoot, identity.key, fsOrphanScanDeps(docsRoot)).catch(() => 0);
+    return { identity, journal, orphanedMine };
   },
 
   'threads:set-mode': async (payload, ctx): Promise<Journal> => {
@@ -217,6 +223,24 @@ const handlers: Record<string, (payload: Payload, ctx: ActionContext) => Promise
       throw new ThreadsError('invalid', "threads:set-mode: mode must be 'auto' or 'collect'");
     }
     return getStore(ctx).setMode((caller ?? (await resolveCaller(ctx, payload))).key, payload.mode);
+  },
+
+  /** Every published or discarded review, newest first. A read: needs no identity. */
+  'threads:list-reviews': async (_payload, ctx): Promise<ReviewSummary[]> =>
+    (await listManifests(ctx))
+      .sort(newestFirst)
+      .map(summarize),
+
+  /** Name the caller's open review (`null` clears it); the manifest takes it at publish. */
+  'threads:update-review': async (payload, ctx): Promise<Journal> => {
+    const caller = ctx.mode === 'serve' ? await resolveCaller(ctx, payload) : null;
+    const title = payload?.title;
+    if (title !== null && typeof title !== 'string') {
+      throw new ThreadsError('invalid', 'threads:update-review: title must be a string or null');
+    }
+    return getStore(ctx).setReview((caller ?? (await resolveCaller(ctx, payload))).key, {
+      title: title === null ? null : cleanTitle(title),
+    });
   },
 
   'threads:add-thread': async (payload, ctx): Promise<Thread> => {

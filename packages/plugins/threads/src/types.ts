@@ -16,6 +16,8 @@ export interface Thread {
   anchor?: { quote: string };
   /** Set by the overlay: this thread exists only in the caller's draft journal. */
   draft?: true;
+  /** Set on read: the anchor quote has no `==...=={id}` mark in the page body any more. */
+  orphaned?: true;
 }
 
 export interface Comment {
@@ -113,6 +115,8 @@ export interface Journal {
     id: string;
     /** ISO time of the last change to the journal: the auto-publish countdown runs from it. */
     updatedAt: string;
+    /** The commenter's name for the review; null means the manifest gets the default title. */
+    title: string | null;
   };
   ops: DraftOp[];
 }
@@ -123,6 +127,8 @@ export type DraftMode = 'auto' | 'collect';
 export interface WhoAmI {
   identity: Caller | null;
   journal: Journal | null;
+  /** Published threads started by the caller whose anchor text is gone from the page. */
+  orphanedMine: number;
 }
 
 /** A published op as a manifest records it: what a later reversal or listing needs. */
@@ -150,6 +156,17 @@ export interface ReviewManifest {
   skipped: Array<{ opId: string; reason: string }>;
   /** Ops discard could not reverse (target gone since the publish). */
   discardSkipped?: Array<{ opId: string; reason: string }>;
+}
+
+/** One review as `threads:list-reviews` returns it. */
+export interface ReviewSummary {
+  id: string;
+  authorKey: string;
+  authorName: string;
+  title: string;
+  publishedAt: string;
+  state: 'published' | 'discarded';
+  ops: Array<{ file: string; threadId: string; quote: string | null; pageTitle: string | null }>;
 }
 
 export interface PublishResult {

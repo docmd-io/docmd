@@ -1,10 +1,11 @@
 import { LitElement, html, nothing } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
 import * as api from '../lib/api';
 import { t } from '../lib/i18n';
 import { createPublishTimer } from '../lib/mode';
 import { createPublishController } from '../lib/publish-controller';
+import { ensureButtonStyles } from './button-style';
 import './threads-discard-review';
 import type { DiscardOutcome } from '../lib/discard-controller';
 
@@ -12,26 +13,22 @@ const STYLE_ID = 'tc-publish-widget-styles';
 
 const CSS = `
   threads-publish-widget {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 2200;
-    font-family: var(--docmd-font-family, inherit);
+    display: block;
+    flex: none;
+    font-family: var(--tc-font, var(--docmd-font-family, inherit));
     font-size: 13px;
   }
   .tpw {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    align-items: flex-end;
-    padding: 8px 10px;
-    border: 1px solid var(--sl-color-neutral-200, var(--docmd-border-color, currentColor));
-    border-radius: 10px;
-    background: var(--sl-color-neutral-0, var(--docmd-bg, canvas));
-    color: var(--sl-color-neutral-900, var(--docmd-text, canvastext));
-    box-shadow: var(--sl-shadow-large, none);
+    align-items: stretch;
+    padding: 10px 16px;
+    border-top: 1px solid var(--tc-border, var(--sl-color-neutral-200, currentColor));
+    background: var(--tc-bg, var(--sl-color-neutral-0, canvas));
+    color: var(--tc-fg, var(--sl-color-neutral-900, canvastext));
   }
-  .tpw__row { display: flex; align-items: center; gap: 8px; }
+  .tpw__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .tpw__pill {
     padding: 2px 8px;
     border-radius: 999px;
@@ -40,29 +37,8 @@ const CSS = `
     font-size: 12px;
   }
   .tpw__pill--auto { background: var(--sl-color-primary-100, transparent); color: var(--sl-color-primary-700, inherit); }
-  .tpw__btn {
-    border: 1px solid var(--sl-color-primary-600, currentColor);
-    background: var(--sl-color-primary-600, transparent);
-    color: var(--sl-color-neutral-0, inherit);
-    border-radius: 6px;
-    padding: 4px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
-  .tpw__btn:disabled { opacity: 0.5; cursor: default; }
-  .tpw__pp {
-    position: relative;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+  .tpw__btn { margin-left: auto; }
+  .tpw__pp { position: relative; flex: none; }
   .tpw__ring { position: absolute; inset: 0; transform: rotate(-90deg); }
   .tpw__ring circle { fill: none; stroke-width: 2; }
   .tpw__ring-track { stroke: var(--sl-color-neutral-200, currentColor); }
@@ -74,8 +50,21 @@ const CSS = `
   }
   @keyframes tpw-countdown { to { stroke-dashoffset: 75.4; } }
   .tpw__count { color: var(--sl-color-neutral-700, inherit); }
+  .tpw__title { display: flex; gap: 6px; }
+  .tpw__title-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--tc-input, var(--sl-color-neutral-300, currentColor));
+    border-radius: 6px;
+    padding: 4px 8px;
+  }
   .tpw__line { color: var(--sl-color-warning-700, inherit); font-size: 12px; }
   .tpw__line--error { color: var(--sl-color-danger-700, inherit); }
+  .tpw__line--orphan { color: var(--tc-muted-fg, inherit); }
 `;
 
 @customElement('threads-publish-widget')
@@ -110,6 +99,7 @@ export class ThreadsPublishWidget extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    ensureButtonStyles();
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -124,7 +114,58 @@ export class ThreadsPublishWidget extends LitElement {
     this.controller.stop();
   }
 
+  /** The title field's text; reset to the journal's when the open review or its saved title changes. */
+  @state() private draftTitle = '';
+  @state() private savingTitle = false;
+  @state() private titleError: string | null = null;
+  private titleSeen: { id: string | null; title: string | null } = { id: null, title: null };
+
+  /** Save the field as the open review's title (empty: the default one). The journal is re-read after, which restarts the countdown. */
+  private async saveTitle(e: Event): Promise<void> {
+    e.preventDefault();
+    if (this.savingTitle) return;
+    this.savingTitle = true;
+    this.titleError = null;
+    try {
+      await api.updateReview({ title: this.draftTitle.trim() || null });
+      await this.controller.refresh();
+    } catch (err) {
+      this.titleError = err instanceof api.ThreadsClientError ? err.text : t('saveFailed');
+    } finally {
+      this.savingTitle = false;
+    }
+  }
+
+  /** Keep what the user is typing; take the journal's title only when it or the review changed. */
+  override willUpdate(): void {
+    const { reviewId, reviewTitle } = this.controller.view();
+    if (this.titleSeen.id !== reviewId || this.titleSeen.title !== reviewTitle) {
+      this.titleSeen = { id: reviewId, title: reviewTitle };
+      this.draftTitle = reviewTitle ?? '';
+    }
+  }
+
+  private renderTitle() {
+    return html`
+      <form class="tpw__title" data-testid="tpw-title-form" @submit=${(e: Event) => void this.saveTitle(e)}>
+        <input class="tpw__title-input" data-testid="tpw-title" type="text" placeholder=${t('reviewTitle')}
+          aria-label=${t('reviewTitle')} .value=${this.draftTitle}
+          @input=${(e: Event) => { this.draftTitle = (e.target as HTMLInputElement).value; }} />
+        <button class="tc-btn" data-testid="tpw-title-save" type="submit" ?disabled=${this.savingTitle}>${t('save')}</button>
+      </form>
+      ${this.titleError ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-title-error">${this.titleError}</div>` : nothing}`;
+  }
+
+  /** The unpublished count last announced to the page. */
+  private announced: number | null = null;
+
   override updated(): void {
+    // The drawer's FAB and toggle strip show this count while the drawer is closed.
+    const count = this.controller.view().pendingCount;
+    if (count !== this.announced) {
+      this.announced = count;
+      this.dispatchEvent(new CustomEvent<{ count: number }>('unpublished-count-change', { bubbles: true, detail: { count } }));
+    }
     // The discard element left while its dialog was open (e.g. a failed refresh): no close event will come.
     // That is not a discard; the controller decides that from the journal itself.
     if (this.controller.isHeld() && !this.querySelector('threads-discard-review')) this.controller.release('kept');
@@ -144,7 +185,7 @@ export class ThreadsPublishWidget extends LitElement {
           ${auto ? html`<span class="tpw__pill tpw__pill--auto">${t('autoPublishing')}</span>` : nothing}
           <span class="tpw__count" data-testid="tpw-count">${s.label}</span>
           ${s.showPlayPause ? html`
-            <button class="tpw__pp" data-testid="tpw-playpause" data-mode=${mode} title=${t(s.playPauseAction)}
+            <button class="tc-btn tc-btn--icon tpw__pp" data-testid="tpw-playpause" data-mode=${mode} title=${t(s.playPauseAction)}
               aria-label=${t(s.playPauseAction)} @click=${() => void this.controller.toggleMode()}>
               <svg class="tpw__ring" viewBox="0 0 28 28" aria-hidden="true">
                 <circle class="tpw__ring-track" cx="14" cy="14" r="12"></circle>
@@ -154,12 +195,14 @@ export class ThreadsPublishWidget extends LitElement {
               </svg>
               <span aria-hidden="true">${s.playPauseAction === 'pause' ? '⏸' : '▶'}</span>
             </button>` : nothing}
-          <button class="tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
+          <button class="tc-btn tc-btn--primary tpw__btn" data-testid="tpw-publish" ?disabled=${s.publishDisabled} @click=${() => void this.controller.publish()}>${t('publish')}</button>
           ${reviewId && !s.publishDisabled ? html`
             <threads-discard-review @discard-dialog-change=${(e: CustomEvent<{ open: boolean; outcome: DiscardOutcome }>) =>
                 e.detail.open ? this.controller.hold() : this.controller.release(e.detail.outcome)} .reviewId=${reviewId} .label=${t('discardDrafts')}
               .confirmText=${t('discardDraftsConfirm').replace('{n}', String(pendingCount))}></threads-discard-review>` : nothing}
         </div>
+        ${reviewId && pendingCount > 0 ? this.renderTitle() : nothing}
+        ${s.orphanLine ? html`<div class="tpw__line tpw__line--orphan" data-testid="tpw-orphan">${s.orphanLine}</div>` : nothing}
         ${s.errorLine ? html`<div class="tpw__line tpw__line--error" data-testid="tpw-error">${s.errorLine}</div>` : nothing}
       </div>
     `;

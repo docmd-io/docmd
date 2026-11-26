@@ -11,7 +11,7 @@
  *    markup", "add-thread anchor does not match text inside the
  *    threads block", "delete-thread removes the highlight markup"   → moved to publish: tests/reviews.test.ts, "applyOps places marks…" and "applyOps removes…"
  *  - input validation, threads/<code> prefixes                      → kept
- *  - plugin surface                                                 → kept, plus the fourteen action names
+ *  - plugin surface                                                 → kept, plus the sixteen action names
  */
 import { test, mock, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -297,6 +297,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   const REFUSED: Array<[string, Record<string, unknown>]> = [
     ...MUTATIONS,
     ['threads:set-mode', { mode: 'collect' }],
+    ['threads:update-review', { title: 'x' }],
     ['threads:publish-review', {}],
     ['threads:discard-review', { reviewId: 'r-none' }],
     ['threads:upsert-author', { authorKey: 'zed', name: 'Zed' }],
@@ -308,7 +309,7 @@ test('serve without a trusted identity refuses every write, with or without auth
   // No identity, then an e-mail-shaped one: each is refused first, before the payload is read, and nothing is written.
   for (const [identity, code] of [[null, 'no-identity'], [EMAIL, 'email-identity']] as const) {
     for (const [name, payload] of REFUSED) {
-      const bare = name === 'threads:set-mode' || name === 'threads:discard-review' ? {} : payload; // no mode, no reviewId: the identity is still checked first
+      const bare = name === 'threads:set-mode' || name === 'threads:update-review' || name === 'threads:discard-review' ? {} : payload; // no mode, no reviewId: the identity is still checked first
       for (const sent of [as(ALICE, payload), { file: project.file, ...bare }]) {
         await assert.rejects(
           call(name, sent, { mode: 'serve', caller: { identity } }),
@@ -323,15 +324,17 @@ test('serve without a trusted identity refuses every write, with or without auth
   console.warn = warn;
   // Reads treat an e-mail-shaped identity as unidentified and never carry the address.
   const mail = { mode: 'serve', caller: { identity: EMAIL } } as const;
-  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null });
-  assert.ok(!JSON.stringify((await call('threads:get-authors', {}, mail)).result).includes(EMAIL), 'threads:get-authors');
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, mail)).result, { identity: null, journal: null, orphanedMine: 0 });
+  for (const name of ['threads:get-authors', 'threads:list-reviews']) {
+    assert.ok(!JSON.stringify((await call(name, {}, mail)).result).includes(EMAIL), name);
+  }
   const mailThreads = await getThreads({}, mail);
   assert.deepEqual(mailThreads.map((t) => t.id), ['t-thread1', 't-thread2', 't-thread3']);
   assert.ok(!JSON.stringify(mailThreads).includes(EMAIL));
   assert.deepEqual(snapshotTree(docsRoot), tree, 'e-mail reads changed nothing');
   const none = { mode: 'serve', caller: { identity: null } } as const;
   assert.deepEqual((await call<Record<string, unknown>>('threads:get-authors', {}, none)).result, {});
-  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null });
+  assert.deepEqual((await call<WhoAmI>('threads:whoami', {}, none)).result, { identity: null, journal: null, orphanedMine: 0 });
   for (const [name, payload] of MUTATIONS) {
     await call(name, as(ALICE, payload), { mode: 'dev', caller: { identity: null } });
   }
@@ -407,17 +410,17 @@ test('set-mode rejects any mode but auto and collect with threads/invalid and le
   }
 });
 
-test('whoami returns the caller\'s journal, or null without an identity, and nothing else', async () => {
+test('whoami returns the caller\'s journal, or null without an identity, and the orphan count, nothing else', async () => {
   await addThread();
   await addThread();
   await addThread(BOB);
   const mine = await whoami(ALICE);
-  assert.deepEqual(Object.keys(mine), ['identity', 'journal']);
+  assert.deepEqual(Object.keys(mine), ['identity', 'journal', 'orphanedMine']);
   assert.deepEqual(mine.identity, { key: 'alice', name: 'Alice', avatarUrl: '', source: 'payload', isAdmin: false });
   assert.equal(mine.journal?.ops.length, 2);
   assert.equal((await whoami(BOB)).journal?.ops.length, 1);
-  assert.deepEqual(await whoami({}), { identity: null, journal: null });
-  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null });
+  assert.deepEqual(await whoami({}), { identity: null, journal: null, orphanedMine: 0 });
+  assert.deepEqual(await whoami({ author: '  ' }), { identity: null, journal: null, orphanedMine: 0 });
 });
 
 test('whoami in the window after a publish whose journal reset failed leaves out the ops it published', async () => {
@@ -446,7 +449,7 @@ test('serve: set-mode needs a trusted identity and keys on it; whoami follows; d
     (e: unknown) => e instanceof ThreadsError && e.code === 'no-identity',
   );
   assert.equal(fs.existsSync(path.join(docsRoot, '.threads', 'drafts')), false, 'nothing was written');
-  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null });
+  assert.deepEqual(await whoami(ALICE, serve(null)), { identity: null, journal: null, orphanedMine: 0 });
 
   const set = await setMode({ author: 'Mallory', authorKey: 'bob', mode: 'collect' }, serve('alice'));
   assert.equal(set.mode, 'collect');
@@ -515,9 +518,9 @@ test('plugin surface: descriptor, hooks and action names', () => {
   assert.equal(typeof plugin.actions, 'object');
   assert.deepEqual(Object.keys(plugin.actions).sort(), [
     'threads:add-comment', 'threads:add-thread', 'threads:delete-comment', 'threads:delete-thread',
-    'threads:discard-review', 'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:publish-review',
-    'threads:resolve-thread', 'threads:set-mode',
-    'threads:toggle-reaction', 'threads:upsert-author', 'threads:whoami',
+    'threads:discard-review', 'threads:edit-comment', 'threads:get-authors', 'threads:get-threads', 'threads:list-reviews',
+    'threads:publish-review', 'threads:resolve-thread', 'threads:set-mode',
+    'threads:toggle-reaction', 'threads:update-review', 'threads:upsert-author', 'threads:whoami',
   ]);
   const assets = plugin.getAssets();
   const scripts = plugin.generateScripts({ src: path.join(project.root, 'docs') }, { sidebar: true });

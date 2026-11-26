@@ -62,6 +62,17 @@ const defaults: Record<string, string> = {
   discardDrafts: 'Discard',
   discardDraftsConfirm: 'Discard your unpublished comments ({n})? This cannot be undone.',
   discardFailed: 'Could not discard',
+  orphaned: 'Orphaned',
+  lostAnchor: '{n} of your comments lost its anchor',
+  lostAnchorPlural: '{n} of your comments lost their anchor',
+  reviews: 'Reviews',
+  discard: 'Discard',
+  discardConfirm: 'Discard this review? Its comments are removed from the pages.',
+  discarded: 'Discarded',
+  published: 'Published',
+  noReviews: 'No reviews yet.',
+  reviewTitle: 'Review title',
+  saveFailed: 'Could not save the review',
 };
 
 /**
